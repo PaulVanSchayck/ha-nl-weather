@@ -1,0 +1,12 @@
+{
+  "domain": "knmi_direct",
+  "name": "KNMI Direct",
+  "config_flow": true,
+  "codeowners": [
+    "@PaulVanSchayck"
+  ],
+  "documentation": "https://www.home-assistant.io/integrations/knmi_direct",
+  "iot_class": "cloud_push",
+  "version": "0.1.0",
+   "requirements": ["aiomqtt==2.4.0"]
+}
