@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 import aiomqtt
 from aiomqtt import ProtocolVersion, MqttError
+from paho.mqtt import properties
 
 from homeassistant.util.ssl import get_default_context
 
@@ -14,18 +15,23 @@ _LOGGER = logging.getLogger(__name__)
 BROKER_DOMAIN = "mqtt.dataplatform.knmi.nl"
 CLIENT_ID = str(uuid.uuid4())
 TOPIC = "dataplatform/file/v1/10-minute-in-situ-meteorological-observations/1.0/#"
-PROTOCOL = ProtocolVersion.V5
+
 
 class NotificationService:
-    _client: aiomqtt.Client
     _task: asyncio.Task
     _callback = None
 
     def __init__(self, token: str):
-        tls_context = get_default_context()
-        self._client = aiomqtt.Client(BROKER_DOMAIN, username="token", password=token, clean_start=True,
-                                      protocol=PROTOCOL, transport="websockets", port=443, identifier=CLIENT_ID,
-                                      tls_context=tls_context)
+        self._tls_context = get_default_context()
+        self._token = token
+
+    def _setup_client(self) -> aiomqtt.Client:
+        # TODO: Not reusing the client object. Reusing the client object would not work during reconnect
+        connect_properties = properties.Properties(properties.PacketTypes.CONNECT)
+        return aiomqtt.Client(BROKER_DOMAIN, username="token", password=self._token,
+              protocol=ProtocolVersion.V5, transport="websockets", port=443, identifier=CLIENT_ID,
+              tls_context=self._tls_context, properties=connect_properties
+      )
 
     def set_callback(self, callback):
         self._callback = callback
@@ -33,7 +39,7 @@ class NotificationService:
     async def run(self):
         while True:
             try:
-                async with self._client as c:
+                async with self._setup_client() as c:
                     await c.subscribe(TOPIC)
                     _LOGGER.debug("Waiting for messages")
                     async for message in c.messages:
@@ -41,8 +47,7 @@ class NotificationService:
             except MqttError as e:
                 _LOGGER.debug(f"MQTT Error: {e}")
                 # TODO: Build in exponential backoff
-                await asyncio.sleep(10)
-                continue
+                await asyncio.sleep(30)
             except Exception:
                 _LOGGER.exception("Exception in NotificationService:")
                 raise
@@ -61,7 +66,7 @@ class NotificationService:
 
     async def test_connection(self):
         try:
-            async with self._client as c:
+            async with self._setup_client() as c:
                 await c.subscribe(TOPIC)
         except aiomqtt.exceptions.MqttConnectError as e:
             if e.rc == 135:
