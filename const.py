@@ -27,16 +27,15 @@ CONF_EDR_API_TOKEN: Final = "edr_api_token"
 CONF_MQTT_TOKEN: Final = "mqtt_token"
 
 CONDITION_CLASSES: dict[str, list[int]] = {
-    ATTR_CONDITION_CLOUDY: [], # TODO: Take cloud coverage in account
-    ATTR_CONDITION_FOG: [10, 20, 30, 32, 33, 34, 35],
+    ATTR_CONDITION_CLOUDY: [1, 2, 3, 10],
+    ATTR_CONDITION_FOG: [20, 30, 32, 33, 34, 35], # TODO: Consider visibility range?
     ATTR_CONDITION_HAIL: [21, 22, 89],
     ATTR_CONDITION_LIGHTNING: [12, 90, 91, 94, ],
     ATTR_CONDITION_LIGHTNING_RAINY: [26, 92, 93, 95, 96],
-    ATTR_CONDITION_PARTLYCLOUDY: [1, 2, 3],
-    ATTR_CONDITION_POURING: [18, 42],
-    ATTR_CONDITION_RAINY: [21, 22, 23, 40, 41, 50, 50.5, 51, 52, 53, 54, 55, 56, 57, 58, 60, 60.5, 61, 62, 63, 64, 65, 66,
-                           80, 81, 82, 83, 84, 85, 86, 87, 88],
-    ATTR_CONDITION_SNOWY: [24, 70, 70.5, 71, 72, 73, 74, 75, 76, 77, 78],
+    ATTR_CONDITION_POURING: [18, 42, 63, 66, 83, 84],
+    ATTR_CONDITION_RAINY: [21, 22, 23, 40, 41, 50, 50.5, 51, 52, 53, 54, 55, 56, 57, 58, 60, 60.5, 61, 62, 64, 65,
+                           80, 81, 82, 84],
+    ATTR_CONDITION_SNOWY: [24, 70, 70.5, 71, 72, 73, 74, 75, 76, 77, 78, 85, 86, 87],
     ATTR_CONDITION_SNOWY_RAINY: [25, 67, 68],
     ATTR_CONDITION_SUNNY: [0],
     ATTR_CONDITION_WINDY: [], # TODO: Take wind in account

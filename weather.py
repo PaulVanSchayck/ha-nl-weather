@@ -10,7 +10,7 @@ from typing import cast, Any
 from homeassistant.components.weather import WeatherEntity, ATTR_CONDITION_SUNNY, ATTR_CONDITION_CLEAR_NIGHT, \
     ATTR_WEATHER_HUMIDITY, ATTR_WEATHER_WIND_SPEED, ATTR_WEATHER_CLOUD_COVERAGE, ATTR_WEATHER_TEMPERATURE, \
     ATTR_WEATHER_VISIBILITY, ATTR_WEATHER_WIND_GUST_SPEED, ATTR_WEATHER_WIND_BEARING, ATTR_WEATHER_DEW_POINT, \
-    ATTR_WEATHER_PRESSURE
+    ATTR_WEATHER_PRESSURE, ATTR_CONDITION_CLOUDY, ATTR_CONDITION_PARTLYCLOUDY
 from homeassistant.const import UnitOfSpeed, UnitOfTemperature, UnitOfLength
 from homeassistant.helpers import sun
 from homeassistant.helpers.device_registry import DeviceInfo, DeviceEntryType
@@ -85,6 +85,12 @@ class KNMIDirectWeather(WeatherEntity):
         except KeyError:
             _LOGGER.exception("Unknown condition")
             condition =  ATTR_CONDITION_SUNNY
+
+        if condition == ATTR_CONDITION_CLOUDY:
+            if self.cloud_coverage <= 75:
+                condition = ATTR_CONDITION_PARTLYCLOUDY
+            if self.cloud_coverage <= 25:
+                condition = ATTR_CONDITION_SUNNY
 
         if condition == ATTR_CONDITION_SUNNY and not sun.is_up(self.hass):
             condition = ATTR_CONDITION_CLEAR_NIGHT
