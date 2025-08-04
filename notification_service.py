@@ -48,9 +48,9 @@ class NotificationService:
                 _LOGGER.debug(f"MQTT Error: {e}")
                 # TODO: Build in exponential backoff
                 await asyncio.sleep(30)
-            except Exception:
-                _LOGGER.exception("Exception in NotificationService:")
-                raise
+            except Exception as e:
+                _LOGGER.error(f"Exception in NotificationService: '{e}'. Restarting...")
+                await asyncio.sleep(30)
 
     async def handle_message(self, message):
         event = json.loads(message.payload)

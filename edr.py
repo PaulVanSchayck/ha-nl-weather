@@ -61,7 +61,7 @@ class EDR:
                 if e.status == 400:
                     raise InvalidRequest(json.loads(body)) from None
                 if e.status == 404:
-                    raise NotFoundError() from None
+                    raise NotFoundError("No data found for query") from None
                 elif e.status == 403:
                     # TODO: Also handle quota exceeded
                     raise TokenInvalid(json.loads(body)) from None
