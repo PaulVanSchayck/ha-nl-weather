@@ -12,18 +12,21 @@ import logging
 from .const import CONF_MQTT_TOKEN, CONF_EDR_API_TOKEN
 from .notification_service import NotificationService
 from .edr import EDR
+from .wms import WMS
 
-_PLATFORMS: list[Platform] = [Platform.WEATHER]
+_PLATFORMS: list[Platform] = [Platform.WEATHER, Platform.CAMERA]
 _LOGGER = logging.getLogger(__name__)
 
 @dataclass
 class RuntimeData:
     """Class to hold your data."""
     notification_service: NotificationService
+    wms: WMS
     edr: EDR
 
 type KNMIDirectConfigEntry = ConfigEntry[RuntimeData]  # noqa: F821
 
+WMS_TOKEN = ""
 
 async def async_setup_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -> bool:
     """Set up KNMI Direct from a config entry."""
@@ -34,7 +37,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -
 
     entry.runtime_data = RuntimeData(
         notification_service= ns,
-        edr=EDR(async_get_clientsession(hass), entry.data[CONF_EDR_API_TOKEN])
+        edr=EDR(async_get_clientsession(hass), entry.data[CONF_EDR_API_TOKEN]),
+        wms=WMS(async_get_clientsession(hass), WMS_TOKEN)
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, _PLATFORMS)

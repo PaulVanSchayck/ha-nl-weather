@@ -145,7 +145,10 @@ class KNMIDirectWeather(WeatherEntity):
             return datetime(year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc)
         return datetime.fromisoformat(self._latest_coverage['domain']['axes']['t']['values'][0])
 
-    async def get_coverage_datetime(self, event_datetime: datetime) -> None:
+    async def get_coverage_datetime(self, event) -> None:
+        event_datetime = datetime.strptime(event["data"]["filename"], "KMDS__OPER_P___10M_OBS_L2_%Y%m%d%H%M.nc").replace(
+            tzinfo=timezone.utc)
+
         # TODO: Also consider distance to station when to refetch
         if event_datetime <= self.get_latest_coverage_datetime():
             return
@@ -163,7 +166,7 @@ class KNMIDirectWeather(WeatherEntity):
         _LOGGER.warning(f"Could not retrieve latest coverage at {event_datetime} after 3 attempts")
 
     async def async_added_to_hass(self):
-        self._ns.set_callback(self.get_coverage_datetime)
+        self._ns.set_callback('10-minute-in-situ-meteorological-observations', self.get_coverage_datetime)
 
         # Attempt to get some initial data
         try:
