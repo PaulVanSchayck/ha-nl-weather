@@ -15,10 +15,10 @@ PARAMS = {
     'STYLES': 'rainrate-blue-to-purple/nearest',
     'TRANSPARENT': 'TRUE',
     'LAYERS': 'precipitation_nowcast',
-    'WIDTH': 910, # TODO: This should not be hardcoded here
-    'HEIGHT': 889,
+    'WIDTH': 1205, # TODO: This should not be hardcoded here
+    'HEIGHT': 1205,
     'CRS': 'EPSG:4326',
-    'BBOX': '50.0,0.0,55.0,8.0' # TODO: This should not be hardcoded here
+    'BBOX': '49.2,0.0,55.0,9.46' # TODO: This should not be hardcoded here
 
 }
 
@@ -54,7 +54,7 @@ class WMS:
                     raise ServerError(f"Status code: {e.status}") from None
                 raise
 
-            return Image.open(buffer, formats=["PNG"]).convert("RGBA")
+        return buffer
 
 class NotFoundError(Exception):
     """Exception class for no result found"""

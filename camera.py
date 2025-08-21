@@ -52,6 +52,9 @@ class PrecipitationRadarCam(Camera):
     _last_modified: datetime | None = None
     _loading = False
 
+    # TODO: Check this
+    _attr_frame_interval: float = 10.0
+
     def __init__(
         self, ns, wms
     ) -> None:
@@ -62,16 +65,11 @@ class PrecipitationRadarCam(Camera):
         super().__init__()
 
         # Condition that guards the loading indicator.
-        #
         # Ensures that only one reader can cause an http request at the same
         # time, and that all readers are notified after this request completes.
-        #
-        # invariant: this condition is private to and owned by this instance.
         self._condition = asyncio.Condition()
 
-        # TODO: Improve
-        self._attr_unique_id = f"radar_foobar"
-
+        self._attr_unique_id = f"knmi_direct_radar"
         self._ns = ns
         self._wms = wms
 
@@ -91,21 +89,29 @@ class PrecipitationRadarCam(Camera):
         """Retrieve new radar image and return whether this succeeded."""
         time = ref_time
         images = list()
+        fetch = list()
 
+        async def fetch_with_time(r, t):
+            return t, await self._wms.get(r, t)
+
+        # Fetch all images in parallel
         while time <= ref_time + timedelta(minutes=120):
-            radar_im = await self._wms.get(ref_time, time)
-            bg_im = Image.open(self._background_image, formats=["PNG"]).convert("RGBA")
-            bg_im.paste(radar_im, (0, 0), radar_im)
-            draw = ImageDraw.Draw(bg_im)
-            draw.text((28, 28), dt_util.as_local(time).strftime("%a %H:%M"), fill=(255, 255, 255), font_size=45, stroke_width=0.8)
-            images.append(bg_im)
+            fetch.append(fetch_with_time(ref_time, time))
+            time += timedelta(minutes=10)
+        radar_images = await asyncio.gather(*fetch)
 
-            time += timedelta(minutes=5)
+        for time, buf in radar_images:
+            img = Image.open(buf, formats=["PNG"]).convert("RGBA")
+            bg_im = Image.open(self._background_image, formats=["PNG"]).convert("RGBA")
+            bg_im.paste(img, (0, 0), img)
+            draw = ImageDraw.Draw(bg_im)
+            draw.text((28, 28), dt_util.as_local(time).strftime("%a %H:%M"), fill=(48, 48, 48), font_size=45, stroke_width=0.8)
+            images.append(bg_im)
 
         _LOGGER.info("Setting image")
 
         im = io.BytesIO()
-        images[0].save(im, format='GIF', save_all=True, append_images=images[1:], optimize=True, duration=500, loop=0,
+        images[0].save(im, format='GIF', save_all=True, append_images=images[1:], optimize=True, duration=400, loop=0,
                        disposal=0)
         self._last_image = im.getvalue()
 
