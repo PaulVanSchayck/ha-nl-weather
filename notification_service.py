@@ -78,8 +78,11 @@ class NotificationService:
                 await c.subscribe(TOPICS[0])
         except aiomqtt.exceptions.MqttConnectError as e:
             if e.rc == 135:
-                raise Exception("Invalid token")
+                raise TokenInvalid
         except Exception:
             _LOGGER.exception("Exception occurred")
             return False
         return True
+
+class TokenInvalid(Exception):
+    """Exception class when token is not accepted"""

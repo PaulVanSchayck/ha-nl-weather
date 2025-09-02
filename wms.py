@@ -7,7 +7,6 @@ from PIL import Image
 
 BASE_URL = f"https://api.dataplatform.knmi.nl/wms/adaguc-server"
 PARAMS = {
-    'DATASET': "radar_forecast_2.0",
     'SERVICE': "WMS",
     'REQUEST': "GetMap",
     'VERSION': "1.3.0",
@@ -19,7 +18,6 @@ PARAMS = {
     'HEIGHT': 1205,
     'CRS': 'EPSG:4326',
     'BBOX': '49.2,0.0,55.0,9.46' # TODO: This should not be hardcoded here
-
 }
 
 _LOGGER = logging.getLogger(__name__)
@@ -31,12 +29,10 @@ class WMS:
         self._session = aiohttp_session
         self._token = token
 
-    async def get(self, ref_time, time):
-        PARAMS['DIM_REFERENCE_TIME'] = ref_time.isoformat()
-        PARAMS['TIME'] = time.isoformat()
+    async def get(self, params):
         headers = {"Authorization": self._token}
-        _LOGGER.debug(f"Calling WMS endpoint  with {PARAMS}")
-        async with self._session.get(f"{BASE_URL}", headers=headers, params=PARAMS) as resp:
+        _LOGGER.debug(f"Calling WMS endpoint  with {params}")
+        async with self._session.get(f"{BASE_URL}", headers=headers, params=params) as resp:
             _LOGGER.debug(resp.url)
             buffer = io.BytesIO(await resp.read())
             _LOGGER.debug(f"Response from WMS endpoint: {resp.status}")
@@ -55,6 +51,12 @@ class WMS:
                 raise
 
         return buffer
+
+    async def radar_forecast_image(self, ref_time, time):
+        PARAMS['DIM_REFERENCE_TIME'] = ref_time.isoformat()
+        PARAMS['TIME'] = time.isoformat()
+        PARAMS['DATASET'] = "radar_forecast_2.0"
+        return await self.get(PARAMS)
 
 class NotFoundError(Exception):
     """Exception class for no result found"""

@@ -1,17 +1,22 @@
+import binascii
+import json
 import logging
+from base64 import b64decode
 from typing import Any
 
 import voluptuous as vol
 
 from homeassistant import config_entries, exceptions
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import TextSelector, TextSelectorType, TextSelectorConfig
-from . import EDR
+from . import EDR, WMS
 
-from .const import DOMAIN, CONF_EDR_API_TOKEN, CONF_MQTT_TOKEN
+from .const import DOMAIN, CONF_EDR_API_TOKEN, CONF_MQTT_TOKEN, CONF_WMS_TOKEN
 from .edr import TokenInvalid
-from .notification_service import NotificationService
+from .wms import TokenInvalid as WMSTokenInvalid # TODO: Fix this
+from .notification_service import NotificationService, TokenInvalid as NSTokenInvalid
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -19,41 +24,49 @@ DATA_SCHEMA = vol.Schema({
     vol.Required(CONF_EDR_API_TOKEN, msg="EDR API Token"): TextSelector(
         TextSelectorConfig(type=TextSelectorType.TEXT)
     ),
+    vol.Required(CONF_WMS_TOKEN, msg="Web Map Service (WMS) Token"): TextSelector(
+        TextSelectorConfig(type=TextSelectorType.TEXT)
+    ),
     vol.Required(CONF_MQTT_TOKEN, msg="Notification Service (MQTT) Token"): TextSelector(
         TextSelectorConfig(type=TextSelectorType.TEXT)
     ),
 })
 
+def validate_token(token):
+    try:
+        json.loads(b64decode(token, validate=True))
+    except (binascii.Error, json.JSONDecodeError, UnicodeDecodeError):
+        raise IncorrectToken
 
-async def validate_input(hass: HomeAssistant, data: dict) -> dict[str, Any]:
-    """Validate the user input allows us to connect.
-    Data has the keys from DATA_SCHEMA with values provided by the user.
-    """
-    # Validate the data can be used to set up a connection.
 
-    if len(data[CONF_MQTT_TOKEN]) < 15:
-        # TODO: Try base64 decode
-        raise InvalidTokenMQTT
-
-    ns = NotificationService(data[CONF_MQTT_TOKEN])
-
-    result = await ns.test_connection()
-    if not result:
-        raise CannotConnectMQTT
-
-    if len(data[CONF_EDR_API_TOKEN]) < 15:
-        # TODO: Try base64 decode
-        raise InvalidTokenEDR
-
+async def validate_edr_input(hass: HomeAssistant, data: dict):
+    validate_token(data[CONF_EDR_API_TOKEN])
     edr = EDR(async_get_clientsession(hass), data[CONF_EDR_API_TOKEN])
 
     try:
         await edr.metadata()
     except TokenInvalid:
-        raise CannotConnectEDR
+        raise CannotConnect
 
-    return {"title": "knmi_direct"}
 
+async def validate_wms_input(hass: HomeAssistant, data: dict):
+    validate_token(data[CONF_WMS_TOKEN])
+    wms = WMS(async_get_clientsession(hass), data[CONF_WMS_TOKEN])
+
+    try:
+        await wms.get({})
+    except WMSTokenInvalid:
+        raise CannotConnect
+
+
+async def validate_mqtt_input(hass: HomeAssistant, data: dict):
+    validate_token(data[CONF_MQTT_TOKEN])
+    ns = NotificationService(data[CONF_MQTT_TOKEN])
+
+    try:
+        await ns.test_connection()
+    except NSTokenInvalid:
+        raise CannotConnect
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
@@ -65,36 +78,37 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
         if user_input is not None:
             try:
-                info = await validate_input(self.hass, user_input)
-
-                return self.async_create_entry(title=info["title"], data=user_input)
-            except CannotConnectEDR:
+                await validate_edr_input(self.hass, user_input)
+            except CannotConnect:
                 errors[CONF_EDR_API_TOKEN] = "cannot_connect"
-            except InvalidTokenEDR:
+            except IncorrectToken:
                 errors[CONF_EDR_API_TOKEN] = "invalid"
-            except CannotConnectMQTT:
+
+            try:
+                await validate_wms_input(self.hass, user_input)
+            except CannotConnect:
+                errors[CONF_WMS_TOKEN] = "cannot_connect"
+            except IncorrectToken:
+                errors[CONF_WMS_TOKEN] = "invalid"
+
+            try:
+                await validate_mqtt_input(self.hass, user_input)
+            except CannotConnect:
                 errors[CONF_MQTT_TOKEN] = "cannot_connect"
-            except InvalidTokenMQTT:
+            except IncorrectToken:
                 errors[CONF_MQTT_TOKEN] = "invalid"
-            except Exception:  # pylint: disable=broad-except
-                _LOGGER.exception("Unexpected exception")
-                errors["base"] = "unknown"
 
-        # If there is no user input or there were errors, show the form again, including any errors that were found with the input.
-        return self.async_show_form(
-            step_id="user", data_schema=DATA_SCHEMA, errors=errors
-        )
+        if not errors and user_input is not None:
+            return self.async_create_entry(title="NL Weather at Home", data=user_input)
+        else:
+            return self.async_show_form(
+                step_id="user", data_schema=DATA_SCHEMA, errors=errors
+            )
 
 
-class CannotConnectEDR(exceptions.HomeAssistantError):
+class IncorrectToken(HomeAssistantError):
+    """Error to indicate the token is not a valid base64 encoded string."""
+
+class CannotConnect(HomeAssistantError):
     """Error to indicate we cannot connect."""
 
-
-class InvalidTokenEDR(exceptions.HomeAssistantError):
-    """Error to indicate there is an invalid token."""
-
-class CannotConnectMQTT(exceptions.HomeAssistantError):
-    """Error to indicate we cannot connect."""
-
-class InvalidTokenMQTT(exceptions.HomeAssistantError):
-    """Error to indicate there is an invalid token."""

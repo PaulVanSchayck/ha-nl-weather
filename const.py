@@ -24,6 +24,7 @@ from homeassistant.components.weather import (
 DOMAIN = "knmi_direct"
 
 CONF_EDR_API_TOKEN: Final = "edr_api_token"
+CONF_WMS_TOKEN: Final = "wms_token"
 CONF_MQTT_TOKEN: Final = "mqtt_token"
 
 CONDITION_CLASSES: dict[str, list[int]] = {

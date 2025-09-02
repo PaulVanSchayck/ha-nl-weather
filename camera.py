@@ -8,10 +8,8 @@ import os
 from datetime import datetime, timedelta, timezone
 import logging
 from math import floor
-from typing import BinaryIO
-
-import voluptuous as vol
 from PIL import Image, ImageDraw
+from PIL.ImageFile import ImageFile
 
 from homeassistant.components.camera import Camera
 from homeassistant.core import HomeAssistant
@@ -21,9 +19,6 @@ from homeassistant.util import dt as dt_util
 from . import KNMIDirectConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
-
-# Maximum range according to docs
-DIM_RANGE = vol.All(vol.Coerce(int), vol.Range(min=120, max=700))
 
 
 async def async_setup_entry(
@@ -46,14 +41,11 @@ class PrecipitationRadarCam(Camera):
     """
 
     _attr_name = "KNMI"
-    _background_image: BinaryIO
+    _background_image: ImageFile
     _last_image: bytes | None = None
     _last_image_dt: datetime | None = None
     _last_modified: datetime | None = None
     _loading = False
-
-    # TODO: Check this
-    _attr_frame_interval: float = 10.0
 
     def __init__(
         self, ns, wms
@@ -77,7 +69,7 @@ class PrecipitationRadarCam(Camera):
     def _load_background(self):
         filename = os.path.join(os.path.dirname(__file__), "background.png")
         with open(filename, 'rb') as f:
-            self._background_image = io.BytesIO(f.read())
+            self._background_image = Image.open(f, formats=["PNG"]).convert("RGBA")
 
     def __needs_refresh(self) -> bool:
         if self._last_modified is None or self._last_image_dt is None :
@@ -92,7 +84,7 @@ class PrecipitationRadarCam(Camera):
         fetch = list()
 
         async def fetch_with_time(r, t):
-            return t, await self._wms.get(r, t)
+            return t, await self._wms.radar_forecast_image(r, t)
 
         # Fetch all images in parallel
         while time <= ref_time + timedelta(minutes=120):
@@ -100,18 +92,18 @@ class PrecipitationRadarCam(Camera):
             time += timedelta(minutes=10)
         radar_images = await asyncio.gather(*fetch)
 
+        _LOGGER.debug("Done retrieving radar images, now converting to gif")
+
         for time, buf in radar_images:
             img = Image.open(buf, formats=["PNG"]).convert("RGBA")
-            bg_im = Image.open(self._background_image, formats=["PNG"]).convert("RGBA")
-            bg_im.paste(img, (0, 0), img)
-            draw = ImageDraw.Draw(bg_im)
+            draw = ImageDraw.Draw(img)
             draw.text((28, 28), dt_util.as_local(time).strftime("%a %H:%M"), fill=(48, 48, 48), font_size=45, stroke_width=0.8)
-            images.append(bg_im)
+            images.append(Image.composite(img, self._background_image, img))
 
-        _LOGGER.info("Setting image")
+        _LOGGER.debug("Setting image")
 
         im = io.BytesIO()
-        images[0].save(im, format='GIF', save_all=True, append_images=images[1:], optimize=True, duration=400, loop=0,
+        images[0].save(im, format='GIF', save_all=True, append_images=images[1:], optimize=False, duration=400, loop=0,
                        disposal=0)
         self._last_image = im.getvalue()
 
