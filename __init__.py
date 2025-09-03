@@ -2,11 +2,12 @@
 
 from dataclasses import dataclass
 
+import aiohttp
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.aiohttp_client import async_get_clientsession, async_create_clientsession
 import logging
 
 from .const import CONF_MQTT_TOKEN, CONF_EDR_API_TOKEN, CONF_WMS_TOKEN
@@ -26,7 +27,6 @@ class RuntimeData:
 
 type KNMIDirectConfigEntry = ConfigEntry[RuntimeData]  # noqa: F821
 
-
 async def async_setup_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -> bool:
     """Set up KNMI Direct from a config entry."""
     _LOGGER.debug("async_setup_entry")
@@ -34,10 +34,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -
     ns = NotificationService(entry.data[CONF_MQTT_TOKEN])
     entry.async_create_background_task(hass, ns.run(), "NotificationService")
 
+    session = async_get_clientsession(hass)
+
     entry.runtime_data = RuntimeData(
         notification_service= ns,
-        edr=EDR(async_get_clientsession(hass), entry.data[CONF_EDR_API_TOKEN]),
-        wms=WMS(async_get_clientsession(hass), entry.data[CONF_WMS_TOKEN])
+        edr=EDR(session, entry.data[CONF_EDR_API_TOKEN]),
+        wms=WMS(session, entry.data[CONF_WMS_TOKEN])
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, _PLATFORMS)

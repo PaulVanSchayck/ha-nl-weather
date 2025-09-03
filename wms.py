@@ -1,23 +1,18 @@
+import asyncio
 import io
 import json
 import logging
 
 import aiohttp
-from PIL import Image
 
 BASE_URL = f"https://api.dataplatform.knmi.nl/wms/adaguc-server"
-PARAMS = {
+BASE_PARAMS = {
     'SERVICE': "WMS",
     'REQUEST': "GetMap",
     'VERSION': "1.3.0",
     'FORMAT': 'image/png',
-    'STYLES': 'rainrate-blue-to-purple/nearest',
     'TRANSPARENT': 'TRUE',
-    'LAYERS': 'precipitation_nowcast',
-    'WIDTH': 1205, # TODO: This should not be hardcoded here
-    'HEIGHT': 1205,
     'CRS': 'EPSG:4326',
-    'BBOX': '49.2,0.0,55.0,9.46' # TODO: This should not be hardcoded here
 }
 
 _LOGGER = logging.getLogger(__name__)
@@ -28,35 +23,54 @@ class WMS:
     def __init__(self, aiohttp_session, token):
         self._session = aiohttp_session
         self._token = token
+        # This limits the amount of simultaneous requests
+        self._semaphore = asyncio.Semaphore(5)
 
     async def get(self, params):
         headers = {"Authorization": self._token}
-        _LOGGER.debug(f"Calling WMS endpoint  with {params}")
-        async with self._session.get(f"{BASE_URL}", headers=headers, params=params) as resp:
-            _LOGGER.debug(resp.url)
-            buffer = io.BytesIO(await resp.read())
-            _LOGGER.debug(f"Response from WMS endpoint: {resp.status}")
-            try:
-                resp.raise_for_status()
-            except aiohttp.ClientResponseError as e:
-                if e.status == 400:
-                    raise InvalidRequest(json.load(buffer)) from None
-                if e.status == 404:
-                    raise NotFoundError("No data found for query") from None
-                elif e.status == 403:
-                    # TODO: Also handle quota exceeded
-                    raise TokenInvalid(json.load(buffer)) from None
-                elif e.status >= 500:
-                    raise ServerError(f"Status code: {e.status}") from None
-                raise
+        async with self._semaphore:
+            async with self._session.get(f"{BASE_URL}", headers=headers, params=params) as resp:
+                _LOGGER.debug(f"Called WMS endpoint (status: {resp.status}): {resp.url}")
+                buffer = io.BytesIO(await resp.read())
+                try:
+                    resp.raise_for_status()
+                except aiohttp.ClientResponseError as e:
+                    if e.status == 400:
+                        raise InvalidRequest(json.load(buffer)) from None
+                    if e.status == 404:
+                        raise NotFoundError("No data found for query") from None
+                    elif e.status == 403:
+                        # TODO: Also handle quota exceeded
+                        raise TokenInvalid(json.load(buffer)) from None
+                    elif e.status >= 500:
+                        raise ServerError(f"Status code: {e.status}") from None
+                    raise
+                    # TODO: Handle 429 errors
 
         return buffer
 
-    async def radar_forecast_image(self, ref_time, time):
-        PARAMS['DIM_REFERENCE_TIME'] = ref_time.isoformat()
-        PARAMS['TIME'] = time.isoformat()
-        PARAMS['DATASET'] = "radar_forecast_2.0"
-        return await self.get(PARAMS)
+    async def radar_real_time_image(self, time, size, bbox):
+        params = BASE_PARAMS.copy()
+        params['TIME'] = time.isoformat()
+        params['DATASET'] = "nl_rdr_data_rtcor_5m"
+        params['LAYERS'] = "precipitation_real_time"
+        params['STYLES'] = "rainrate-blue-to-purple/nearest"
+        params['WIDTH'] = size[0]
+        params['HEIGHT'] = size[1]
+        params['BBOX'] = bbox
+        return await self.get(params)
+
+    async def radar_forecast_image(self, ref_time, time, size, bbox):
+        params = BASE_PARAMS.copy()
+        params['DIM_REFERENCE_TIME'] = ref_time.isoformat()
+        params['TIME'] = time.isoformat()
+        params['DATASET'] = "radar_forecast_2.0"
+        params['LAYERS'] = "precipitation_nowcast"
+        params['STYLES'] = "rainrate-blue-to-purple/nearest"
+        params['WIDTH'] = size[0]
+        params['HEIGHT'] = size[1]
+        params['BBOX'] = bbox
+        return await self.get(params)
 
 class NotFoundError(Exception):
     """Exception class for no result found"""
