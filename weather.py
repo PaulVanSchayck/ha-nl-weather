@@ -10,14 +10,15 @@ from typing import cast, Any
 from homeassistant.components.weather import WeatherEntity, ATTR_CONDITION_SUNNY, ATTR_CONDITION_CLEAR_NIGHT, \
     ATTR_WEATHER_HUMIDITY, ATTR_WEATHER_WIND_SPEED, ATTR_WEATHER_CLOUD_COVERAGE, ATTR_WEATHER_TEMPERATURE, \
     ATTR_WEATHER_VISIBILITY, ATTR_WEATHER_WIND_GUST_SPEED, ATTR_WEATHER_WIND_BEARING, ATTR_WEATHER_DEW_POINT, \
-    ATTR_WEATHER_PRESSURE, ATTR_CONDITION_CLOUDY, ATTR_CONDITION_PARTLYCLOUDY
+    ATTR_WEATHER_PRESSURE, ATTR_CONDITION_CLOUDY, ATTR_CONDITION_PARTLYCLOUDY, Forecast, WeatherEntityFeature
 from homeassistant.const import UnitOfSpeed, UnitOfTemperature, UnitOfLength
 from homeassistant.helpers import sun
 from homeassistant.helpers.device_registry import DeviceInfo, DeviceEntryType
 from . import KNMIDirectConfigEntry
+from .app import App
 from .notification_service import NotificationService
 from .edr import EDR, NotFoundError, ServerError
-from .const import DOMAIN, CONDITION_MAP, PARAMETER_ATTRIBUTE_MAP, ATTR_WEATHER_CONDITION
+from .const import DOMAIN, CONDITION_MAP, PARAMETER_ATTRIBUTE_MAP, ATTR_WEATHER_CONDITION, CONDITION_FORECAST_MAP
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -33,11 +34,12 @@ async def async_setup_entry(
 ) -> None:
     ns = config_entry.runtime_data.notification_service
     edr = config_entry.runtime_data.edr
+    app = config_entry.runtime_data.app
     location = {
         "lat": hass.config.latitude,
         "lon": hass.config.longitude,
     }
-    async_add_entities([KNMIDirectWeather(config_entry, ns, edr, location)])
+    async_add_entities([KNMIDirectWeather(config_entry, ns, edr, app, location)])
 
 class KNMIDirectWeather(WeatherEntity):
     should_poll = False
@@ -46,10 +48,14 @@ class KNMIDirectWeather(WeatherEntity):
     )
     _attr_has_entity_name = True
     _latest_coverage = None
+    _attr_supported_features = (
+        WeatherEntityFeature.FORECAST_DAILY | WeatherEntityFeature.FORECAST_HOURLY
+    )
 
-    def __init__(self, config_entry: KNMIDirectConfigEntry, ns: NotificationService, edr: EDR, location) -> None:
+    def __init__(self, config_entry: KNMIDirectConfigEntry, ns: NotificationService, edr: EDR, app: App, location) -> None:
         self._ns = ns
         self._edr = edr
+        self._app = app
         self._location = location
         self._attr_unique_id = "foobar"
         self._attr_device_info = DeviceInfo(
@@ -66,6 +72,7 @@ class KNMIDirectWeather(WeatherEntity):
         self._attr_native_wind_speed_unit = UnitOfSpeed.METERS_PER_SECOND
         self._attr_native_temperature_unit = UnitOfTemperature.CELSIUS
         self._attr_native_visibility_unit = UnitOfLength.KILOMETERS
+
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
@@ -164,6 +171,41 @@ class KNMIDirectWeather(WeatherEntity):
                 _LOGGER.debug(f"Retrying fetching EDR coverage due to error: {e}")
                 continue
         _LOGGER.warning(f"Could not retrieve latest coverage at {event_datetime} after 3 attempts")
+
+    async def async_forecast_hourly(self) -> list[Forecast] | None:
+        """Return the hourly forecast in native units."""
+        # TODO: Fix getting location and region
+        # TODO: Cache results
+        weather = await self._app.weather("614", "0")
+
+        forecasts = list()
+        for h in weather['hourly']['forecast']:
+            f: Forecast = {
+                'datetime': h['dateTime'],
+                'condition': CONDITION_FORECAST_MAP[h['weatherType']], # TODO: Handle exceptions
+                'native_temperature': h['temperature'],
+            }
+            forecasts.append(f)
+
+        return forecasts
+
+    async def async_forecast_daily(self) -> list[Forecast] | None:
+        """Return the hourly forecast in native units."""
+        # TODO: Fix getting location and region
+        # TODO: Cache results
+        weather = await self._app.weather("614", "0")
+
+        forecasts = list()
+        for h in weather['daily']['forecast']:
+            f: Forecast = {
+                'datetime': h['date'],
+                'condition': CONDITION_FORECAST_MAP[h['weatherType']], # TODO: Handle exceptions
+                'native_temperature': h['temperature']['max'],
+                'native_templow': h['temperature']['min'],
+            }
+            forecasts.append(f)
+
+        return forecasts
 
     async def async_added_to_hass(self):
         self._ns.set_callback('10-minute-in-situ-meteorological-observations', self.get_coverage_datetime)

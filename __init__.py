@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession, async_create_clientsession
 import logging
 
+from .app import App
 from .const import CONF_MQTT_TOKEN, CONF_EDR_API_TOKEN, CONF_WMS_TOKEN
 from .notification_service import NotificationService
 from .edr import EDR
@@ -24,6 +25,7 @@ class RuntimeData:
     notification_service: NotificationService
     wms: WMS
     edr: EDR
+    app: App
 
 type KNMIDirectConfigEntry = ConfigEntry[RuntimeData]  # noqa: F821
 
@@ -39,7 +41,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -
     entry.runtime_data = RuntimeData(
         notification_service= ns,
         edr=EDR(session, entry.data[CONF_EDR_API_TOKEN]),
-        wms=WMS(session, entry.data[CONF_WMS_TOKEN])
+        wms=WMS(session, entry.data[CONF_WMS_TOKEN]),
+        app=App(session)
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, _PLATFORMS)
