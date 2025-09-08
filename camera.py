@@ -89,7 +89,7 @@ class PrecipitationRadarCam(Camera):
 
         # Fetch images from previous hour
         time = ref_time - timedelta(minutes=60)
-        while time <= ref_time:
+        while time < ref_time:
             fetch.append(fetch_realtime_with_time(time))
             time += timedelta(minutes=10)
         time = ref_time
@@ -116,10 +116,10 @@ class PrecipitationRadarCam(Camera):
             images.append(Image.composite(img, self._background_image, img))
             _LOGGER.debug("Composite")
 
-        im = io.BytesIO()
-        images[0].save(im, format='GIF', save_all=True, append_images=images[1:], optimize=False, duration=300, loop=1,
-                       disposal=0)
-        self._last_image = im.getvalue()
+        with io.BytesIO() as output:
+            images[0].save(output, format='GIF', save_all=True, append_images=images[1:], optimize=False, duration=300,
+                           loop=1, disposal=2)
+            self._last_image = output.getvalue()
 
         _LOGGER.debug("Setting image")
 
