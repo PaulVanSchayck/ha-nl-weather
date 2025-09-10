@@ -14,6 +14,7 @@ from homeassistant.components.weather import WeatherEntity, ATTR_CONDITION_SUNNY
 from homeassistant.const import UnitOfSpeed, UnitOfTemperature, UnitOfLength
 from homeassistant.helpers import sun
 from homeassistant.helpers.device_registry import DeviceInfo, DeviceEntryType
+from homeassistant.util import utcnow
 from . import KNMIDirectConfigEntry
 from .app import App
 from .notification_service import NotificationService
@@ -51,6 +52,9 @@ class KNMIDirectWeather(WeatherEntity):
     _attr_supported_features = (
         WeatherEntityFeature.FORECAST_DAILY | WeatherEntityFeature.FORECAST_HOURLY
     )
+    _hourly_forecast: list[Forecast] = []
+    _daily_forecast: list[Forecast] = []
+    _forecast_location_id = None
 
     def __init__(self, config_entry: KNMIDirectConfigEntry, ns: NotificationService, edr: EDR, app: App, location) -> None:
         self._ns = ns
@@ -172,49 +176,68 @@ class KNMIDirectWeather(WeatherEntity):
                 continue
         _LOGGER.warning(f"Could not retrieve latest coverage at {event_datetime} after 3 attempts")
 
-    async def async_forecast_hourly(self) -> list[Forecast] | None:
-        """Return the hourly forecast in native units."""
-        # TODO: Fix getting location and region
-        # TODO: Cache results
-        weather = await self._app.weather("614", "0")
+    async def get_forecast(self, event = None) -> None:
+        # TODO: Fix getting/setting region
+        weather = await self._app.weather(self._forecast_location_id, "0")
 
-        forecasts = list()
-        for h in weather['hourly']['forecast']:
-            f: Forecast = {
+        self._hourly_forecast = self.calc_hourly_forecast(weather['hourly']['forecast'])
+        self._daily_forecast = self.calc_daily_forecast(weather['daily']['forecast'])
+        self.async_write_ha_state()
+
+    @staticmethod
+    def calc_hourly_forecast(forecast) -> list[Forecast]:
+        return [
+            cast(Forecast, {
                 'datetime': h['dateTime'],
                 'condition': CONDITION_FORECAST_MAP[h['weatherType']], # TODO: Handle exceptions
                 'native_temperature': h['temperature'],
-            }
-            forecasts.append(f)
+                'native_precipitation': h['precipitation']['amount'],
+                'precipitation_probability': h['precipitation']['chance'],
+                'native_wind_speed': h['wind']['speed'],
+                'native_wind_gust_speed': h['wind']['gusts'],
+                'wind_bearing': h['wind']['degree']
+            }) for h in forecast if datetime.fromisoformat(h['dateTime']).hour >= utcnow().hour
+        ]
 
-        return forecasts
+    @staticmethod
+    def calc_daily_forecast(forecast) -> list[Forecast]:
+        return [
+            cast(Forecast, {
+                'datetime': h['date'],
+                'condition': CONDITION_FORECAST_MAP[h['weatherType']],  # TODO: Handle exceptions
+                'native_temperature': h['temperature']['max'],
+                'native_templow': h['temperature']['min'],
+                'native_precipitation': h['precipitation']['amount'],
+                'precipitation_probability': h['precipitation']['chance']
+             }) for h in forecast
+        ]
+
+    async def async_forecast_hourly(self) -> list[Forecast] | None:
+        """Return the hourly forecast in native units."""
+        return self._hourly_forecast
 
     async def async_forecast_daily(self) -> list[Forecast] | None:
         """Return the hourly forecast in native units."""
-        # TODO: Fix getting location and region
-        # TODO: Cache results
-        weather = await self._app.weather("614", "0")
-
-        forecasts = list()
-        for h in weather['daily']['forecast']:
-            f: Forecast = {
-                'datetime': h['date'],
-                'condition': CONDITION_FORECAST_MAP[h['weatherType']], # TODO: Handle exceptions
-                'native_temperature': h['temperature']['max'],
-                'native_templow': h['temperature']['min'],
-            }
-            forecasts.append(f)
-
-        return forecasts
+        return self._daily_forecast
 
     async def async_added_to_hass(self):
         self._ns.set_callback('10-minute-in-situ-meteorological-observations', self.get_coverage_datetime)
+        self._ns.set_callback('harmonie_arome_cy43_p1', self.get_forecast)
 
-        # Attempt to get some initial data
+        # Get some initial observation data
         try:
             self._latest_coverage = await self._edr.get_latest_closest_coverage(self._location, PARAMETER_ATTRIBUTE_MAP.values())
             self.async_write_ha_state()
         except (NotFoundError, ServerError):
             _LOGGER.warning(f"Could not retrieve initial coverage")
             return
+
+        # Calculate forecast location ID
+        await self.hass.async_add_executor_job(self._app.load_area_definition)
+        self._forecast_location_id = self._app.get_closest_location(self._location)
+
+        # Get some initial forecast data
+        # TODO: Error handling
+        await self.get_forecast()
+
         return

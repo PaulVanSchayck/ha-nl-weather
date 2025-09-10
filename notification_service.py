@@ -16,7 +16,8 @@ BROKER_DOMAIN = "mqtt.dataplatform.knmi.nl"
 CLIENT_ID = str(uuid.uuid4())
 TOPICS = [
     "dataplatform/file/v1/10-minute-in-situ-meteorological-observations/1.0/#",
-    "dataplatform/file/v1/radar_forecast/2.0/#"
+    "dataplatform/file/v1/radar_forecast/2.0/#",
+    "dataplatform/file/v1/harmonie_arome_cy43_p1/1.0/#"
 ]
 
 
@@ -29,7 +30,8 @@ class NotificationService:
         self._token = token
         self._callbacks = {
             '10-minute-in-situ-meteorological-observations': None,
-            'radar_forecast': None
+            'radar_forecast': None,
+            'harmonie_arome_cy43_p1': None
         }
 
     def _setup_client(self) -> aiomqtt.Client:
