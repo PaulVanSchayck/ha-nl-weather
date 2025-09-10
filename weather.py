@@ -191,12 +191,12 @@ class KNMIDirectWeather(WeatherEntity):
                 'datetime': h['dateTime'],
                 'condition': CONDITION_FORECAST_MAP[h['weatherType']], # TODO: Handle exceptions
                 'native_temperature': h['temperature'],
-                'native_precipitation': h['precipitation']['amount'],
-                'precipitation_probability': h['precipitation']['chance'],
-                'native_wind_speed': h['wind']['speed'],
-                'native_wind_gust_speed': h['wind']['gusts'],
+                'native_precipitation': h['precipitation']['amount'], 
+                'precipitation_probability': h['precipitation']['chance'] * 100,
+                'native_wind_speed': h['wind']['speed'] / 3.6, # TODO: Consider units
+                'native_wind_gust_speed': h['wind']['gusts'] / 3.6, # TODO: Consider units
                 'wind_bearing': h['wind']['degree']
-            }) for h in forecast if datetime.fromisoformat(h['dateTime']).hour >= utcnow().hour
+            }) for h in forecast if datetime.fromisoformat(h['dateTime']) >= utcnow().replace(minute=0, second=0)
         ]
 
     @staticmethod
@@ -208,7 +208,7 @@ class KNMIDirectWeather(WeatherEntity):
                 'native_temperature': h['temperature']['max'],
                 'native_templow': h['temperature']['min'],
                 'native_precipitation': h['precipitation']['amount'],
-                'precipitation_probability': h['precipitation']['chance']
+                'precipitation_probability': h['precipitation']['chance'] * 100
              }) for h in forecast
         ]
 
