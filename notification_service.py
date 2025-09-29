@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
 
 import aiomqtt
 from aiomqtt import ProtocolVersion, MqttError
@@ -17,7 +16,6 @@ CLIENT_ID = str(uuid.uuid4())
 TOPICS = [
     "dataplatform/file/v1/10-minute-in-situ-meteorological-observations/1.0/#",
     "dataplatform/file/v1/radar_forecast/2.0/#",
-    "dataplatform/file/v1/harmonie_arome_cy43_p1/1.0/#"
 ]
 
 
@@ -29,9 +27,9 @@ class NotificationService:
         self._tls_context = get_default_context()
         self._token = token
         self._callbacks = {
-            '10-minute-in-situ-meteorological-observations': None,
-            'radar_forecast': None,
-            'harmonie_arome_cy43_p1': None
+            '10-minute-in-situ-meteorological-observations': {},
+            'radar_forecast': {},
+            'harmonie_arome_cy43_p1': {}
         }
 
     def _setup_client(self) -> aiomqtt.Client:
@@ -42,8 +40,8 @@ class NotificationService:
               tls_context=self._tls_context, properties=connect_properties
       )
 
-    def set_callback(self, dataset, callback):
-        self._callbacks[dataset] = callback
+    def set_callback(self, dataset, identifier, callback):
+        self._callbacks[dataset][identifier] = callback
 
     async def run(self):
         while True:
@@ -68,7 +66,7 @@ class NotificationService:
         _LOGGER.debug(f"MQTT event: {event}")
 
         if self._callbacks[dataset] is not None:
-            await self._callbacks[dataset](event)
+            await asyncio.gather(*[c(event) for c in self._callbacks[dataset].values()])
 
     async def disconnect(self):
         _LOGGER.debug("Disconnected")

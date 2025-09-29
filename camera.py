@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import math
 import os
 from datetime import datetime, timedelta, timezone
 import logging
@@ -12,27 +13,29 @@ from PIL import Image, ImageDraw
 from PIL.ImageFile import ImageFile
 
 from homeassistant.components.camera import Camera
+from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo, DeviceEntryType
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from . import KNMIDirectConfigEntry
+from .const import DOMAIN
+from .wms import epsg4325_to_epsg3857
 
 _LOGGER = logging.getLogger(__name__)
 
 BACKGROUND_IMAGE_PATH = os.path.join(os.path.dirname(__file__), "background.png")
-BACKGROUND_IMAGE_BBOX = '49.2,0.0,55.0,9.46'
-
+# BBOX in EPSG:3857 (Web Mercator). This is (49.14, 0.0, 54,68, 8.98) in EPSG:4326
+BACKGROUND_IMAGE_BBOX = (0.0, 6300000, 1000000, 7300000)
+BACKGROUND_IMAGE_BBOX_PARAM = ','.join(map(str,BACKGROUND_IMAGE_BBOX))
 
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: KNMIDirectConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    ns = config_entry.runtime_data.notification_service
-    wms = config_entry.runtime_data.wms
-
-    async_add_entities([PrecipitationRadarCam(ns, wms)])
+    async_add_entities([PrecipitationRadarCam(config_entry)])
 
 
 class PrecipitationRadarCam(Camera):
@@ -43,15 +46,16 @@ class PrecipitationRadarCam(Camera):
     [0]: https://dataplatform.knmi.nl/dataset/radar-forecast-2-0
     """
 
-    _attr_name = "KNMI"
+    _attr_name = "Neerslag Radar"
     _background_image: ImageFile
     _last_image: bytes | None = None
     _last_image_dt: datetime | None = None
     _last_modified: datetime | None = None
     _loading = False
+    _locations = []
 
     def __init__(
-        self, ns, wms
+        self, config_entry: KNMIDirectConfigEntry
     ) -> None:
         super().__init__()
 
@@ -60,15 +64,45 @@ class PrecipitationRadarCam(Camera):
         # time, and that all readers are notified after this request completes.
         self._condition = asyncio.Condition()
 
-        self._attr_unique_id = f"knmi_direct_radar"
-        self._ns = ns
-        self._wms = wms
+        self._attr_unique_id = f"{config_entry.entry_id}_precipitation_radar"
 
+        self._attr_device_info = DeviceInfo(
+            name="Precipitation Radar",
+            entry_type=DeviceEntryType.SERVICE,
+            identifiers={(DOMAIN, f"{config_entry.entry_id}_precipitation_radar")},
+            manufacturer="KNMI.nl",
+            model="Precipitation Radar",
+            configuration_url="https://www.knmi.nl",
+        )
+
+        self._ns = config_entry.runtime_data.notification_service
+        self._wms = config_entry.runtime_data.wms
+
+        for subentry in config_entry.subentries.values():
+            # TODO: Make configurable
+            # TODO: Deal with adding/removing location
+            self._locations.append({
+                'lat': subentry.data[CONF_LATITUDE],
+                'lon': subentry.data[CONF_LONGITUDE]
+            })
 
     def _load_background(self):
         with open(BACKGROUND_IMAGE_PATH, 'rb') as f:
-            self._background_image = Image.open(f, formats=["PNG"]).convert("RGBA")
-            # TODO: Draw dot on home position
+            img = Image.open(f, formats=["PNG"]).convert("RGBA")
+            draw = ImageDraw.Draw(img)
+
+            for location in self._locations:
+                # Convert from lat lon in degrees to x y in meters
+                x, y = epsg4325_to_epsg3857(location['lon'], location['lat'])
+                # Calculate position on image.
+                y_img = (img.size[0] / (BACKGROUND_IMAGE_BBOX[3] - BACKGROUND_IMAGE_BBOX[1]) * (y - BACKGROUND_IMAGE_BBOX[1]))
+                x_img = img.size[1] / (BACKGROUND_IMAGE_BBOX[2] - BACKGROUND_IMAGE_BBOX[0]) * (x - BACKGROUND_IMAGE_BBOX[0])
+                # Image is downwards from y so flip
+                y_img = img.size[0] - y_img
+
+                draw.circle((x_img, y_img), 10, None, 'red', width=2)
+
+        self._background_image = img
 
     def __needs_refresh(self) -> bool:
         if self._last_modified is None or self._last_image_dt is None :
@@ -82,10 +116,10 @@ class PrecipitationRadarCam(Camera):
         fetch = list()
 
         async def fetch_forecast_with_time(r, t):
-            return t, await self._wms.radar_forecast_image(r, t, self._background_image.size, BACKGROUND_IMAGE_BBOX)
+            return t, await self._wms.radar_forecast_image(r, t, self._background_image.size, BACKGROUND_IMAGE_BBOX_PARAM)
 
         async def fetch_realtime_with_time(t):
-            return t, await self._wms.radar_real_time_image(t, self._background_image.size, BACKGROUND_IMAGE_BBOX)
+            return t, await self._wms.radar_real_time_image(t, self._background_image.size, BACKGROUND_IMAGE_BBOX_PARAM)
 
         # Fetch images from previous hour
         time = ref_time - timedelta(minutes=60)
@@ -170,7 +204,7 @@ class PrecipitationRadarCam(Camera):
                                                 "RAD_NL25_RAC_FM_%Y%m%d%H%M.h5").replace(tzinfo=timezone.utc)
 
     async def async_added_to_hass(self):
-        self._ns.set_callback('radar_forecast', self._set_latest)
+        self._ns.set_callback('radar_forecast', self._attr_unique_id, self._set_latest)
 
         # TODO: Best place to do this?
         await self.hass.async_add_executor_job(self._load_background)

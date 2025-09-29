@@ -1,4 +1,5 @@
-"""Constants for the KNMI Direct integration."""
+"""Constants for the NL Weather integration."""
+from datetime import timedelta
 from typing import Final
 
 from homeassistant.components.weather import (
@@ -21,7 +22,7 @@ from homeassistant.components.weather import (
     ATTR_WEATHER_WIND_SPEED, ATTR_WEATHER_CLOUD_COVERAGE,
 )
 
-DOMAIN = "knmi_direct"
+DOMAIN = "nl_weather"
 
 CONF_EDR_API_TOKEN: Final = "edr_api_token"
 CONF_WMS_TOKEN: Final = "wms_token"
@@ -60,10 +61,31 @@ PARAMETER_ATTRIBUTE_MAP = {
     ATTR_WEATHER_WIND_BEARING: 'dd',
     ATTR_WEATHER_WIND_GUST_SPEED: 'gff',
     ATTR_WEATHER_WIND_SPEED: 'ff',
-    ATTR_WEATHER_CLOUD_COVERAGE: 'n',
+    ATTR_WEATHER_CLOUD_COVERAGE: 'n1',
     ATTR_WEATHER_CONDITION: 'ww'
 
 }
+
+# Based on https://gitlab.com/KNMI-OSS/KNMI-App/knmi-app-android/-/blob/main/app/src/main/assets/alert_regions_simplified.geojson
+ALERT_REGIONS = {
+    "1": 'Drenthe',
+    "2": 'Flevoland',
+    "3": 'Friesland',
+    "4": 'Gelderland',
+    "5": 'Groningen',
+    "6": 'IJsselmeergebied',
+    "7": 'Limburg',
+    "8": 'Noord-Brabant',
+    "9": 'Noord-Holland',
+    "10": 'Overijssel',
+    "11": 'Utrecht',
+    "12": 'Waddeneilanden',
+    "13": 'Waddenzee', # TODO: GeoJSON says IJsselmeer
+    "14": 'Zeeland',
+    "15": 'Zuid-Holland'
+}
+
+APP_API_SCAN_INTERVAL = timedelta(minutes=15)
 
 # Based on https://gitlab.com/KNMI-OSS/KNMI-App/knmi-app-api/-/blob/main/app/helpers/weather.ts
 CONDITION_FORECAST_CLASSES = {

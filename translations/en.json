@@ -10,11 +10,24 @@
         },
         "step": {
             "user": {
+                "title": "Connect to KNMI Data Plaform APIs",
+                "description": "Sign up at https://developer.dataplatform.knmi.nl/ \n You'll need to requests keys for the following 3 APIs.",
                 "data": {
                     "edr_api_token": "EDR API Token",
                     "mqtt_token": "Notification Service (MQTT) Token",
                     "wms_token": "Web Map Service (WMS) Token"
                 }
+            },
+            "finish": {
+                "title": "Setup Complete",
+                "description": "Setup complete! 🎉\n\nTo start receiving weather observations and forecasts, add a location:\n**Settings → Devices & services → NL Weather → Add location**"
+            }
+        }
+    },
+    "config_subentries": {
+        "location": {
+            "initiate_flow": {
+                "user": "Add location"
             }
         }
     }

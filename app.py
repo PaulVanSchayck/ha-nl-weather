@@ -10,6 +10,7 @@ AREA_DEFINITION_PATH = os.path.join(os.path.dirname(__file__), "area_definition-
 
 _LOGGER = logging.getLogger(__name__)
 
+# TODO: Get this from one utils directory
 def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Calculate the Haversine distance between two points on the Earth specified in decimal degrees."""
     R = 6371.0

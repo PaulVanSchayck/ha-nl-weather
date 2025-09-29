@@ -11,72 +11,70 @@ from homeassistant.components.weather import WeatherEntity, ATTR_CONDITION_SUNNY
     ATTR_WEATHER_HUMIDITY, ATTR_WEATHER_WIND_SPEED, ATTR_WEATHER_CLOUD_COVERAGE, ATTR_WEATHER_TEMPERATURE, \
     ATTR_WEATHER_VISIBILITY, ATTR_WEATHER_WIND_GUST_SPEED, ATTR_WEATHER_WIND_BEARING, ATTR_WEATHER_DEW_POINT, \
     ATTR_WEATHER_PRESSURE, ATTR_CONDITION_CLOUDY, ATTR_CONDITION_PARTLYCLOUDY, Forecast, WeatherEntityFeature
-from homeassistant.const import UnitOfSpeed, UnitOfTemperature, UnitOfLength
+from homeassistant.config_entries import ConfigSubentry
+from homeassistant.const import UnitOfSpeed, UnitOfTemperature, UnitOfLength, CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME
 from homeassistant.helpers import sun
 from homeassistant.helpers.device_registry import DeviceInfo, DeviceEntryType
-from homeassistant.util import utcnow
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from . import KNMIDirectConfigEntry
-from .app import App
-from .notification_service import NotificationService
-from .edr import EDR, NotFoundError, ServerError
+from .coordinator import NLWeatherUpdateCoordinator
+from .edr import NotFoundError, ServerError
 from .const import DOMAIN, CONDITION_MAP, PARAMETER_ATTRIBUTE_MAP, ATTR_WEATHER_CONDITION, CONDITION_FORECAST_MAP
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 _LOGGER = logging.getLogger(__name__)
-
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: KNMIDirectConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    ns = config_entry.runtime_data.notification_service
-    edr = config_entry.runtime_data.edr
-    app = config_entry.runtime_data.app
-    location = {
-        "lat": hass.config.latitude,
-        "lon": hass.config.longitude,
-    }
-    async_add_entities([KNMIDirectWeather(config_entry, ns, edr, app, location)])
+    for subentry_id, subentry in config_entry.subentries.items():
 
-class KNMIDirectWeather(WeatherEntity):
-    should_poll = False
+        coordinator = config_entry.runtime_data.coordinators[subentry_id]
+
+        # TODO: Make these entities configurable
+        async_add_entities(
+            [
+                NLWeatherForecast(coordinator, config_entry, subentry),
+                NLWeatherObservations(config_entry, subentry)
+
+            ], config_subentry_id=subentry_id
+        )
+
+class NLWeatherObservations(WeatherEntity):
+    # should_poll = False
     _attr_attribution = (
-        "CC-BY 4.0 KNMI"
+        "Meteorological observations provided by Koninklijk Nederlands Meteorologisch Instituut (KNMI) licensed under CC-BY 4.0"
     )
     _attr_has_entity_name = True
     _latest_coverage = None
-    _attr_supported_features = (
-        WeatherEntityFeature.FORECAST_DAILY | WeatherEntityFeature.FORECAST_HOURLY
-    )
-    _hourly_forecast: list[Forecast] = []
-    _daily_forecast: list[Forecast] = []
-    _forecast_location_id = None
 
-    def __init__(self, config_entry: KNMIDirectConfigEntry, ns: NotificationService, edr: EDR, app: App, location) -> None:
-        self._ns = ns
-        self._edr = edr
-        self._app = app
-        self._location = location
-        self._attr_unique_id = "foobar"
+    def __init__(self, config_entry: KNMIDirectConfigEntry, subentry: ConfigSubentry) -> None:
+        self._ns = config_entry.runtime_data.notification_service
+        self._edr = config_entry.runtime_data.edr
+        self._location = {
+            'lat': subentry.data[CONF_LATITUDE],
+            'lon': subentry.data[CONF_LONGITUDE]
+        }
+        self._attr_unique_id = f"{config_entry.entry_id}_{subentry.subentry_id}_observations"
         self._attr_device_info = DeviceInfo(
-            name="KNMI",
+            name=f"Observations",
             entry_type=DeviceEntryType.SERVICE,
-            identifiers={(DOMAIN, config_entry.entry_id)},
+            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}_observations")},
             manufacturer="KNMI.nl",
-            model="Meteorologische Waarnemingen",
+            model="Observations",
             configuration_url="https://www.knmi.nl",
         )
-        self._attr_name = "Thuis"
+        self._attr_name = subentry.data[CONF_NAME]
 
         # Units
         self._attr_native_wind_speed_unit = UnitOfSpeed.METERS_PER_SECOND
         self._attr_native_temperature_unit = UnitOfTemperature.CELSIUS
         self._attr_native_visibility_unit = UnitOfLength.KILOMETERS
-
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
@@ -114,7 +112,6 @@ class KNMIDirectWeather(WeatherEntity):
 
     @property
     def cloud_coverage(self) -> float | None:
-        # TODO: Check and explain calculation
         return self.get_latest_range_value(ATTR_WEATHER_CLOUD_COVERAGE)/8*100
 
     @property
@@ -176,31 +173,90 @@ class KNMIDirectWeather(WeatherEntity):
                 continue
         _LOGGER.warning(f"Could not retrieve latest coverage at {event_datetime} after 3 attempts")
 
-    async def get_forecast(self, event = None) -> None:
-        # TODO: Fix getting/setting region
-        weather = await self._app.weather(self._forecast_location_id, "0")
+    async def async_added_to_hass(self):
+        self._ns.set_callback('10-minute-in-situ-meteorological-observations', self._attr_unique_id, self.get_coverage_datetime)
 
-        self._hourly_forecast = self.calc_hourly_forecast(weather['hourly']['forecast'])
-        self._daily_forecast = self.calc_daily_forecast(weather['daily']['forecast'])
-        self.async_write_ha_state()
+        # Get some initial observation data
+        try:
+            self._latest_coverage = await self._edr.get_latest_closest_coverage(self._location, PARAMETER_ATTRIBUTE_MAP.values())
+            self.async_write_ha_state()
+        except (NotFoundError, ServerError):
+            _LOGGER.warning(f"Could not retrieve initial coverage")
 
-    @staticmethod
-    def calc_hourly_forecast(forecast) -> list[Forecast]:
+
+class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEntity):
+    _attr_should_poll = False
+    _attr_attribution = (
+        "Forecast data provided by Koninklijk Nederlands Meteorologisch Instituut (KNMI) licensed under CC-BY 4.0"
+    )
+    _attr_has_entity_name = True
+    _attr_supported_features = (
+        WeatherEntityFeature.FORECAST_DAILY | WeatherEntityFeature.FORECAST_HOURLY
+    )
+    _hourly_forecast: list[Forecast] = []
+    _daily_forecast: list[Forecast] = []
+
+    def __init__(self, coordinator, config_entry: KNMIDirectConfigEntry, subentry: ConfigSubentry) -> None:
+        super().__init__(coordinator)
+
+        self._location = {
+            'lat': subentry.data[CONF_LATITUDE],
+            'lon': subentry.data[CONF_LONGITUDE]
+        }
+        self._attr_unique_id = f"{config_entry.entry_id}_{subentry.subentry_id}_forecast"
+        self._attr_device_info = DeviceInfo(
+            name=f"Forecast",
+            entry_type=DeviceEntryType.SERVICE,
+            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}_forecast")},
+            manufacturer="KNMI.nl",
+            model="Forecast",
+            configuration_url="https://www.knmi.nl",
+        )
+        self._attr_name = subentry.data[CONF_NAME]
+
+        # Units
+        self._attr_native_wind_speed_unit = UnitOfSpeed.KILOMETERS_PER_HOUR
+        self._attr_native_temperature_unit = UnitOfTemperature.CELSIUS
+        self._attr_native_visibility_unit = UnitOfLength.KILOMETERS
+
+    @property
+    def condition(self) -> str | None:
+        # TODO: Handle exceptions
+        return CONDITION_FORECAST_MAP[self.coordinator.data['hourly']['forecast'][0]['weatherType']]
+
+    @property
+    def native_temperature(self) -> float:
+        return self.coordinator.data['hourly']['forecast'][0]['temperature']
+
+    @property
+    def native_wind_speed(self) -> float | None:
+        return self.coordinator.data['hourly']['forecast'][0]['wind']['speed']
+
+    @property
+    def native_wind_gust_speed(self) -> float | None:
+        return self.coordinator.data['hourly']['forecast'][0]['wind']['gusts']
+
+    @property
+    def wind_bearing(self) -> float | str | None:
+        return self.coordinator.data['hourly']['forecast'][0]['wind']['degree']
+
+    async def async_forecast_hourly(self) -> list[Forecast] | None:
+        """Return the hourly forecast in native units."""
         return [
             cast(Forecast, {
                 'datetime': h['dateTime'],
-                'condition': CONDITION_FORECAST_MAP[h['weatherType']], # TODO: Handle exceptions
+                'condition': CONDITION_FORECAST_MAP[h['weatherType']],  # TODO: Handle exceptions
                 'native_temperature': h['temperature'],
-                'native_precipitation': h['precipitation']['amount'], 
+                'native_precipitation': h['precipitation']['amount'],
                 'precipitation_probability': h['precipitation']['chance'] * 100,
-                'native_wind_speed': h['wind']['speed'] / 3.6, # TODO: Consider units
-                'native_wind_gust_speed': h['wind']['gusts'] / 3.6, # TODO: Consider units
+                'native_wind_speed': h['wind']['speed'],
+                'native_wind_gust_speed': h['wind']['gusts'],
                 'wind_bearing': h['wind']['degree']
-            }) for h in forecast if datetime.fromisoformat(h['dateTime']) >= utcnow().replace(minute=0, second=0)
+            }) for h in self.coordinator.data['hourly']['forecast']
         ]
 
-    @staticmethod
-    def calc_daily_forecast(forecast) -> list[Forecast]:
+    async def async_forecast_daily(self) -> list[Forecast] | None:
+        """Return the hourly forecast in native units."""
         return [
             cast(Forecast, {
                 'datetime': h['date'],
@@ -209,35 +265,6 @@ class KNMIDirectWeather(WeatherEntity):
                 'native_templow': h['temperature']['min'],
                 'native_precipitation': h['precipitation']['amount'],
                 'precipitation_probability': h['precipitation']['chance'] * 100
-             }) for h in forecast
+            }) for h in self.coordinator.data['daily']['forecast']
         ]
 
-    async def async_forecast_hourly(self) -> list[Forecast] | None:
-        """Return the hourly forecast in native units."""
-        return self._hourly_forecast
-
-    async def async_forecast_daily(self) -> list[Forecast] | None:
-        """Return the hourly forecast in native units."""
-        return self._daily_forecast
-
-    async def async_added_to_hass(self):
-        self._ns.set_callback('10-minute-in-situ-meteorological-observations', self.get_coverage_datetime)
-        self._ns.set_callback('harmonie_arome_cy43_p1', self.get_forecast)
-
-        # Get some initial observation data
-        try:
-            self._latest_coverage = await self._edr.get_latest_closest_coverage(self._location, PARAMETER_ATTRIBUTE_MAP.values())
-            self.async_write_ha_state()
-        except (NotFoundError, ServerError):
-            _LOGGER.warning(f"Could not retrieve initial coverage")
-            return
-
-        # Calculate forecast location ID
-        await self.hass.async_add_executor_job(self._app.load_area_definition)
-        self._forecast_location_id = self._app.get_closest_location(self._location)
-
-        # Get some initial forecast data
-        # TODO: Error handling
-        await self.get_forecast()
-
-        return

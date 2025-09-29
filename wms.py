@@ -1,7 +1,7 @@
 import asyncio
 import io
-import json
 import logging
+import math
 
 import aiohttp
 
@@ -12,10 +12,21 @@ BASE_PARAMS = {
     'VERSION': "1.3.0",
     'FORMAT': 'image/png',
     'TRANSPARENT': 'TRUE',
-    'CRS': 'EPSG:4326',
+    'CRS': 'EPSG:3857',
 }
 
 _LOGGER = logging.getLogger(__name__)
+
+R = 6378137.0  # EPSG:3857 radius
+
+def epsg4325_to_epsg3857(lon, lat):
+    """Convert lon/lat (deg) to EPSG:3857 meters (x, y)."""
+    # clamp latitude to valid Web Mercator range to avoid math domain errors
+    lat = max(min(lat, 85.05112878), -85.05112878)
+    x = R * math.radians(lon)
+    y = R * math.log(math.tan(math.pi/4.0 + math.radians(lat)/2.0))
+    return x, y
+
 
 class WMS:
     _session: aiohttp.ClientSession
@@ -31,23 +42,26 @@ class WMS:
         async with self._semaphore:
             async with self._session.get(f"{BASE_URL}", headers=headers, params=params) as resp:
                 _LOGGER.debug(f"Called WMS endpoint (status: {resp.status}): {resp.url}")
-                buffer = io.BytesIO(await resp.read())
-                try:
-                    resp.raise_for_status()
-                except aiohttp.ClientResponseError as e:
-                    if e.status == 400:
-                        raise InvalidRequest(json.load(buffer)) from None
-                    if e.status == 404:
-                        raise NotFoundError("No data found for query") from None
-                    elif e.status == 403:
-                        # TODO: Also handle quota exceeded
-                        raise TokenInvalid(json.load(buffer)) from None
-                    elif e.status >= 500:
-                        raise ServerError(f"Status code: {e.status}") from None
-                    raise
-                    # TODO: Handle 429 errors
+                if resp.status == 400:
+                    raise InvalidRequest(await resp.json()) from None
+                if resp.status == 404:
+                    raise NotFoundError("No data found for query") from None
+                elif resp.status == 403:
+                    # TODO: Also handle quota exceeded
+                    raise TokenInvalid(await resp.json()) from None
+                elif resp.status == 429:
+                    raise RateLimitExceeded() from None
+                elif resp.status >= 500:
+                    raise ServerError(f"Status code: {resp.status}") from None
 
-        return buffer
+                buffer = io.BytesIO(await resp.read())
+
+                # TODO: Not sure this check works
+                if b"ADAGUC Server:" in buffer.readline():
+                    raise InvalidRequest(buffer.read().decode("UTF-8")) from None
+                buffer.seek(0)
+
+                return buffer
 
     async def radar_real_time_image(self, time, size, bbox):
         params = BASE_PARAMS.copy()
@@ -83,3 +97,6 @@ class ServerError(Exception):
 
 class InvalidRequest(Exception):
     """Exception class for invalid request"""
+
+class RateLimitExceeded(Exception):
+    """Exception class for rate limit exceeded"""

@@ -1,22 +1,21 @@
-"""The KNMI Direct integration."""
+"""The NL Weather integration."""
 
 from dataclasses import dataclass
-
-import aiohttp
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession, async_create_clientsession
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import logging
 
 from .app import App
-from .const import CONF_MQTT_TOKEN, CONF_EDR_API_TOKEN, CONF_WMS_TOKEN
+from .const import CONF_MQTT_TOKEN, CONF_EDR_API_TOKEN, CONF_WMS_TOKEN, DOMAIN
+from .coordinator import NLWeatherUpdateCoordinator
 from .notification_service import NotificationService
 from .edr import EDR
 from .wms import WMS
 
-_PLATFORMS: list[Platform] = [Platform.WEATHER, Platform.CAMERA]
+_PLATFORMS: list[Platform] = [Platform.WEATHER, Platform.CAMERA, Platform.SENSOR, Platform.BINARY_SENSOR]
 _LOGGER = logging.getLogger(__name__)
 
 @dataclass
@@ -26,11 +25,12 @@ class RuntimeData:
     wms: WMS
     edr: EDR
     app: App
+    coordinators: dict[str, NLWeatherUpdateCoordinator]
 
 type KNMIDirectConfigEntry = ConfigEntry[RuntimeData]  # noqa: F821
 
 async def async_setup_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -> bool:
-    """Set up KNMI Direct from a config entry."""
+    """Set up from a config entry."""
     _LOGGER.debug("async_setup_entry")
 
     ns = NotificationService(entry.data[CONF_MQTT_TOKEN])
@@ -42,17 +42,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -
         notification_service= ns,
         edr=EDR(session, entry.data[CONF_EDR_API_TOKEN]),
         wms=WMS(session, entry.data[CONF_WMS_TOKEN]),
-        app=App(session)
+        app=App(session),
+        coordinators = {}
     )
+
+    for subentry_id, subentry in entry.subentries.items():
+        entry.runtime_data.coordinators[subentry_id] = NLWeatherUpdateCoordinator(hass, entry, subentry)
+        await entry.runtime_data.coordinators[subentry_id].async_config_entry_first_refresh()
 
     await hass.config_entries.async_forward_entry_setups(entry, _PLATFORMS)
 
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
 
+
+async def _async_update_listener(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -> None:
+    """Handle update."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -> bool:
     """Unload a config entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, _PLATFORMS)
-
-    return unload_ok
+    return await hass.config_entries.async_unload_platforms(entry, _PLATFORMS)
