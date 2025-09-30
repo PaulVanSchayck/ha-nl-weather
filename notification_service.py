@@ -29,7 +29,6 @@ class NotificationService:
         self._callbacks = {
             '10-minute-in-situ-meteorological-observations': {},
             'radar_forecast': {},
-            'harmonie_arome_cy43_p1': {}
         }
 
     def _setup_client(self) -> aiomqtt.Client:
