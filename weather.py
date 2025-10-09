@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timezone
 import logging
 from typing import cast, Any
 
@@ -17,8 +15,7 @@ from homeassistant.helpers import sun
 from homeassistant.helpers.device_registry import DeviceInfo, DeviceEntryType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from . import KNMIDirectConfigEntry
-from .coordinator import NLWeatherUpdateCoordinator
-from .edr import NotFoundError, ServerError
+from .coordinator import NLWeatherUpdateCoordinator, NLWeatherEDRCoordinator
 from .const import DOMAIN, CONDITION_MAP, PARAMETER_ATTRIBUTE_MAP, ATTR_WEATHER_CONDITION, CONDITION_FORECAST_MAP
 
 from homeassistant.core import HomeAssistant
@@ -32,6 +29,7 @@ async def async_setup_entry(
     config_entry: KNMIDirectConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
+
     for subentry_id, subentry in config_entry.subentries.items():
 
         coordinator = config_entry.runtime_data.coordinators[subentry_id]
@@ -40,26 +38,22 @@ async def async_setup_entry(
         async_add_entities(
             [
                 NLWeatherForecast(coordinator, config_entry, subentry),
-                NLWeatherObservations(config_entry, subentry)
+                NLWeatherObservations(config_entry.runtime_data.obs_coordinator, config_entry, subentry)
 
             ], config_subentry_id=subentry_id
         )
 
-class NLWeatherObservations(WeatherEntity):
-    # should_poll = False
+class NLWeatherObservations(CoordinatorEntity[NLWeatherEDRCoordinator], WeatherEntity):
+    _attr_should_poll = False
     _attr_attribution = (
         "Meteorological observations provided by Koninklijk Nederlands Meteorologisch Instituut (KNMI) licensed under CC-BY 4.0"
     )
     _attr_has_entity_name = True
     _latest_coverage = None
 
-    def __init__(self, config_entry: KNMIDirectConfigEntry, subentry: ConfigSubentry) -> None:
-        self._ns = config_entry.runtime_data.notification_service
-        self._edr = config_entry.runtime_data.edr
-        self._location = {
-            'lat': subentry.data[CONF_LATITUDE],
-            'lon': subentry.data[CONF_LONGITUDE]
-        }
+    def __init__(self, coordinator: NLWeatherEDRCoordinator, config_entry: KNMIDirectConfigEntry,
+                 subentry: ConfigSubentry ) -> None:
+        super().__init__(coordinator)
         self._attr_unique_id = f"{config_entry.entry_id}_{subentry.subentry_id}_observations"
         self._attr_device_info = DeviceInfo(
             name=f"Observations",
@@ -70,21 +64,12 @@ class NLWeatherObservations(WeatherEntity):
             configuration_url="https://www.knmi.nl",
         )
         self._attr_name = subentry.data[CONF_NAME]
+        self._subentry_id = subentry.subentry_id
 
         # Units
         self._attr_native_wind_speed_unit = UnitOfSpeed.METERS_PER_SECOND
         self._attr_native_temperature_unit = UnitOfTemperature.CELSIUS
         self._attr_native_visibility_unit = UnitOfLength.KILOMETERS
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any] | None:
-        if self._latest_coverage is None:
-            return None
-        return {
-            # TODO: Would be much nicer to get the station name
-            "station_id": self._latest_coverage["eumetnet:locationId"],
-            "datetime": self.get_latest_coverage_datetime()
-        }
 
     @property
     def condition(self) -> str | None:
@@ -93,7 +78,7 @@ class NLWeatherObservations(WeatherEntity):
             condition = CONDITION_MAP[self.get_latest_range_value(ATTR_WEATHER_CONDITION)]
         except KeyError:
             _LOGGER.exception("Unknown condition")
-            condition =  ATTR_CONDITION_SUNNY
+            return ATTR_CONDITION_SUNNY
 
         if condition == ATTR_CONDITION_CLOUDY:
             if self.cloud_coverage <= 75:
@@ -143,45 +128,10 @@ class NLWeatherObservations(WeatherEntity):
         return self.get_latest_range_value(ATTR_WEATHER_HUMIDITY)
 
     def get_latest_range_value(self, attribute) -> float | None:
-        if self._latest_coverage is None:
+        if self.coordinator.data is None:
             return None
         p = PARAMETER_ATTRIBUTE_MAP[attribute]
-        return self._latest_coverage['ranges'][p]['values'][0]
-
-    def get_latest_coverage_datetime(self) -> datetime:
-        if self._latest_coverage is None:
-            return datetime(year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc)
-        return datetime.fromisoformat(self._latest_coverage['domain']['axes']['t']['values'][0])
-
-    async def get_coverage_datetime(self, event) -> None:
-        event_datetime = datetime.strptime(event["data"]["filename"], "KMDS__OPER_P___10M_OBS_L2_%Y%m%d%H%M.nc").replace(
-            tzinfo=timezone.utc)
-
-        # TODO: Also consider distance to station when to refetch
-        if event_datetime <= self.get_latest_coverage_datetime():
-            return
-
-        _LOGGER.debug(f"Fetch EDR coverage for datetime: {event_datetime}")
-        for _ in range(3):
-            await asyncio.sleep(15)
-            try:
-                self._latest_coverage = await self._edr.get_closest_coverage(self._location, event_datetime, PARAMETER_ATTRIBUTE_MAP.values())
-                self.async_write_ha_state()
-                return
-            except (NotFoundError, ServerError) as e:
-                _LOGGER.debug(f"Retrying fetching EDR coverage due to error: {e}")
-                continue
-        _LOGGER.warning(f"Could not retrieve latest coverage at {event_datetime} after 3 attempts")
-
-    async def async_added_to_hass(self):
-        self._ns.set_callback('10-minute-in-situ-meteorological-observations', self._attr_unique_id, self.get_coverage_datetime)
-
-        # Get some initial observation data
-        try:
-            self._latest_coverage = await self._edr.get_latest_closest_coverage(self._location, PARAMETER_ATTRIBUTE_MAP.values())
-            self.async_write_ha_state()
-        except (NotFoundError, ServerError):
-            _LOGGER.warning(f"Could not retrieve initial coverage")
+        return self.coordinator.data[self._subentry_id]['ranges'][p]['values'][0]
 
 
 class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEntity):

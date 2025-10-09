@@ -10,7 +10,7 @@ import logging
 
 from .app import App
 from .const import CONF_MQTT_TOKEN, CONF_EDR_API_TOKEN, CONF_WMS_TOKEN, DOMAIN
-from .coordinator import NLWeatherUpdateCoordinator
+from .coordinator import NLWeatherUpdateCoordinator, NLWeatherEDRCoordinator
 from .notification_service import NotificationService
 from .edr import EDR
 from .wms import WMS
@@ -23,9 +23,9 @@ class RuntimeData:
     """Class to hold your data."""
     notification_service: NotificationService
     wms: WMS
-    edr: EDR
     app: App
     coordinators: dict[str, NLWeatherUpdateCoordinator]
+    obs_coordinator: NLWeatherEDRCoordinator
 
 type KNMIDirectConfigEntry = ConfigEntry[RuntimeData]  # noqa: F821
 
@@ -33,18 +33,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -
     """Set up from a config entry."""
     _LOGGER.debug("async_setup_entry")
 
+    session = async_get_clientsession(hass)
     ns = NotificationService(entry.data[CONF_MQTT_TOKEN])
     entry.async_create_background_task(hass, ns.run(), "NotificationService")
 
-    session = async_get_clientsession(hass)
-
     entry.runtime_data = RuntimeData(
         notification_service= ns,
-        edr=EDR(session, entry.data[CONF_EDR_API_TOKEN]),
         wms=WMS(session, entry.data[CONF_WMS_TOKEN]),
         app=App(session),
-        coordinators = {}
+        coordinators = {},
+        obs_coordinator = NLWeatherEDRCoordinator(hass, entry, ns, EDR(session, entry.data[CONF_EDR_API_TOKEN]))
     )
+
+    await entry.runtime_data.obs_coordinator.async_config_entry_first_refresh()
 
     for subentry_id, subentry in entry.subentries.items():
         entry.runtime_data.coordinators[subentry_id] = NLWeatherUpdateCoordinator(hass, entry, subentry)

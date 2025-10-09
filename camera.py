@@ -139,23 +139,22 @@ class PrecipitationRadarCam(Camera):
 
         for time, buf in radar_images:
             img = Image.open(buf, formats=["PNG"]).convert("RGBA")
-            _LOGGER.debug("Open")
             draw = ImageDraw.Draw(img)
             if time <= ref_time:
                 fill = (48, 48, 48)
             else:
                 fill = (48, 48, 148)
             draw.text((28, 28), dt_util.as_local(time).strftime("%a %H:%M"), fill=fill, font_size=45, stroke_width=0.8)
-            _LOGGER.debug("Draw")
             images.append(Image.composite(img, self._background_image, img))
-            _LOGGER.debug("Composite")
+
+        _LOGGER.debug("Generated image")
 
         with io.BytesIO() as output:
             images[0].save(output, format='GIF', save_all=True, append_images=images[1:], optimize=False, duration=300,
                            loop=1, disposal=2)
             self._last_image = output.getvalue()
 
-        _LOGGER.debug("Setting image")
+        _LOGGER.debug("Stored image")
 
         return True
 

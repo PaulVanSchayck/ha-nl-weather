@@ -5,7 +5,7 @@ from math import radians, sin, cos, atan2, sqrt
 
 import aiohttp
 
-BASE_URL = f"https://api.dataplatform.knmi.nl/edr/v1/collections/10-minute-in-situ-meteorological-observations"
+BASE_URL = "https://api.dataplatform.knmi.nl/edr/v1/collections/10-minute-in-situ-meteorological-observations"
 BBOX_NL = "3.3,50.6,7.3,53.5"
 
 _LOGGER = logging.getLogger(__name__)
@@ -27,24 +27,22 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return R * c
 
 def closest_coverage(coverages, location):
-    return min(
-        coverages,
-        key=lambda c: haversine(
-            c["domain"]["axes"]["y"]["values"][0],
-            c["domain"]["axes"]["x"]["values"][0],
-            location["lat"],
-            location["lon"]
-        )
+    coverage, distance = min(
+        (
+            (c, haversine(
+                c["domain"]["axes"]["y"]["values"][0],
+                c["domain"]["axes"]["x"]["values"][0],
+                location["lat"],
+                location["lon"]
+            ))
+            for c in coverages
+        ),
+        key=lambda x: x[1]
     )
-
-def coverages_with_all_parameters(coverages, parameters):
-    return [c for c in coverages if all(p in c["ranges"] for p in parameters)]
-
+    return coverage, distance
 
 class EDR:
     _session: aiohttp.ClientSession
-    parameters = {"ta","rh","n","ff","ww"}
-    _locations = None
 
     def __init__(self, aiohttp_session, token):
         self._session = aiohttp_session
@@ -70,15 +68,6 @@ class EDR:
                 raise
             return json.loads(body)
 
-    async def get_location(self, location_id):
-        if self._locations is None:
-            self._locations = await self.locations()
-
-        for f in self._locations["features"]:
-            if f["id"] == location_id:
-                return f
-        return None
-
     async def metadata(self):
         return await self.get("")
 
@@ -88,29 +77,29 @@ class EDR:
         params = {
             "datetime": dt,
         }
-        return self.get("/locations", params)
+        return await self.get("/locations", params)
 
     async def cube(self, params):
         return await self.get("/cube", params)
 
-    async def get_closest_coverage(self, location, dt: datetime, parameters):
+    async def get_coverage(self, dt: datetime, parameters):
         params = {
             "datetime": dt.isoformat(timespec="seconds").replace("+00:00", "Z"),
             "parameter-name": ",".join(parameters),
             "bbox": BBOX_NL,
         }
         coverage_collection = await self.cube(params)
-        coverages = coverages_with_all_parameters(coverage_collection["coverages"], parameters)
-        _LOGGER.debug(f"Found {len(coverages)} coverages with all parameters")
-        c = closest_coverage(coverages, location)
-        _LOGGER.debug(f"Closest coverage: {c['eumetnet:locationId']}")
-        return c
 
-    async def get_latest_closest_coverage(self, location, parameters):
+        # Find all coverages with all parameters listed
+        coverages = [c for c in coverage_collection['coverages'] if all(p in c["ranges"] for p in parameters)]
+        _LOGGER.debug(f"Found {len(coverages)} coverages with all parameters")
+
+        return coverages
+
+    async def get_latest_coverage(self, parameters):
         metadata = await self.metadata()
         latest_dt = datetime.fromisoformat(metadata["extent"]["temporal"]["interval"][0][1])
-        return await self.get_closest_coverage(location, latest_dt, parameters)
-
+        return await self.get_coverage(latest_dt, parameters), latest_dt
 
 
 class NotFoundError(Exception):

@@ -87,6 +87,9 @@ ALERT_REGIONS = {
 
 APP_API_SCAN_INTERVAL = timedelta(minutes=15)
 
+# Only fetch from EDR for same station if below this value in kilometers
+EDR_STATION_MINIMAL_DISTANCE = 50
+
 # Based on https://gitlab.com/KNMI-OSS/KNMI-App/knmi-app-api/-/blob/main/app/helpers/weather.ts
 # And https://gitlab.com/KNMI-OSS/KNMI-App/knmi-app-android/-/blob/main/app/src/main/java/nl/knmi/weer/util/WeatherTypeExtension.kt
 # 1364-1371 are warning conditions
