@@ -30,7 +30,7 @@ CONF_MQTT_TOKEN: Final = "mqtt_token"
 
 CONDITION_CLASSES: dict[str, list[int]] = {
     ATTR_CONDITION_CLOUDY: [1, 2, 3, 10],
-    ATTR_CONDITION_FOG: [20, 30, 32, 33, 34, 35], # TODO: Consider visibility range?
+    ATTR_CONDITION_FOG: [20, 30, 32, 33, 34, 35],
     ATTR_CONDITION_HAIL: [21, 22, 89],
     ATTR_CONDITION_LIGHTNING: [12, 90, 91, 94, ],
     ATTR_CONDITION_LIGHTNING_RAINY: [26, 92, 93, 95, 96],
@@ -40,7 +40,7 @@ CONDITION_CLASSES: dict[str, list[int]] = {
     ATTR_CONDITION_SNOWY: [24, 70, 70.5, 71, 72, 73, 74, 75, 76, 77, 78, 85, 86, 87],
     ATTR_CONDITION_SNOWY_RAINY: [25, 67, 68],
     ATTR_CONDITION_SUNNY: [0],
-    ATTR_CONDITION_WINDY: [], # TODO: Take wind in account
+    ATTR_CONDITION_WINDY: [],
     ATTR_CONDITION_WINDY_VARIANT: [],
     ATTR_CONDITION_EXCEPTIONAL: [4,5],
 }
@@ -61,9 +61,8 @@ PARAMETER_ATTRIBUTE_MAP = {
     ATTR_WEATHER_WIND_BEARING: 'dd',
     ATTR_WEATHER_WIND_GUST_SPEED: 'gff',
     ATTR_WEATHER_WIND_SPEED: 'ff',
-    ATTR_WEATHER_CLOUD_COVERAGE: 'n1',
+    ATTR_WEATHER_CLOUD_COVERAGE: 'nhc',
     ATTR_WEATHER_CONDITION: 'ww'
-
 }
 
 # Based on https://gitlab.com/KNMI-OSS/KNMI-App/knmi-app-android/-/blob/main/app/src/main/assets/alert_regions_simplified.geojson

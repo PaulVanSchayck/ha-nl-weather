@@ -8,7 +8,8 @@ from typing import cast, Any
 from homeassistant.components.weather import WeatherEntity, ATTR_CONDITION_SUNNY, ATTR_CONDITION_CLEAR_NIGHT, \
     ATTR_WEATHER_HUMIDITY, ATTR_WEATHER_WIND_SPEED, ATTR_WEATHER_CLOUD_COVERAGE, ATTR_WEATHER_TEMPERATURE, \
     ATTR_WEATHER_VISIBILITY, ATTR_WEATHER_WIND_GUST_SPEED, ATTR_WEATHER_WIND_BEARING, ATTR_WEATHER_DEW_POINT, \
-    ATTR_WEATHER_PRESSURE, ATTR_CONDITION_CLOUDY, ATTR_CONDITION_PARTLYCLOUDY, Forecast, WeatherEntityFeature
+    ATTR_WEATHER_PRESSURE, ATTR_CONDITION_CLOUDY, ATTR_CONDITION_PARTLYCLOUDY, Forecast, WeatherEntityFeature, \
+    ATTR_CONDITION_FOG, ATTR_CONDITION_WINDY, ATTR_CONDITION_WINDY_VARIANT
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import UnitOfSpeed, UnitOfTemperature, UnitOfLength, CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME
 from homeassistant.helpers import sun
@@ -69,7 +70,7 @@ class NLWeatherObservations(CoordinatorEntity[NLWeatherEDRCoordinator], WeatherE
         # Units
         self._attr_native_wind_speed_unit = UnitOfSpeed.METERS_PER_SECOND
         self._attr_native_temperature_unit = UnitOfTemperature.CELSIUS
-        self._attr_native_visibility_unit = UnitOfLength.KILOMETERS
+        self._attr_native_visibility_unit = UnitOfLength.METERS
 
     @property
     def condition(self) -> str | None:
@@ -80,11 +81,23 @@ class NLWeatherObservations(CoordinatorEntity[NLWeatherEDRCoordinator], WeatherE
             _LOGGER.exception("Unknown condition")
             return ATTR_CONDITION_SUNNY
 
+        # Foggy condition is reported well above 1000 m visibility. Only below 1000 meter it is "fog"
+        if condition == ATTR_CONDITION_FOG and self.native_visibility > 1000:
+                condition = ATTR_CONDITION_CLOUDY
+
+        # Difference between cloudy, partly cloudy and sunny is not reported
         if condition == ATTR_CONDITION_CLOUDY:
             if self.cloud_coverage <= 75:
                 condition = ATTR_CONDITION_PARTLYCLOUDY
             if self.cloud_coverage <= 25:
                 condition = ATTR_CONDITION_SUNNY
+
+            # Wind speed above 6 Bft or wind gusts above 72 km/h are windy conditions
+            if self.native_wind_speed > 12 or self.native_wind_gust_speed > 20:
+                if self.cloud_coverage <= 75:
+                    condition = ATTR_CONDITION_WINDY
+                else:
+                    condition = ATTR_CONDITION_WINDY_VARIANT
 
         if condition == ATTR_CONDITION_SUNNY and not sun.is_up(self.hass):
             condition = ATTR_CONDITION_CLEAR_NIGHT
@@ -97,6 +110,7 @@ class NLWeatherObservations(CoordinatorEntity[NLWeatherEDRCoordinator], WeatherE
 
     @property
     def cloud_coverage(self) -> float | None:
+        # Unit is okta (https://qudt.org/vocab/unit/OKTA)
         return self.get_latest_range_value(ATTR_WEATHER_CLOUD_COVERAGE)/8*100
 
     @property
@@ -105,7 +119,7 @@ class NLWeatherObservations(CoordinatorEntity[NLWeatherEDRCoordinator], WeatherE
 
     @property
     def native_visibility(self) -> float | None:
-        return self.get_latest_range_value(ATTR_WEATHER_VISIBILITY)/1000
+        return self.get_latest_range_value(ATTR_WEATHER_VISIBILITY)
 
     @property
     def native_pressure(self) -> float | None:
