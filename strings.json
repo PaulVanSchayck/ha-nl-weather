@@ -1,4 +1,17 @@
 {
+   "entity": {
+    "sensor": {
+      "weather_alert_level": {
+        "name": "Weather Alert Code",
+        "state": {
+          "orange": "Orange",
+          "yellow": "Yellow",
+          "red": "Red",
+          "none": "None"
+        }
+      }
+    }
+  },
   "common": {
     "location": "Location"
   },

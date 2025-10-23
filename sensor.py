@@ -1,9 +1,11 @@
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
+from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorEntityDescription
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import CONF_NAME, UnitOfLength
-from homeassistant.helpers.device_registry import DeviceInfo, DeviceEntryType
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+from .const import Alert
 from . import KNMIDirectConfigEntry, DOMAIN
 from .coordinator import NLWeatherUpdateCoordinator, NLWeatherEDRCoordinator
 from homeassistant.core import HomeAssistant
@@ -29,23 +31,28 @@ async def async_setup_entry(
         )
 
 # TODO: Clean up sensor creation using a base class
-# TODO: Not dealing well with multiple alerts yet
 
 class NLWeatherAlertSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity):
     def __init__(self, coordinator, config_entry: KNMIDirectConfigEntry, subentry: ConfigSubentry) -> None:
         super().__init__(coordinator)
 
         self._attr_unique_id = f"{config_entry.entry_id}_{subentry.subentry_id}_alert"
-        self._attr_name = f"Weer Waarschuwing {subentry.data[CONF_NAME]}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}_forecast")},
+        )
+        self.entity_description = SensorEntityDescription(
+            key="alert",
+            name=f"Weer Waarschuwing {subentry.data[CONF_NAME]}",
+            icon="mdi:weather-cloudy-alert",
         )
 
     @property
     def native_value(self):
+        # TODO: Not dealing well with multiple alerts yet
         if len(self.coordinator.data['alerts']) > 0:
             return self.coordinator.data['alerts'][0]['description']
         else:
+            # TODO: Needs translation
             return "Geen"
 
 class NLWeatherAlertLevelSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity):
@@ -53,18 +60,21 @@ class NLWeatherAlertLevelSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], S
         super().__init__(coordinator)
 
         self._attr_unique_id = f"{config_entry.entry_id}_{subentry.subentry_id}_alert_level"
-        self._attr_name = f"Weer Code {subentry.data[CONF_NAME]}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}_forecast")},
+        )
+        self.entity_description = SensorEntityDescription(
+            key="alert_level",
+            options=[a.value for a in Alert],
+            name=f"Weer Code {subentry.data[CONF_NAME]}",
+            icon="mdi:alert-box",
+            translation_key="weather_alert_level",
+            device_class=SensorDeviceClass.ENUM
         )
 
     @property
     def native_value(self):
-        if len(self.coordinator.data['alerts']) > 0:
-            # TODO: Translate level
-            return self.coordinator.data['alerts'][0]['level']
-        else:
-            return "Groen"
+        return Alert(self.coordinator.data["hourly"]["forecast"][0]["alertLevel"])
 
 class NLObservationStationDistanceSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEntity):
     def __init__(self, coordinator, config_entry: KNMIDirectConfigEntry, subentry: ConfigSubentry) -> None:

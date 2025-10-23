@@ -1,9 +1,11 @@
-from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorEntityDescription
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import CONF_NAME
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+from .const import Alert
 from . import KNMIDirectConfigEntry, DOMAIN
 from .coordinator import NLWeatherUpdateCoordinator
 from homeassistant.core import HomeAssistant
@@ -28,12 +30,15 @@ class NLWeatherAlertActiveSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], 
         super().__init__(coordinator)
 
         self._attr_unique_id = f"{config_entry.entry_id}_{subentry.subentry_id}_alert_active"
-        self._attr_name = f"Weer Waarschuwing Actief {subentry.data[CONF_NAME]}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}_forecast")},
+        )
+        self.entity_description = BinarySensorEntityDescription(
+            key="alert_active",
+            name=f"Weer Waarschuwing Actief {subentry.data[CONF_NAME]}",
+            icon="mdi:alert-box-outline"
         )
 
     @property
     def is_on(self):
-        # TODO: We should probably get this from the hourly forecast array
-        return len(self.coordinator.data['alerts']) > 0
+        return self.coordinator.data["hourly"]["forecast"][0]["alertLevel"] != Alert.NONE

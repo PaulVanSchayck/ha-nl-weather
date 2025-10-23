@@ -1,0 +1,15 @@
+{
+  "entity": {
+    "sensor": {
+      "weather_alert_level": {
+        "name": "Weer Code",
+        "state": {
+          "orange": "Oranje",
+          "yellow": "Geel",
+          "red": "Rood",
+          "none": "Geen"
+        }
+      }
+    }
+  }
+}

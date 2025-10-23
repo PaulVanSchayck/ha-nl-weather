@@ -1,5 +1,6 @@
 """Constants for the NL Weather integration."""
 from datetime import timedelta
+from enum import StrEnum
 from typing import Final
 
 from homeassistant.components.weather import (
@@ -114,3 +115,9 @@ CONDITION_FORECAST_MAP = {
     for cond_ha, cond_codes in CONDITION_FORECAST_CLASSES.items()
     for cond_code in cond_codes
 }
+
+class Alert(StrEnum):
+    NONE = "none",
+    YELLOW = "yellow",
+    ORANGE = "orange",
+    RED = "red"
