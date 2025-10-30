@@ -12,15 +12,23 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import utcnow
 from .app import ServerError
-from .const import APP_API_SCAN_INTERVAL, PARAMETER_ATTRIBUTE_MAP, EDR_STATION_MINIMAL_DISTANCE
+from .const import (
+    APP_API_SCAN_INTERVAL,
+    PARAMETER_ATTRIBUTE_MAP,
+    EDR_STATION_MINIMAL_DISTANCE,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Coordinator for NL Weather forecast data."""
+
     config_entry: ConfigEntry
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, subentry: ConfigSubentry) -> None:
+    def __init__(
+        self, hass: HomeAssistant, entry: ConfigEntry, subentry: ConfigSubentry
+    ) -> None:
         """Initialize the coordinator."""
         super().__init__(
             hass,
@@ -32,8 +40,8 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self._api = entry.runtime_data.app
         self._location = {
-            'lat': subentry.data[CONF_LATITUDE],
-            'lon': subentry.data[CONF_LONGITUDE]
+            "lat": subentry.data[CONF_LATITUDE],
+            "lon": subentry.data[CONF_LONGITUDE],
         }
         self._region = subentry.data[CONF_REGION]
 
@@ -52,21 +60,30 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # Prune hours that already passed from the data, this is way more convenient to do here already
         current_hour = utcnow().replace(minute=0, second=0, microsecond=0)
-        data['hourly']['forecast'] = [h for h in data['hourly']['forecast'] if datetime.fromisoformat(h['dateTime']) >= current_hour]
+        data["hourly"]["forecast"] = [
+            h
+            for h in data["hourly"]["forecast"]
+            if datetime.fromisoformat(h["dateTime"]) >= current_hour
+        ]
 
         return data
 
 
 class NLWeatherEDRCoordinator(DataUpdateCoordinator):
     """Coordinator that only calls EDR API when NotificationService tells to"""
-    _latest_filename_datetime = datetime(year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc)
+
+    _latest_filename_datetime = datetime(
+        year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc
+    )
     _station_names = {}
 
-    def __init__(self, hass, entry: ConfigEntry, ns: NotificationService, edr: EDR) -> None:
+    def __init__(
+        self, hass, entry: ConfigEntry, ns: NotificationService, edr: EDR
+    ) -> None:
         super().__init__(
             hass,
             _LOGGER,
-            name=f"NL Weather EDR API data coordinator",
+            name="NL Weather EDR API data coordinator",
             update_interval=None,  # no polling
         )
         self._ns = ns
@@ -75,8 +92,8 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
         self._locations = {}
         for subentry_id, subentry in entry.subentries.items():
             self._locations[subentry_id] = {
-               'lat': subentry.data[CONF_LATITUDE],
-               'lon': subentry.data[CONF_LONGITUDE]
+                "lat": subentry.data[CONF_LATITUDE],
+                "lon": subentry.data[CONF_LONGITUDE],
             }
 
     def _prepare_data(self, coverages):
@@ -84,38 +101,53 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
         for subentry_id, location in self._locations.items():
             coverage, distance = closest_coverage(coverages, location)
             data[subentry_id] = {
-                'ranges': coverage['ranges'],
-                'distance': distance,
-                'datetime': datetime.fromisoformat(coverage['domain']['axes']['t']['values'][0]),
-                'station_id': coverage['eumetnet:locationId'],
-                'station_name': self._station_names[coverage['eumetnet:locationId']],
+                "ranges": coverage["ranges"],
+                "distance": distance,
+                "datetime": datetime.fromisoformat(
+                    coverage["domain"]["axes"]["t"]["values"][0]
+                ),
+                "station_id": coverage["eumetnet:locationId"],
+                "station_name": self._station_names[coverage["eumetnet:locationId"]],
             }
         return data
 
     async def get_coverage_datetime(self, event) -> None:
-        filename_datetime = datetime.strptime(event["data"]["filename"], "KMDS__OPER_P___10M_OBS_L2_%Y%m%d%H%M.nc").replace(
-            tzinfo=timezone.utc)
+        filename_datetime = datetime.strptime(
+            event["data"]["filename"], "KMDS__OPER_P___10M_OBS_L2_%Y%m%d%H%M.nc"
+        ).replace(tzinfo=timezone.utc)
 
         if filename_datetime < self._latest_filename_datetime:
-            _LOGGER.debug(f"Already got coverage later than datetime: {filename_datetime}")
+            _LOGGER.debug(
+                f"Already got coverage later than datetime: {filename_datetime}"
+            )
             return
 
-        if filename_datetime == self._latest_filename_datetime and max(v["distance"] for v in self.data.values()) < EDR_STATION_MINIMAL_DISTANCE:
-            _LOGGER.debug(f"Already got close enough coverages for datetime: {filename_datetime}")
+        if (
+            filename_datetime == self._latest_filename_datetime
+            and max(v["distance"] for v in self.data.values())
+            < EDR_STATION_MINIMAL_DISTANCE
+        ):
+            _LOGGER.debug(
+                f"Already got close enough coverages for datetime: {filename_datetime}"
+            )
             return
 
         _LOGGER.debug(f"Fetch EDR coverage for datetime: {filename_datetime}")
         for _ in range(3):
             await asyncio.sleep(15)
             try:
-                coverages = await self._edr.get_coverage(filename_datetime, PARAMETER_ATTRIBUTE_MAP.values())
+                coverages = await self._edr.get_coverage(
+                    filename_datetime, PARAMETER_ATTRIBUTE_MAP.values()
+                )
                 self._latest_filename_datetime = filename_datetime
                 self.async_set_updated_data(self._prepare_data(coverages))
                 return
             except (NotFoundError, ServerError) as e:
                 _LOGGER.debug(f"Retrying fetching EDR coverage due to error: {e}")
                 continue
-        _LOGGER.warning(f"Could not retrieve latest coverage at {filename_datetime} after 3 attempts")
+        _LOGGER.warning(
+            f"Could not retrieve latest coverage at {filename_datetime} after 3 attempts"
+        )
 
     async def _async_update_data(self):
         """No polling. Just return the already available data."""
@@ -123,14 +155,20 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
 
     async def _async_setup(self):
         # TODO: Handle removal of this callback
-        self._ns.set_callback('10-minute-in-situ-meteorological-observations', "NLWeatherEDRCoordinator", self.get_coverage_datetime)
+        self._ns.set_callback(
+            "10-minute-in-situ-meteorological-observations",
+            "NLWeatherEDRCoordinator",
+            self.get_coverage_datetime,
+        )
 
         # Cache all station names
         stations = await self._edr.locations()
-        for feature in stations['features']:
-            self._station_names[feature['id']] = feature['properties']['name']
+        for feature in stations["features"]:
+            self._station_names[feature["id"]] = feature["properties"]["name"]
 
         # Get some initial observation data
-        coverages, latest_dt = await self._edr.get_latest_coverage(PARAMETER_ATTRIBUTE_MAP.values())
+        coverages, latest_dt = await self._edr.get_latest_coverage(
+            PARAMETER_ATTRIBUTE_MAP.values()
+        )
         self._latest_filename_datetime = latest_dt
         self.async_set_updated_data(self._prepare_data(coverages))
