@@ -1,0 +1,3 @@
+homeassistant==2025.10.3
+aiomqtt==2.4.0
+ruff==0.14.2

@@ -5,7 +5,7 @@ import math
 
 import aiohttp
 
-BASE_URL = f"https://api.dataplatform.knmi.nl/wms/adaguc-server"
+BASE_URL = "https://api.dataplatform.knmi.nl/wms/adaguc-server"
 BASE_PARAMS = {
     'SERVICE': "WMS",
     'REQUEST': "GetMap",

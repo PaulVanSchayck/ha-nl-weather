@@ -5,7 +5,7 @@ import aiohttp
 import logging
 from math import radians, sin, cos, atan2, sqrt
 
-BASE_URL = f"https://api.app.knmi.cloud"
+BASE_URL = "https://api.app.knmi.cloud"
 AREA_DEFINITION_PATH = os.path.join(os.path.dirname(__file__), "area_definition-nl_30x35_v2-1.json")
 
 _LOGGER = logging.getLogger(__name__)

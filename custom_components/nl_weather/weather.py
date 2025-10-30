@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import cast, Any
+from typing import cast
 
 from homeassistant.components.weather import WeatherEntity, ATTR_CONDITION_SUNNY, ATTR_CONDITION_CLEAR_NIGHT, \
     ATTR_WEATHER_HUMIDITY, ATTR_WEATHER_WIND_SPEED, ATTR_WEATHER_CLOUD_COVERAGE, ATTR_WEATHER_TEMPERATURE, \
@@ -57,7 +57,7 @@ class NLWeatherObservations(CoordinatorEntity[NLWeatherEDRCoordinator], WeatherE
         super().__init__(coordinator)
         self._attr_unique_id = f"{config_entry.entry_id}_{subentry.subentry_id}_observations"
         self._attr_device_info = DeviceInfo(
-            name=f"Observations",
+            name="Observations",
             entry_type=DeviceEntryType.SERVICE,
             identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}_observations")},
             manufacturer="KNMI.nl",
@@ -169,7 +169,7 @@ class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEn
         }
         self._attr_unique_id = f"{config_entry.entry_id}_{subentry.subentry_id}_forecast"
         self._attr_device_info = DeviceInfo(
-            name=f"Forecast",
+            name="Forecast",
             entry_type=DeviceEntryType.SERVICE,
             identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}_forecast")},
             manufacturer="KNMI.nl",

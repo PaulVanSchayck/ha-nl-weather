@@ -66,7 +66,7 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
         super().__init__(
             hass,
             _LOGGER,
-            name=f"NL Weather EDR API data coordinator",
+            name="NL Weather EDR API data coordinator",
             update_interval=None,  # no polling
         )
         self._ns = ns

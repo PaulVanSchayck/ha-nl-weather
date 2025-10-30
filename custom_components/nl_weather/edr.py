@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from math import radians, sin, cos, atan2, sqrt
 
 import aiohttp

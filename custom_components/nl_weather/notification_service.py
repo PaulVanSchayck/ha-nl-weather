@@ -56,7 +56,7 @@ class NotificationService:
                 # TODO: Build in exponential backoff
                 await asyncio.sleep(30)
             except Exception:
-                _LOGGER.exception(f"Exception in NotificationService. Restarting...")
+                _LOGGER.exception("Exception in NotificationService. Restarting...")
                 await asyncio.sleep(30)
 
     async def handle_message(self, message):

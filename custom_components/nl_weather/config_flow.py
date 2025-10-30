@@ -2,12 +2,11 @@ import binascii
 import json
 import logging
 from base64 import b64decode
-from typing import Any
 
 import voluptuous as vol
 
-from homeassistant import config_entries, exceptions
-from homeassistant.config_entries import ConfigEntry, ConfigSubentryFlow, SubentryFlowResult
+from homeassistant import config_entries
+from homeassistant.config_entries import ConfigEntry, ConfigSubentryFlow
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME, CONF_REGION
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError

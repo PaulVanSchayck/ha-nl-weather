@@ -9,7 +9,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import logging
 
 from .app import App
-from .const import CONF_MQTT_TOKEN, CONF_EDR_API_TOKEN, CONF_WMS_TOKEN, DOMAIN
+from .const import CONF_MQTT_TOKEN, CONF_EDR_API_TOKEN, CONF_WMS_TOKEN
 from .coordinator import NLWeatherUpdateCoordinator, NLWeatherEDRCoordinator
 from .notification_service import NotificationService
 from .edr import EDR
