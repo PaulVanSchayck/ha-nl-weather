@@ -1,4 +1,7 @@
-from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorEntityDescription
+from homeassistant.components.binary_sensor import (
+    BinarySensorEntity,
+    BinarySensorEntityDescription,
+)
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import CONF_NAME
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -22,23 +25,35 @@ async def async_setup_entry(
         async_add_entities(
             [
                 NLWeatherAlertActiveSensor(coordinator, config_entry, subentry),
-            ], config_subentry_id=subentry_id
+            ],
+            config_subentry_id=subentry_id,
         )
 
-class NLWeatherAlertActiveSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], BinarySensorEntity):
-    def __init__(self, coordinator, config_entry: KNMIDirectConfigEntry, subentry: ConfigSubentry) -> None:
+
+class NLWeatherAlertActiveSensor(
+    CoordinatorEntity[NLWeatherUpdateCoordinator], BinarySensorEntity
+):
+    def __init__(
+        self, coordinator, config_entry: KNMIDirectConfigEntry, subentry: ConfigSubentry
+    ) -> None:
         super().__init__(coordinator)
 
-        self._attr_unique_id = f"{config_entry.entry_id}_{subentry.subentry_id}_alert_active"
+        self._attr_unique_id = (
+            f"{config_entry.entry_id}_{subentry.subentry_id}_alert_active"
+        )
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}_forecast")},
+            identifiers={
+                (DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}_forecast")
+            },
         )
         self.entity_description = BinarySensorEntityDescription(
             key="alert_active",
             name=f"Weer Waarschuwing Actief {subentry.data[CONF_NAME]}",
-            icon="mdi:alert-box-outline"
+            icon="mdi:alert-box-outline",
         )
 
     @property
     def is_on(self):
-        return self.coordinator.data["hourly"]["forecast"][0]["alertLevel"] != Alert.NONE
+        return (
+            self.coordinator.data["hourly"]["forecast"][0]["alertLevel"] != Alert.NONE
+        )

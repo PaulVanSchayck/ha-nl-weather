@@ -15,19 +15,28 @@ from .notification_service import NotificationService
 from .edr import EDR
 from .wms import WMS
 
-_PLATFORMS: list[Platform] = [Platform.WEATHER, Platform.CAMERA, Platform.SENSOR, Platform.BINARY_SENSOR]
+_PLATFORMS: list[Platform] = [
+    Platform.WEATHER,
+    Platform.CAMERA,
+    Platform.SENSOR,
+    Platform.BINARY_SENSOR,
+]
 _LOGGER = logging.getLogger(__name__)
+
 
 @dataclass
 class RuntimeData:
     """Class to hold your data."""
+
     notification_service: NotificationService
     wms: WMS
     app: App
     coordinators: dict[str, NLWeatherUpdateCoordinator]
     obs_coordinator: NLWeatherEDRCoordinator
 
+
 type KNMIDirectConfigEntry = ConfigEntry[RuntimeData]  # noqa: F821
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -> bool:
     """Set up from a config entry."""
@@ -38,18 +47,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -
     entry.async_create_background_task(hass, ns.run(), "NotificationService")
 
     entry.runtime_data = RuntimeData(
-        notification_service= ns,
+        notification_service=ns,
         wms=WMS(session, entry.data[CONF_WMS_TOKEN]),
         app=App(session),
-        coordinators = {},
-        obs_coordinator = NLWeatherEDRCoordinator(hass, entry, ns, EDR(session, entry.data[CONF_EDR_API_TOKEN]))
+        coordinators={},
+        obs_coordinator=NLWeatherEDRCoordinator(
+            hass, entry, ns, EDR(session, entry.data[CONF_EDR_API_TOKEN])
+        ),
     )
 
     await entry.runtime_data.obs_coordinator.async_config_entry_first_refresh()
 
     for subentry_id, subentry in entry.subentries.items():
-        entry.runtime_data.coordinators[subentry_id] = NLWeatherUpdateCoordinator(hass, entry, subentry)
-        await entry.runtime_data.coordinators[subentry_id].async_config_entry_first_refresh()
+        entry.runtime_data.coordinators[subentry_id] = NLWeatherUpdateCoordinator(
+            hass, entry, subentry
+        )
+        await entry.runtime_data.coordinators[
+            subentry_id
+        ].async_config_entry_first_refresh()
 
     await hass.config_entries.async_forward_entry_setups(entry, _PLATFORMS)
 
@@ -57,7 +72,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -
     return True
 
 
-async def _async_update_listener(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -> None:
+async def _async_update_listener(
+    hass: HomeAssistant, entry: KNMIDirectConfigEntry
+) -> None:
     """Handle update."""
     await hass.config_entries.async_reload(entry.entry_id)
 

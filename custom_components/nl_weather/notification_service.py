@@ -27,17 +27,24 @@ class NotificationService:
         self._tls_context = get_default_context()
         self._token = token
         self._callbacks = {
-            '10-minute-in-situ-meteorological-observations': {},
-            'radar_forecast': {},
+            "10-minute-in-situ-meteorological-observations": {},
+            "radar_forecast": {},
         }
 
     def _setup_client(self) -> aiomqtt.Client:
         # TODO: Not reusing the client object. Reusing the client object would not work during reconnect
         connect_properties = properties.Properties(properties.PacketTypes.CONNECT)
-        return aiomqtt.Client(BROKER_DOMAIN, username="token", password=self._token,
-              protocol=ProtocolVersion.V5, transport="websockets", port=443, identifier=CLIENT_ID,
-              tls_context=self._tls_context, properties=connect_properties
-      )
+        return aiomqtt.Client(
+            BROKER_DOMAIN,
+            username="token",
+            password=self._token,
+            protocol=ProtocolVersion.V5,
+            transport="websockets",
+            port=443,
+            identifier=CLIENT_ID,
+            tls_context=self._tls_context,
+            properties=connect_properties,
+        )
 
     def set_callback(self, dataset, identifier, callback):
         self._callbacks[dataset][identifier] = callback
@@ -82,6 +89,7 @@ class NotificationService:
             _LOGGER.exception("Exception occurred")
             return False
         return True
+
 
 class TokenInvalid(Exception):
     """Exception class when token is not accepted"""

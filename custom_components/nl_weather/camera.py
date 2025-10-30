@@ -27,7 +27,8 @@ _LOGGER = logging.getLogger(__name__)
 BACKGROUND_IMAGE_PATH = os.path.join(os.path.dirname(__file__), "background.png")
 # BBOX in EPSG:3857 (Web Mercator). This is (49.14, 0.0, 54,68, 8.98) in EPSG:4326
 BACKGROUND_IMAGE_BBOX = (0.0, 6300000, 1000000, 7300000)
-BACKGROUND_IMAGE_BBOX_PARAM = ','.join(map(str,BACKGROUND_IMAGE_BBOX))
+BACKGROUND_IMAGE_BBOX_PARAM = ",".join(map(str, BACKGROUND_IMAGE_BBOX))
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -53,9 +54,7 @@ class PrecipitationRadarCam(Camera):
     _loading = False
     _locations = []
 
-    def __init__(
-        self, config_entry: KNMIDirectConfigEntry
-    ) -> None:
+    def __init__(self, config_entry: KNMIDirectConfigEntry) -> None:
         super().__init__()
 
         # Condition that guards the loading indicator.
@@ -80,31 +79,41 @@ class PrecipitationRadarCam(Camera):
         for subentry in config_entry.subentries.values():
             # TODO: Make configurable
             # TODO: Deal with adding/removing location
-            self._locations.append({
-                'lat': subentry.data[CONF_LATITUDE],
-                'lon': subentry.data[CONF_LONGITUDE]
-            })
+            self._locations.append(
+                {
+                    "lat": subentry.data[CONF_LATITUDE],
+                    "lon": subentry.data[CONF_LONGITUDE],
+                }
+            )
 
     def _load_background(self):
-        with open(BACKGROUND_IMAGE_PATH, 'rb') as f:
+        with open(BACKGROUND_IMAGE_PATH, "rb") as f:
             img = Image.open(f, formats=["PNG"]).convert("RGBA")
             draw = ImageDraw.Draw(img)
 
             for location in self._locations:
                 # Convert from lat lon in degrees to x y in meters
-                x, y = epsg4325_to_epsg3857(location['lon'], location['lat'])
+                x, y = epsg4325_to_epsg3857(location["lon"], location["lat"])
                 # Calculate position on image.
-                y_img = (img.size[0] / (BACKGROUND_IMAGE_BBOX[3] - BACKGROUND_IMAGE_BBOX[1]) * (y - BACKGROUND_IMAGE_BBOX[1]))
-                x_img = img.size[1] / (BACKGROUND_IMAGE_BBOX[2] - BACKGROUND_IMAGE_BBOX[0]) * (x - BACKGROUND_IMAGE_BBOX[0])
+                y_img = (
+                    img.size[0]
+                    / (BACKGROUND_IMAGE_BBOX[3] - BACKGROUND_IMAGE_BBOX[1])
+                    * (y - BACKGROUND_IMAGE_BBOX[1])
+                )
+                x_img = (
+                    img.size[1]
+                    / (BACKGROUND_IMAGE_BBOX[2] - BACKGROUND_IMAGE_BBOX[0])
+                    * (x - BACKGROUND_IMAGE_BBOX[0])
+                )
                 # Image is downwards from y so flip
                 y_img = img.size[0] - y_img
 
-                draw.circle((x_img, y_img), 10, None, 'red', width=2)
+                draw.circle((x_img, y_img), 10, None, "red", width=2)
 
         self._background_image = img
 
     def __needs_refresh(self) -> bool:
-        if self._last_modified is None or self._last_image_dt is None :
+        if self._last_modified is None or self._last_image_dt is None:
             return True
 
         return self._last_modified > self._last_image_dt
@@ -115,10 +124,14 @@ class PrecipitationRadarCam(Camera):
         fetch = list()
 
         async def fetch_forecast_with_time(r, t):
-            return t, await self._wms.radar_forecast_image(r, t, self._background_image.size, BACKGROUND_IMAGE_BBOX_PARAM)
+            return t, await self._wms.radar_forecast_image(
+                r, t, self._background_image.size, BACKGROUND_IMAGE_BBOX_PARAM
+            )
 
         async def fetch_realtime_with_time(t):
-            return t, await self._wms.radar_real_time_image(t, self._background_image.size, BACKGROUND_IMAGE_BBOX_PARAM)
+            return t, await self._wms.radar_real_time_image(
+                t, self._background_image.size, BACKGROUND_IMAGE_BBOX_PARAM
+            )
 
         # Fetch images from previous hour
         time = ref_time - timedelta(minutes=60)
@@ -143,33 +156,46 @@ class PrecipitationRadarCam(Camera):
                 fill = (48, 48, 48)
             else:
                 fill = (48, 48, 148)
-            draw.text((28, 28), dt_util.as_local(time).strftime("%a %H:%M"), fill=fill, font_size=45, stroke_width=0.8)
+            draw.text(
+                (28, 28),
+                dt_util.as_local(time).strftime("%a %H:%M"),
+                fill=fill,
+                font_size=45,
+                stroke_width=0.8,
+            )
             images.append(Image.composite(img, self._background_image, img))
 
         _LOGGER.debug("Generated image")
 
         with io.BytesIO() as output:
-            images[0].save(output, format='GIF', save_all=True, append_images=images[1:], optimize=False, duration=300,
-                           loop=1, disposal=2)
+            images[0].save(
+                output,
+                format="GIF",
+                save_all=True,
+                append_images=images[1:],
+                optimize=False,
+                duration=300,
+                loop=1,
+                disposal=2,
+            )
             self._last_image = output.getvalue()
 
         _LOGGER.debug("Stored image")
 
         return True
 
-
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
-
         if not self.__needs_refresh():
             return self._last_image
 
         if self._last_modified is None:
             # No event received yet. Retrieve initial image from 5 or more minutes ago
             now = dt_util.utcnow()
-            self._last_modified = now.replace(minute=floor(now.minute / 5) * 5, second=0, microsecond=0) - timedelta(
-                minutes=5)
+            self._last_modified = now.replace(
+                minute=floor(now.minute / 5) * 5, second=0, microsecond=0
+            ) - timedelta(minutes=5)
 
         # get lock, check iff loading, await notification if loading
         async with self._condition:
@@ -198,11 +224,12 @@ class PrecipitationRadarCam(Camera):
     async def _set_latest(self, event):
         # Allowing for some time for the image to be available in WMS
         await asyncio.sleep(15)
-        self._last_modified = datetime.strptime(event["data"]["filename"],
-                                                "RAD_NL25_RAC_FM_%Y%m%d%H%M.h5").replace(tzinfo=timezone.utc)
+        self._last_modified = datetime.strptime(
+            event["data"]["filename"], "RAD_NL25_RAC_FM_%Y%m%d%H%M.h5"
+        ).replace(tzinfo=timezone.utc)
 
     async def async_added_to_hass(self):
-        self._ns.set_callback('radar_forecast', self._attr_unique_id, self._set_latest)
+        self._ns.set_callback("radar_forecast", self._attr_unique_id, self._set_latest)
 
         # TODO: Best place to do this?
         await self.hass.async_add_executor_job(self._load_background)
