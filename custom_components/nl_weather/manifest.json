@@ -1,13 +1,11 @@
 {
   "domain": "nl_weather",
   "name": "NL Weather",
+  "codeowners": [ "@PaulVanSchayck" ],
   "config_flow": true,
-  "codeowners": [
-    "@PaulVanSchayck"
-  ],
   "documentation": "https://github.com/PaulVanSchayck/ha-nl-weather",
-  "issue_tracker": "https://github.com/PaulVanSchayck/ha-nl-weather/issues",
   "iot_class": "cloud_push",
-  "version": "0.1.0",
-  "requirements": ["aiomqtt==2.4.0"]
+  "issue_tracker": "https://github.com/PaulVanSchayck/ha-nl-weather/issues",
+  "requirements": ["aiomqtt==2.4.0"],
+  "version": "0.1.0"
 }
