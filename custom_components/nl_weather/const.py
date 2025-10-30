@@ -180,7 +180,7 @@ CONDITION_FORECAST_MAP = {
 
 
 class Alert(StrEnum):
-    NONE = ("none",)
-    YELLOW = ("yellow",)
-    ORANGE = ("orange",)
+    NONE = "none"
+    YELLOW = "yellow"
+    ORANGE = "orange"
     RED = "red"
