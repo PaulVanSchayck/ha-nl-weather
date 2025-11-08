@@ -11,5 +11,52 @@
         }
       }
     }
+  },
+  "common": {
+    "location": "Locatie"
+  },
+  "config": {
+    "step": {
+      "user": {
+        "title": "Verbind met de KNMI Data Plaform APIs",
+        "description": "Je kan de API tokens verkrijgen via https://developer.dataplatform.knmi.nl/",
+        "data": {
+          "edr_api_token": "EDR API Token",
+          "mqtt_token": "Notification Service (MQTT) Token",
+          "wms_token": "Web Map Service (WMS) Token"
+        }
+      },
+      "finish": {
+        "title": "Setup Voltooid",
+        "description": "Setup voltooid! 🎉\n\n Om weersverwachtingen en waarnemingen te ontvangen moet je eerst een locatie toevoegen: :\n**Instellingen → Appaten & diensten → NL Weather → Nieuw locatie**"
+      }
+    },
+    "error": {
+      "cannot_connect": "Niet gelukt om te verbinden met de service",
+      "invalid": "Incorrect token (moet beginnen met `ey...`)",
+      "unknown": "Onverwachte fout"
+    }
+  },
+  "config_subentries": {
+    "location": {
+      "title": "Weer Locatie",
+      "step": {
+        "user": {
+          "title": "Nieuw locatie",
+          "description": "Configureer de weer locatie"
+        },
+        "reconfigure": {
+          "title": "Update locatie",
+          "description": "..."
+        }
+      },
+      "initiate_flow": {
+        "user": "Nieuwe locatie"
+      },
+      "error": {
+      },
+      "abort": {
+      }
+    }
   }
 }
