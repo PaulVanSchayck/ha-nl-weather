@@ -21,8 +21,9 @@
         "title": "Connect to KNMI Data Plaform APIs",
         "description": "You can get API keys from https://developer.dataplatform.knmi.nl/",
         "data": {
-          "edr_api_token": "[%key:common::config_flow::data::edr_api_token%]",
-          "mqtt_token": "[%key:common::config_flow::data::mqtt_token%]"
+          "edr_api_token": "EDR API Token",
+          "mqtt_token": "Notification Service (MQTT) Token",
+          "wms_token": "Web Map Service (WMS) Token"
         }
       },
       "finish": {
@@ -31,12 +32,9 @@
       }
     },
     "error": {
-      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
-      "invalid": "[%key:common::config_flow::error::invalid%]",
-      "unknown": "[%key:common::config_flow::error::unknown%]"
-    },
-    "abort": {
-      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+      "cannot_connect": "Failed to connect to service",
+      "invalid": "Invalid token (should start with `ey...`)",
+      "unknown": "Unexpected error"
     }
   },
   "config_subentries": {
