@@ -4,14 +4,13 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .notification_service import NotificationService
-from .edr import EDR, NotFoundError, closest_coverage
+from .edr import EDR, NotFoundError, closest_coverage, ServerError
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import CONF_NAME, CONF_LATITUDE, CONF_LONGITUDE, CONF_REGION
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import utcnow
-from .app import ServerError
 from .const import (
     APP_API_SCAN_INTERVAL,
     PARAMETER_ATTRIBUTE_MAP,
