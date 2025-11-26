@@ -1,14 +1,42 @@
 {
   "entity": {
+    "weather":{
+      "observations": {
+        "name": "Waarnemingen"
+      },
+      "forecast": {
+        "name": "Verwachtingen"
+      }
+    },
     "sensor": {
+      "weather_alert": {
+        "name": "Waarschuwingen",
+        "state": {
+          "none": "Geen"
+        }
+      },
       "weather_alert_level": {
-        "name": "Weer Code",
+        "name": "Waarschuwingscode",
         "state": {
           "orange": "Oranje",
           "yellow": "Geel",
           "red": "Rood",
-          "none": "Geen"
+          "none": "Groen"
         }
+      },
+      "observations_station_distance": {
+        "name": "Stationsafstand"
+      },
+      "observations_station_name": {
+        "name": "Stationsnaam"
+      },
+      "observations_time": {
+        "name": "Waarnemingstijd"
+      }
+    },
+    "binary_sensor": {
+      "weather_alert_active": {
+        "name": "Waarschuwing actief"
       }
     }
   },

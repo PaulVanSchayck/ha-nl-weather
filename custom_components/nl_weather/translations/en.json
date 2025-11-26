@@ -1,14 +1,42 @@
 {
    "entity": {
+    "weather":{
+      "observations": {
+        "name": "Observations"
+      },
+      "forecast": {
+        "name": "Forecast"
+      }
+    },
     "sensor": {
+      "weather_alert": {
+        "name": "Alerts",
+        "state": {
+          "none": "None"
+        }
+      },
       "weather_alert_level": {
-        "name": "Weather Alert Code",
+        "name": "Alert level",
         "state": {
           "orange": "Orange",
           "yellow": "Yellow",
           "red": "Red",
-          "none": "None"
+          "none": "Green"
         }
+      },
+      "observations_station_distance": {
+        "name": "Station distance"
+      },
+      "observations_station_name": {
+        "name": "Station name"
+      },
+      "observations_time": {
+        "name": "Observation time"
+      }
+    },
+    "binary_sensor": {
+      "weather_alert_active": {
+        "name": "Alert active"
       }
     }
   },
