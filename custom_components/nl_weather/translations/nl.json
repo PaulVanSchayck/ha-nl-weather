@@ -67,6 +67,7 @@
   },
   "config_subentries": {
     "location": {
+      "entry_type": "Locatie",
       "title": "Weer Locatie",
       "step": {
         "user": {
