@@ -3,7 +3,6 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntityDescription,
 )
 from homeassistant.config_entries import ConfigSubentry
-from homeassistant.const import CONF_NAME
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -42,14 +41,13 @@ class NLWeatherAlertActiveSensor(
             f"{config_entry.entry_id}_{subentry.subentry_id}_alert_active"
         )
         self._attr_device_info = DeviceInfo(
-            identifiers={
-                (DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}_forecast")
-            },
+            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
         )
+        self._attr_has_entity_name = True
         self.entity_description = BinarySensorEntityDescription(
             key="alert_active",
-            name=f"Weer Waarschuwing Actief {subentry.data[CONF_NAME]}",
             icon="mdi:alert-box-outline",
+            translation_key="weather_alert_active",
         )
 
     @property

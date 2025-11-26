@@ -91,16 +91,15 @@ class NLWeatherObservations(CoordinatorEntity[NLWeatherEDRCoordinator], WeatherE
             f"{config_entry.entry_id}_{subentry.subentry_id}_observations"
         )
         self._attr_device_info = DeviceInfo(
-            name="Observations",
+            name=f"Weer {subentry.data[CONF_NAME]}",
             entry_type=DeviceEntryType.SERVICE,
-            identifiers={
-                (DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}_observations")
-            },
+            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
             manufacturer="KNMI.nl",
-            model="Observations",
+            model="Waarnemingen & Verwachtingen",
             configuration_url="https://www.knmi.nl",
         )
-        self._attr_name = subentry.data[CONF_NAME]
+        self._attr_translation_key = "observations"
+        self._attr_has_entity_name = True
         self._subentry_id = subentry.subentry_id
 
         # Units
@@ -209,16 +208,10 @@ class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEn
             f"{config_entry.entry_id}_{subentry.subentry_id}_forecast"
         )
         self._attr_device_info = DeviceInfo(
-            name="Forecast",
-            entry_type=DeviceEntryType.SERVICE,
-            identifiers={
-                (DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}_forecast")
-            },
-            manufacturer="KNMI.nl",
-            model="Forecast",
-            configuration_url="https://www.knmi.nl",
+            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")}
         )
-        self._attr_name = subentry.data[CONF_NAME]
+        self._attr_translation_key = "forecast"
+        self._attr_has_entity_name = True
 
         # Units
         self._attr_native_wind_speed_unit = UnitOfSpeed.KILOMETERS_PER_HOUR

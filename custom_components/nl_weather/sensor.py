@@ -4,7 +4,7 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
 )
 from homeassistant.config_entries import ConfigSubentry
-from homeassistant.const import CONF_NAME, UnitOfLength
+from homeassistant.const import UnitOfLength
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -49,24 +49,21 @@ class NLWeatherAlertSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], Sensor
 
         self._attr_unique_id = f"{config_entry.entry_id}_{subentry.subentry_id}_alert"
         self._attr_device_info = DeviceInfo(
-            identifiers={
-                (DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}_forecast")
-            },
+            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
         )
+        self._attr_has_entity_name = True
         self.entity_description = SensorEntityDescription(
             key="alert",
-            name=f"Weer Waarschuwing {subentry.data[CONF_NAME]}",
             icon="mdi:weather-cloudy-alert",
+            translation_key="weather_alert",
         )
 
     @property
     def native_value(self):
         # TODO: Not dealing well with multiple alerts yet
-        if len(self.coordinator.data["alerts"]) > 0:
-            return self.coordinator.data["alerts"][0]["description"]
-        else:
-            # TODO: Needs translation
-            return "Geen"
+        if len(self.coordinator.data["alerts"]) == 0:
+            return "none"
+        return self.coordinator.data["alerts"][0]["description"]
 
 
 class NLWeatherAlertLevelSensor(
@@ -81,14 +78,12 @@ class NLWeatherAlertLevelSensor(
             f"{config_entry.entry_id}_{subentry.subentry_id}_alert_level"
         )
         self._attr_device_info = DeviceInfo(
-            identifiers={
-                (DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}_forecast")
-            },
+            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
         )
+        self._attr_has_entity_name = True
         self.entity_description = SensorEntityDescription(
             key="alert_level",
             options=[a.value for a in Alert],
-            name=f"Weer Code {subentry.data[CONF_NAME]}",
             icon="mdi:alert-box",
             translation_key="weather_alert_level",
             device_class=SensorDeviceClass.ENUM,
@@ -110,11 +105,13 @@ class NLObservationStationDistanceSensor(
         self._attr_unique_id = (
             f"{config_entry.entry_id}_{subentry.subentry_id}_station_distance"
         )
-        self._attr_name = f"Weerstation Afstand {subentry.data[CONF_NAME]}"
         self._attr_device_info = DeviceInfo(
-            identifiers={
-                (DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}_observations")
-            },
+            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
+        )
+        self._attr_has_entity_name = True
+        self.entity_description = SensorEntityDescription(
+            key="station_distance",
+            translation_key="observations_station_distance",
         )
         self.device_class = SensorDeviceClass.DISTANCE
         self._subentry_id = subentry.subentry_id
@@ -137,11 +134,13 @@ class NLObservationStationNameSensor(
         self._attr_unique_id = (
             f"{config_entry.entry_id}_{subentry.subentry_id}_station_name"
         )
-        self._attr_name = f"Weerstation Naam {subentry.data[CONF_NAME]}"
         self._attr_device_info = DeviceInfo(
-            identifiers={
-                (DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}_observations")
-            },
+            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
+        )
+        self._attr_has_entity_name = True
+        self.entity_description = SensorEntityDescription(
+            key="station_name",
+            translation_key="observations_station_name",
         )
         self._subentry_id = subentry.subentry_id
 
@@ -159,11 +158,13 @@ class NLObservationTimeSensor(CoordinatorEntity[NLWeatherEDRCoordinator], Sensor
         self._attr_unique_id = (
             f"{config_entry.entry_id}_{subentry.subentry_id}_observation_time"
         )
-        self._attr_name = f"Observatie tijd {subentry.data[CONF_NAME]}"
         self._attr_device_info = DeviceInfo(
-            identifiers={
-                (DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}_observations")
-            },
+            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
+        )
+        self._attr_has_entity_name = True
+        self.entity_description = SensorEntityDescription(
+            key="time",
+            translation_key="observations_time",
         )
         self.device_class = SensorDeviceClass.TIMESTAMP
         self._subentry_id = subentry.subentry_id
