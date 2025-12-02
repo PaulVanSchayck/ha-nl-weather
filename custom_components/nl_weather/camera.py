@@ -46,7 +46,6 @@ class PrecipitationRadarCam(Camera):
     [0]: https://dataplatform.knmi.nl/dataset/radar-forecast-2-0
     """
 
-    _attr_name = "Neerslag Radar"
     _background_image: ImageFile
     _last_image: bytes | None = None
     _last_image_dt: datetime | None = None
@@ -65,13 +64,13 @@ class PrecipitationRadarCam(Camera):
         self._attr_unique_id = f"{config_entry.entry_id}_precipitation_radar"
 
         self._attr_device_info = DeviceInfo(
-            name="Precipitation Radar",
+            name="Neerslagradar",
             entry_type=DeviceEntryType.SERVICE,
             identifiers={(DOMAIN, f"{config_entry.entry_id}_precipitation_radar")},
             manufacturer="KNMI.nl",
-            model="Precipitation Radar",
             configuration_url="https://www.knmi.nl",
         )
+        self._attr_translation_key = "precipitation_radar"
 
         self._ns = config_entry.runtime_data.notification_service
         self._wms = config_entry.runtime_data.wms
