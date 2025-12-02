@@ -1,5 +1,10 @@
 {
   "entity": {
+    "camera": {
+      "precipitation_radar": {
+        "name": "Neerslagradar"
+      }
+    },
     "weather":{
       "observations": {
         "name": "Waarnemingen"
@@ -68,11 +73,16 @@
   "config_subentries": {
     "location": {
       "entry_type": "Locatie",
-      "title": "Weer Locatie",
       "step": {
-        "user": {
-          "title": "Nieuw locatie",
-          "description": "Configureer de weer locatie"
+        "location": {
+          "title": "Nieuwe locatie",
+          "description": "Configureer een locatie",
+          "data": {
+            "name": "Naam",
+            "latitude": "Breedtegraad",
+            "longitude": "Lengtegraad",
+            "region": "Regio waarvoor je weerwaarschuwingen ontvangt"
+          }
         },
         "reconfigure": {
           "title": "Update locatie",

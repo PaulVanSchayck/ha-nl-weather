@@ -1,5 +1,10 @@
 {
    "entity": {
+    "camera": {
+      "precipitation_radar": {
+        "name": "Precipitation Radar"
+      }
+    },
     "weather":{
       "observations": {
         "name": "Observations"
@@ -68,11 +73,16 @@
   "config_subentries": {
     "location": {
       "entry_type": "Location",
-      "title": "Weather location",
       "step": {
-        "user": {
+        "location": {
           "title": "Add location",
-          "description": "Configure the weather location"
+          "description": "Configure a weather location",
+          "data": {
+            "name": "Name",
+            "latitude": "Latitude",
+            "longitude": "Longitude",
+            "region": "Region for which you receive weather alerts"
+          }
         },
         "reconfigure": {
           "title": "Update location",
