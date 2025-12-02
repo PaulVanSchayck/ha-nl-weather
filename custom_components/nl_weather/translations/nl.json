@@ -51,7 +51,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Verbind met de KNMI Data Plaform APIs",
+        "title": "Verbind met de KNMI Data Platform APIs",
         "description": "Je kan de API tokens verkrijgen via https://developer.dataplatform.knmi.nl/",
         "data": {
           "edr_api_token": "EDR API Token",
