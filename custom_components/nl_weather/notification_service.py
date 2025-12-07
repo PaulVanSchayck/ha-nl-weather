@@ -72,7 +72,14 @@ class NotificationService:
         _LOGGER.debug(f"MQTT event: {event}")
 
         if self._callbacks[dataset] is not None:
-            await asyncio.gather(*[c(event) for c in self._callbacks[dataset].values()])
+            try:
+                await asyncio.gather(
+                    *[c(event) for c in self._callbacks[dataset].values()]
+                )
+            except Exception as e:
+                _LOGGER.error(
+                    f"Error handling notification message for {dataset}: {str(e)}"
+                )
 
     async def disconnect(self):
         _LOGGER.debug("Disconnected")
