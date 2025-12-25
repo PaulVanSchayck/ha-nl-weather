@@ -4,15 +4,20 @@
 precipitation (e.g. rain) radar and warnings in The Netherlands — using public data directly fetched from 
 KNMI (the Royal Netherlands Meteorological Institute).
 
+![Screenshot of NL-Weather in action](images/nl-weather.png "NL Weather integration")
+_In this screenshot the custom card [Weather Forecast Extended](https://github.com/Thyraz/weather-forecast-extended) 
+is used to display the forecast, warnings and observations. The radar is the default camera card_
+
 ## Features
 
-- Integration as a `weather` provider (compatible with Home Assistant weather-entity standards)
+- Integration as a Home Assistant `weather` entity provider
+  - Observations and forecast separated into two `weather` entities
 - Can have multiple configurable locations (limited to the Netherlands) with
   - Current weather observations (temperature, humidity, wind, etc.)  
   - Weather forecast (hourly/daily)
   - Weather alerts (issued by KNMI)
-- Precipitation / rain radar and forecast (rain intensity, movement, etc.)  
-- Optional additional sensors/entities for detailed data (as provided by KNMI)
+- Precipitation / rain radar and forecast (rain intensity, movement, etc.)
+- Weather observations fetched from closest KNMI automatic weather station
 - Data fetched directly from official KNMI APIs
   - Uses KNMI's MQTT Notification Service to reduce polling
 
@@ -21,7 +26,7 @@ KNMI (the Royal Netherlands Meteorological Institute).
 ### Via HACS (recommended)
 
 1. Ensure you have HACS installed in your Home Assistant.
-2. Add this repository as a custom integration (if not already in the default store).  
+2. Add this repository as a custom integration  
 3. In Home Assistant: go to **Settings → Devices & Services → Add Integration**.  
 4. Search for **NL Weather** and install.  
 5. Restart Home Assistant if required.  
@@ -44,24 +49,32 @@ After adding the integration you'll first need to configure your API keys.
 
 ### Step 1. Connect to KNMI Data Platform APIs
 
-You can get API keys from https://developer.dataplatform.knmi.nl/
+You can get API keys from https://developer.dataplatform.knmi.nl/. Register an account and request keys for:
+
+1. EDR API
+2. Web Map Service (WMS)
+3. Notification Service
+
+You'll receive copies of all keys via e-mail as well. 
 
 ### Step 2. Configure a weather location 
 
 To start receiving weather observations and forecasts, add a location: 
-**Settings → Devices & services → NL Weather → Add location**"
+**Settings → Devices & services → NL Weather → Add location**
 
+Enter (or modify) your location. The region you set will determine for which region you will receive 
+weather alerts.
 
 ## Entities Created
 
 The integration will add `weather.weer_thuis_observations` and `weather.weer_thuis_forecast`, plus optional sensor 
 entities for detailed data such as:
 
-- Temperature, humidity, pressure  
-- Wind speed and direction  
-- Rain / precipitation intensity / radar data  
-- Forecast data (daily / hourly)  
-- Warnings / alerts  
+- Weather Warnings
+  - Color code
+  - Text description
+- Distance to weather station
+- Name of weather stations
 
 This allows you to use the data in automations, dashboards (Lovelace), and scripts just like with any other weather integration.
 
