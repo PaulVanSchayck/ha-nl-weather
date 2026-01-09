@@ -98,6 +98,11 @@ licensed under CC-BY 4.0
 - Weather data, radar images, forecasts and warnings are provided by KNMI; the integration simply fetches and 
 exposes them in Home Assistant.  
  
+## Discussion
+
+For further help or discussion you can use 
+[this Home Assistant Community Forum thread](https://community.home-assistant.io/t/nl-weather-integration-forecast-observations-rain-radar-and-warnings/967610).
+
 
 ---
 
