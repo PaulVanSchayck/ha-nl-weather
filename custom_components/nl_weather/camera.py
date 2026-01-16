@@ -1,4 +1,4 @@
-"""Provide animated GIF loops of Buienradar imagery."""
+"""Provide animated GIF loops of KNMI radar images fetched from WMS."""
 
 from __future__ import annotations
 

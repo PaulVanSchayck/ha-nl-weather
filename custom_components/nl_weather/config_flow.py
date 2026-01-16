@@ -1,35 +1,46 @@
+from base64 import b64decode
 import binascii
 import json
 import logging
-from base64 import b64decode
+from typing import Any
 
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigEntry, ConfigSubentryFlow
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlowResult,
+    ConfigSubentryFlow,
+    OptionsFlow,
+)
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME, CONF_REGION
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    SelectOptionDict,
+    SelectSelector,
+    SelectSelectorConfig,
     TextSelector,
-    TextSelectorType,
     TextSelectorConfig,
+    TextSelectorType,
     selector,
 )
-from . import EDR, WMS
 
+from . import EDR, WMS
 from .const import (
-    DOMAIN,
+    ALERT_REGIONS,
     CONF_EDR_API_TOKEN,
     CONF_MQTT_TOKEN,
+    CONF_WMS_STYLE,
     CONF_WMS_TOKEN,
-    ALERT_REGIONS,
+    DOMAIN,
+    WMS_STYLES,
 )
 from .edr import TokenInvalid
-from .wms import TokenInvalid as WMSTokenInvalid  # TODO: Fix this
 from .notification_service import NotificationService, TokenInvalid as NSTokenInvalid
+from .wms import TokenInvalid as WMSTokenInvalid  # TODO: Fix this
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,6 +55,28 @@ DATA_SCHEMA = vol.Schema(
         vol.Required(
             CONF_MQTT_TOKEN, msg="Notification Service (MQTT) Token"
         ): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
+    }
+)
+
+OPTIONS_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_WMS_STYLE, msg="Radar style"): SelectSelector(
+            SelectSelectorConfig(
+                options=[
+                    SelectOptionDict(value=value, label=key)
+                    for key, value in WMS_STYLES.items()
+                ]
+            ),
+        ),
+        vol.Required(CONF_WMS_STYLE, msg="Radar style"): SelectSelector(
+            SelectSelectorConfig(
+                options=[
+                    SelectOptionDict(value=value, label=key)
+                    for key, value in WMS_STYLES.items()
+                ]
+            ),
+        ),
+        # https://developers.home-assistant.io/docs/config_entries_options_flow_handler#signal-updates
     }
 )
 
@@ -83,6 +116,22 @@ async def validate_mqtt_input(hass: HomeAssistant, data: dict):
         await ns.test_connection()
     except NSTokenInvalid:
         raise CannotConnect
+
+
+class OptionsFlowHandler(OptionsFlow):
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Manage the options."""
+        if user_input is not None:
+            return self.async_create_entry(data=user_input)
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=self.add_suggested_values_to_schema(
+                OPTIONS_SCHEMA, self.config_entry.options
+            ),
+        )
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -141,6 +190,14 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> dict[str, type[ConfigSubentryFlow]]:
         """Return subentries supported by this integration."""
         return {"location": LocationSubentryFlowHandler}
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: ConfigEntry,
+    ) -> OptionsFlowHandler:
+        """Create the options flow."""
+        return OptionsFlowHandler()
 
 
 class LocationSubentryFlowHandler(ConfigSubentryFlow):

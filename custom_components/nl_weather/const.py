@@ -36,6 +36,7 @@ DOMAIN = "nl_weather"
 CONF_EDR_API_TOKEN: Final = "edr_api_token"
 CONF_WMS_TOKEN: Final = "wms_token"
 CONF_MQTT_TOKEN: Final = "mqtt_token"
+CONF_WMS_STYLE = "wms_style"
 
 CONDITION_CLASSES: dict[str, list[int]] = {
     ATTR_CONDITION_CLOUDY: [1, 2, 3, 10],
@@ -185,3 +186,6 @@ class Alert(StrEnum):
     YELLOW = "yellow"
     ORANGE = "orange"
     RED = "red"
+
+
+WMS_STYLES = {"Bright": "rainrate-blue-to-purple/nearest", "Dark": "foo"}
