@@ -6,9 +6,6 @@
 precipitation (e.g. rain) radar and warnings in The Netherlands — using public data directly fetched from 
 KNMI (the Royal Netherlands Meteorological Institute).
 
-<img src="images/icon@2x.png" width="10%">
-
-
 ![Screenshot of NL-Weather in action](images/nl-weather.png "NL Weather integration")
 _In this screenshot the custom card [Weather Forecast Extended](https://github.com/Thyraz/weather-forecast-extended) 
 is used to display the forecast, warnings and observations. The radar is the default camera card_
