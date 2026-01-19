@@ -37,8 +37,11 @@ CONF_EDR_API_TOKEN: Final = "edr_api_token"
 CONF_WMS_TOKEN: Final = "wms_token"
 CONF_MQTT_TOKEN: Final = "mqtt_token"
 CONF_WMS_STYLE = "wms_style"
+CONF_MARK_LOCATIONS = "mark_locations"
 
-CONDITION_CLASSES: dict[str, list[int]] = {
+# https://www.knmi.nl/kennis-en-datacentrum/publicatie/handboek-waarnemingen
+# Tabel 6: Beschrijving weercodegenerator
+CONDITION_CLASSES: dict[str, list[int | float]] = {
     ATTR_CONDITION_CLOUDY: [1, 2, 3, 10],
     ATTR_CONDITION_FOG: [20, 30, 32, 33, 34, 35],
     ATTR_CONDITION_HAIL: [21, 22, 89],
@@ -188,4 +191,4 @@ class Alert(StrEnum):
     RED = "red"
 
 
-WMS_STYLES = {"Bright": "rainrate-blue-to-purple/nearest", "Dark": "foo"}
+WMS_STYLES = {"Bright": "rainrate-blue-to-purple/nearest", "Dark": "radar/nearest"}

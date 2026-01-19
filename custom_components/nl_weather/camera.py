@@ -19,12 +19,17 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from . import KNMIDirectConfigEntry
-from .const import DOMAIN
+from .const import CONF_MARK_LOCATIONS, CONF_WMS_STYLE, DOMAIN, WMS_STYLES
 from .wms import epsg4325_to_epsg3857
 
 _LOGGER = logging.getLogger(__name__)
 
-BACKGROUND_IMAGE_PATH = os.path.join(os.path.dirname(__file__), "background.png")
+BACKGROUND_IMAGE_DARK_PATH = os.path.join(
+    os.path.dirname(__file__), "background_dark.png"
+)
+BACKGROUND_IMAGE_BRIGHT_PATH = os.path.join(
+    os.path.dirname(__file__), "background_bright.png"
+)
 # BBOX in EPSG:3857 (Web Mercator). This is (49.14, 0.0, 54,68, 8.98) in EPSG:4326
 BACKGROUND_IMAGE_BBOX = (0.0, 6300000, 1000000, 7300000)
 BACKGROUND_IMAGE_BBOX_PARAM = ",".join(map(str, BACKGROUND_IMAGE_BBOX))
@@ -75,18 +80,20 @@ class PrecipitationRadarCam(Camera):
         self._ns = config_entry.runtime_data.notification_service
         self._wms = config_entry.runtime_data.wms
 
-        for subentry in config_entry.subentries.values():
-            # TODO: Make configurable
-            # TODO: Deal with adding/removing location
-            self._locations.append(
-                {
-                    "lat": subentry.data[CONF_LATITUDE],
-                    "lon": subentry.data[CONF_LONGITUDE],
-                }
-            )
+        self._wms_style = config_entry.options.get(CONF_WMS_STYLE, WMS_STYLES["Bright"])
+
+        if config_entry.options.get(CONF_MARK_LOCATIONS, True):
+            for subentry in config_entry.subentries.values():
+                # TODO: Deal with adding/removing location
+                self._locations.append(
+                    {
+                        "lat": subentry.data[CONF_LATITUDE],
+                        "lon": subentry.data[CONF_LONGITUDE],
+                    }
+                )
 
     def _load_background(self):
-        with open(BACKGROUND_IMAGE_PATH, "rb") as f:
+        with open(BACKGROUND_IMAGE_DARK_PATH, "rb") as f:
             img = Image.open(f, formats=["PNG"]).convert("RGBA")
             draw = ImageDraw.Draw(img)
 
@@ -124,12 +131,19 @@ class PrecipitationRadarCam(Camera):
 
         async def fetch_forecast_with_time(r, t):
             return t, await self._wms.radar_forecast_image(
-                r, t, self._background_image.size, BACKGROUND_IMAGE_BBOX_PARAM
+                r,
+                t,
+                self._background_image.size,
+                BACKGROUND_IMAGE_BBOX_PARAM,
+                self._wms_style,
             )
 
         async def fetch_realtime_with_time(t):
             return t, await self._wms.radar_real_time_image(
-                t, self._background_image.size, BACKGROUND_IMAGE_BBOX_PARAM
+                t,
+                self._background_image.size,
+                BACKGROUND_IMAGE_BBOX_PARAM,
+                self._wms_style,
             )
 
         # Fetch images from previous hour

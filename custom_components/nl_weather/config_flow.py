@@ -11,7 +11,7 @@ from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlowResult,
     ConfigSubentryFlow,
-    OptionsFlow,
+    OptionsFlowWithReload,
 )
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME, CONF_REGION
 from homeassistant.core import HomeAssistant, callback
@@ -19,6 +19,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
@@ -35,6 +36,7 @@ from .const import (
     CONF_MQTT_TOKEN,
     CONF_WMS_STYLE,
     CONF_WMS_TOKEN,
+    CONF_MARK_LOCATIONS,
     DOMAIN,
     WMS_STYLES,
 )
@@ -60,7 +62,9 @@ DATA_SCHEMA = vol.Schema(
 
 OPTIONS_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_WMS_STYLE, msg="Radar style"): SelectSelector(
+        vol.Required(
+            CONF_WMS_STYLE, msg="Radar style", default=WMS_STYLES["Bright"]
+        ): SelectSelector(
             SelectSelectorConfig(
                 options=[
                     SelectOptionDict(value=value, label=key)
@@ -68,15 +72,9 @@ OPTIONS_SCHEMA = vol.Schema(
                 ]
             ),
         ),
-        vol.Required(CONF_WMS_STYLE, msg="Radar style"): SelectSelector(
-            SelectSelectorConfig(
-                options=[
-                    SelectOptionDict(value=value, label=key)
-                    for key, value in WMS_STYLES.items()
-                ]
-            ),
-        ),
-        # https://developers.home-assistant.io/docs/config_entries_options_flow_handler#signal-updates
+        vol.Required(
+            CONF_MARK_LOCATIONS, msg="Mark location on radar", default=True
+        ): BooleanSelector(),
     }
 )
 
@@ -118,7 +116,7 @@ async def validate_mqtt_input(hass: HomeAssistant, data: dict):
         raise CannotConnect
 
 
-class OptionsFlowHandler(OptionsFlow):
+class OptionsFlowHandler(OptionsFlowWithReload):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
