@@ -19,17 +19,18 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from . import KNMIDirectConfigEntry
-from .const import CONF_MARK_LOCATIONS, CONF_WMS_STYLE, DOMAIN, WMS_STYLES
+from .const import (
+    CONF_MARK_LOCATIONS,
+    CONF_RADAR_STYLE,
+    DEFAULT_RADAR_STYLE,
+    DOMAIN,
+    RADAR_STYLES,
+    RadarStyle,
+)
 from .wms import epsg4325_to_epsg3857
 
 _LOGGER = logging.getLogger(__name__)
 
-BACKGROUND_IMAGE_DARK_PATH = os.path.join(
-    os.path.dirname(__file__), "background_dark.png"
-)
-BACKGROUND_IMAGE_BRIGHT_PATH = os.path.join(
-    os.path.dirname(__file__), "background_bright.png"
-)
 # BBOX in EPSG:3857 (Web Mercator). This is (49.14, 0.0, 54,68, 8.98) in EPSG:4326
 BACKGROUND_IMAGE_BBOX = (0.0, 6300000, 1000000, 7300000)
 BACKGROUND_IMAGE_BBOX_PARAM = ",".join(map(str, BACKGROUND_IMAGE_BBOX))
@@ -51,6 +52,7 @@ class PrecipitationRadarCam(Camera):
     [0]: https://dataplatform.knmi.nl/dataset/radar-forecast-2-0
     """
 
+    _radar_style: RadarStyle
     _background_image: ImageFile
     _last_image: bytes | None = None
     _last_image_dt: datetime | None = None
@@ -80,7 +82,9 @@ class PrecipitationRadarCam(Camera):
         self._ns = config_entry.runtime_data.notification_service
         self._wms = config_entry.runtime_data.wms
 
-        self._wms_style = config_entry.options.get(CONF_WMS_STYLE, WMS_STYLES["Bright"])
+        self._radar_style = RADAR_STYLES[
+            config_entry.options.get(CONF_RADAR_STYLE, DEFAULT_RADAR_STYLE)
+        ]
 
         if config_entry.options.get(CONF_MARK_LOCATIONS, True):
             for subentry in config_entry.subentries.values():
@@ -93,7 +97,11 @@ class PrecipitationRadarCam(Camera):
                 )
 
     def _load_background(self):
-        with open(BACKGROUND_IMAGE_DARK_PATH, "rb") as f:
+        path = os.path.join(
+            os.path.dirname(__file__), self._radar_style.background_image
+        )
+
+        with open(path, "rb") as f:
             img = Image.open(f, formats=["PNG"]).convert("RGBA")
             draw = ImageDraw.Draw(img)
 
@@ -114,7 +122,9 @@ class PrecipitationRadarCam(Camera):
                 # Image is downwards from y so flip
                 y_img = img.size[0] - y_img
 
-                draw.circle((x_img, y_img), 10, None, "red", width=2)
+                draw.circle(
+                    (x_img, y_img), 10, None, self._radar_style.marker_color, width=2
+                )
 
         self._background_image = img
 
@@ -135,7 +145,7 @@ class PrecipitationRadarCam(Camera):
                 t,
                 self._background_image.size,
                 BACKGROUND_IMAGE_BBOX_PARAM,
-                self._wms_style,
+                self._radar_style.wms_style,
             )
 
         async def fetch_realtime_with_time(t):
@@ -143,7 +153,7 @@ class PrecipitationRadarCam(Camera):
                 t,
                 self._background_image.size,
                 BACKGROUND_IMAGE_BBOX_PARAM,
-                self._wms_style,
+                self._radar_style.wms_style,
             )
 
         # Fetch images from previous hour
@@ -165,14 +175,12 @@ class PrecipitationRadarCam(Camera):
         for time, buf in radar_images:
             img = Image.open(buf, formats=["PNG"]).convert("RGBA")
             draw = ImageDraw.Draw(img)
-            if time <= ref_time:
-                fill = (48, 48, 48)
-            else:
-                fill = (48, 48, 148)
             draw.text(
                 (28, 28),
                 dt_util.as_local(time).strftime("%a %H:%M"),
-                fill=fill,
+                fill=self._radar_style.time_past_color
+                if time <= ref_time
+                else self._radar_style.time_future_color,
                 font_size=45,
                 stroke_width=0.8,
             )

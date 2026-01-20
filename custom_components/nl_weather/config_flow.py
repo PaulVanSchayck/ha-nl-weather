@@ -34,11 +34,12 @@ from .const import (
     ALERT_REGIONS,
     CONF_EDR_API_TOKEN,
     CONF_MQTT_TOKEN,
-    CONF_WMS_STYLE,
+    CONF_RADAR_STYLE,
     CONF_WMS_TOKEN,
     CONF_MARK_LOCATIONS,
+    DEFAULT_RADAR_STYLE,
     DOMAIN,
-    WMS_STYLES,
+    RADAR_STYLES,
 )
 from .edr import TokenInvalid
 from .notification_service import NotificationService, TokenInvalid as NSTokenInvalid
@@ -62,19 +63,16 @@ DATA_SCHEMA = vol.Schema(
 
 OPTIONS_SCHEMA = vol.Schema(
     {
-        vol.Required(
-            CONF_WMS_STYLE, msg="Radar style", default=WMS_STYLES["Bright"]
-        ): SelectSelector(
+        vol.Required(CONF_RADAR_STYLE, default=DEFAULT_RADAR_STYLE): SelectSelector(
             SelectSelectorConfig(
                 options=[
-                    SelectOptionDict(value=value, label=key)
-                    for key, value in WMS_STYLES.items()
-                ]
+                    SelectOptionDict(value=key, label=key)
+                    for key in RADAR_STYLES.keys()
+                ],
+                translation_key="radar_style",
             ),
         ),
-        vol.Required(
-            CONF_MARK_LOCATIONS, msg="Mark location on radar", default=True
-        ): BooleanSelector(),
+        vol.Required(CONF_MARK_LOCATIONS, default=True): BooleanSelector(),
     }
 )
 

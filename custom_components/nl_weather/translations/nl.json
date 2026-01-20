@@ -97,5 +97,27 @@
       "abort": {
       }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "radar_style": "Kleurenthema van radar",
+          "mark_locations": "Markeer locaties"
+        },
+        "data_description": {
+          "radar_style": "Kies welke kleurstijl wordt gebruikt voor de radarafbeelding.",
+          "mark_locations": "Markeer de thuislocatie op de radarafbeelding"
+        }
+      }
+    }
+  },
+  "selector": {
+    "radar_style": {
+      "options": {
+        "light": "Licht",
+        "dark": "Donker"
+      }
+    }
   }
 }
