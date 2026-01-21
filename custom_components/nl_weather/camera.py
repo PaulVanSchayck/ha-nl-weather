@@ -58,6 +58,7 @@ class PrecipitationRadarCam(Camera):
     _last_image_dt: datetime | None = None
     _last_modified: datetime | None = None
     _loading = False
+    _mark_locations = True
     _locations = []
 
     def __init__(self, config_entry: KNMIDirectConfigEntry) -> None:
@@ -86,15 +87,41 @@ class PrecipitationRadarCam(Camera):
             config_entry.options.get(CONF_RADAR_STYLE, DEFAULT_RADAR_STYLE)
         ]
 
-        if config_entry.options.get(CONF_MARK_LOCATIONS, True):
-            for subentry in config_entry.subentries.values():
-                # TODO: Deal with adding/removing location
-                self._locations.append(
-                    {
-                        "lat": subentry.data[CONF_LATITUDE],
-                        "lon": subentry.data[CONF_LONGITUDE],
-                    }
-                )
+        self._mark_locations = config_entry.options.get(CONF_MARK_LOCATIONS, True)
+
+        # TODO: Deal with adding/removing location
+        self._locations = [
+            {
+                "lat": s.data[CONF_LATITUDE],
+                "lon": s.data[CONF_LONGITUDE],
+            }
+            for s in config_entry.subentries.values()
+        ]
+
+    def _add_locations_markers(self, img):
+        draw = ImageDraw.Draw(img)
+        for location in self._locations:
+            # Convert from lat lon in degrees to x y in meters
+            x, y = epsg4325_to_epsg3857(location["lon"], location["lat"])
+            # Calculate position on image.
+            y_img = (
+                img.size[0]
+                / (BACKGROUND_IMAGE_BBOX[3] - BACKGROUND_IMAGE_BBOX[1])
+                * (y - BACKGROUND_IMAGE_BBOX[1])
+            )
+            x_img = (
+                img.size[1]
+                / (BACKGROUND_IMAGE_BBOX[2] - BACKGROUND_IMAGE_BBOX[0])
+                * (x - BACKGROUND_IMAGE_BBOX[0])
+            )
+            # Image is downwards from y so flip
+            y_img = img.size[0] - y_img
+
+            draw.circle(
+                (x_img, y_img), 10, None, self._radar_style.marker_color, width=2
+            )
+
+        return img
 
     def _load_background(self):
         path = os.path.join(
@@ -103,28 +130,9 @@ class PrecipitationRadarCam(Camera):
 
         with open(path, "rb") as f:
             img = Image.open(f, formats=["PNG"]).convert("RGBA")
-            draw = ImageDraw.Draw(img)
 
-            for location in self._locations:
-                # Convert from lat lon in degrees to x y in meters
-                x, y = epsg4325_to_epsg3857(location["lon"], location["lat"])
-                # Calculate position on image.
-                y_img = (
-                    img.size[0]
-                    / (BACKGROUND_IMAGE_BBOX[3] - BACKGROUND_IMAGE_BBOX[1])
-                    * (y - BACKGROUND_IMAGE_BBOX[1])
-                )
-                x_img = (
-                    img.size[1]
-                    / (BACKGROUND_IMAGE_BBOX[2] - BACKGROUND_IMAGE_BBOX[0])
-                    * (x - BACKGROUND_IMAGE_BBOX[0])
-                )
-                # Image is downwards from y so flip
-                y_img = img.size[0] - y_img
-
-                draw.circle(
-                    (x_img, y_img), 10, None, self._radar_style.marker_color, width=2
-                )
+        if self._mark_locations:
+            img = self._add_locations_markers(img)
 
         self._background_image = img
 
