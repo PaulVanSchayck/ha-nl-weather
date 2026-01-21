@@ -97,5 +97,27 @@
       "abort": {
       }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "radar_style": "Radar color theme",
+          "mark_locations": "Mark locations"
+        },
+        "data_description": {
+          "radar_style": "Select the color style used for the radar image",
+          "mark_locations": "Mark the home location on the radar image"
+        }
+      }
+    }
+  },
+  "selector": {
+    "radar_style": {
+      "options": {
+        "light": "Light",
+        "dark": "Dark"
+      }
+    }
   }
 }

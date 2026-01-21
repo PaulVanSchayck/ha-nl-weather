@@ -19,8 +19,11 @@ is used to display the forecast, warnings and observations. The radar is the def
   - Weather forecast (hourly/daily)
   - Weather alerts (issued by KNMI)
 - Precipitation / rain radar and forecast (rain intensity, movement, etc.)
+  - Can mark home location on the radar image
+  - Radar has a dark and light color theme 
 - Weather observations fetched from closest KNMI automatic weather station
 - Data fetched directly from official KNMI APIs
+  - Requires account at KNMI Data Platform
   - Uses KNMI's MQTT Notification Service to reduce polling
 
 ## Installation

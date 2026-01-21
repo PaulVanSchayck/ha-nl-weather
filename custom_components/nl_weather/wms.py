@@ -68,24 +68,24 @@ class WMS:
 
                 return buffer
 
-    async def radar_real_time_image(self, time, size, bbox):
+    async def radar_real_time_image(self, time, size, bbox, style):
         params = BASE_PARAMS.copy()
         params["TIME"] = time.isoformat()
         params["DATASET"] = "nl_rdr_data_rtcor_5m"
         params["LAYERS"] = "precipitation_real_time"
-        params["STYLES"] = "rainrate-blue-to-purple/nearest"
+        params["STYLES"] = style
         params["WIDTH"] = size[0]
         params["HEIGHT"] = size[1]
         params["BBOX"] = bbox
         return await self.get(params)
 
-    async def radar_forecast_image(self, ref_time, time, size, bbox):
+    async def radar_forecast_image(self, ref_time, time, size, bbox, style):
         params = BASE_PARAMS.copy()
         params["DIM_REFERENCE_TIME"] = ref_time.isoformat()
         params["TIME"] = time.isoformat()
         params["DATASET"] = "radar_forecast_2.0"
         params["LAYERS"] = "precipitation_nowcast"
-        params["STYLES"] = "rainrate-blue-to-purple/nearest"
+        params["STYLES"] = style
         params["WIDTH"] = size[0]
         params["HEIGHT"] = size[1]
         params["BBOX"] = bbox

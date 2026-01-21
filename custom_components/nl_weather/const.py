@@ -1,5 +1,6 @@
 """Constants for the NL Weather integration."""
 
+from dataclasses import dataclass
 from datetime import timedelta
 from enum import StrEnum
 from typing import Final
@@ -36,8 +37,12 @@ DOMAIN = "nl_weather"
 CONF_EDR_API_TOKEN: Final = "edr_api_token"
 CONF_WMS_TOKEN: Final = "wms_token"
 CONF_MQTT_TOKEN: Final = "mqtt_token"
+CONF_RADAR_STYLE: Final = "radar_style"
+CONF_MARK_LOCATIONS: Final = "mark_locations"
 
-CONDITION_CLASSES: dict[str, list[int]] = {
+# https://www.knmi.nl/kennis-en-datacentrum/publicatie/handboek-waarnemingen
+# Tabel 6: Beschrijving weercodegenerator
+CONDITION_CLASSES: dict[str, list[int | float]] = {
     ATTR_CONDITION_CLOUDY: [1, 2, 3, 10],
     ATTR_CONDITION_FOG: [20, 30, 32, 33, 34, 35],
     ATTR_CONDITION_HAIL: [21, 22, 89],
@@ -185,3 +190,32 @@ class Alert(StrEnum):
     YELLOW = "yellow"
     ORANGE = "orange"
     RED = "red"
+
+
+@dataclass
+class RadarStyle:
+    background_image: str
+    wms_style: str
+    marker_color: str
+    time_past_color: str
+    time_future_color: str
+
+
+RADAR_STYLES: dict[str, RadarStyle] = {
+    "light": RadarStyle(
+        background_image="background_light.png",
+        wms_style="rainrate-blue-to-purple/nearest",
+        marker_color="red",
+        time_past_color="rgb(48, 48, 48)",
+        time_future_color="rgb(48, 48, 148)",
+    ),
+    "dark": RadarStyle(
+        background_image="background_dark.png",
+        wms_style="radar/nearest",
+        marker_color="red",
+        time_past_color="rgb(148, 148, 148)",
+        time_future_color="rgb(255, 159, 64)",
+    ),
+}
+
+DEFAULT_RADAR_STYLE = "light"
