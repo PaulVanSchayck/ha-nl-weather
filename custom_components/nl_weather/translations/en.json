@@ -119,8 +119,5 @@
         "dark": "Dark"
       }
     }
-  },
-  "placeholders": {
-    "kdp_url": "https://developer.dataplatform.knmi.nl/"
   }
 }

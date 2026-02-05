@@ -119,8 +119,5 @@
         "dark": "Donker"
       }
     }
-  },
-  "placeholders": {
-    "kdp_url": "https://developer.dataplatform.knmi.nl/"
   }
 }

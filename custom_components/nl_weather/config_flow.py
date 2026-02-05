@@ -166,7 +166,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_finish()
         else:
             return self.async_show_form(
-                step_id="user", data_schema=DATA_SCHEMA, errors=errors
+                step_id="user",
+                data_schema=DATA_SCHEMA,
+                errors=errors,
+                description_placeholders={
+                    "kdp_url": "https://developer.dataplatform.knmi.nl/"
+                },
             )
 
     async def async_step_finish(self, user_input=None):
