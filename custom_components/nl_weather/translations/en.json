@@ -52,7 +52,7 @@
     "step": {
       "user": {
         "title": "Connect to KNMI Data Platform APIs",
-        "description": "You can get API keys from https://developer.dataplatform.knmi.nl/",
+        "description": "You can get API keys from {kdp_url}",
         "data": {
           "edr_api_token": "EDR API Token",
           "mqtt_token": "Notification Service (MQTT) Token",
