@@ -52,7 +52,7 @@
     "step": {
       "user": {
         "title": "Verbind met de KNMI Data Platform APIs",
-        "description": "Je kan de API tokens verkrijgen via {kdp_url}se ",
+        "description": "Je kan de API tokens verkrijgen via {kdp_url}",
         "data": {
           "edr_api_token": "EDR API Token",
           "mqtt_token": "Notification Service (MQTT) Token",
