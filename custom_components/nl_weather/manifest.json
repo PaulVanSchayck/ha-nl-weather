@@ -7,5 +7,5 @@
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/PaulVanSchayck/ha-nl-weather/issues",
   "requirements": ["aiomqtt~=2.5.0"],
-  "version": "0.5.0"
+  "version": "0.5.1"
 }
