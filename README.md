@@ -3,12 +3,15 @@
 ![GitHub Release](https://img.shields.io/github/v/release/PaulVanSchayck/ha-nl-weather)
 
 **NL Weather** is a Home Assistant integration that provides weather forecasts, observations, 
-precipitation (e.g. rain) radar and warnings in The Netherlands — using public data directly fetched from 
+precipitation (e.g. rain) radar and warnings in The Netherlands — using open data directly fetched from 
 KNMI (the Royal Netherlands Meteorological Institute).
 
-![Screenshot of NL-Weather in action](images/nl-weather.png "NL Weather integration")
+![Screenshot of NL Weather](images/nl-weather.png "NL Weather integration")
+_Using default cards and radar in bright color theme_
+
+![Screenshot of NL Weather with dark mode radar](images/nl-weather-dark.png "NL Weather integration")
 _In this screenshot the custom card [Weather Forecast Extended](https://github.com/Thyraz/weather-forecast-extended) 
-is used to display the forecast, warnings and observations. The radar is the default camera card_
+is used to display the forecast, warnings and observations. For the radar image the “Picture with entity” card is used._ 
 
 ## Features
 
@@ -30,9 +33,7 @@ is used to display the forecast, warnings and observations. The radar is the def
 
 ### Via HACS (recommended)
 
-1. Ensure you have HACS installed in your Home Assistant.
-2. Add this repository as a custom integration  
-3. In Home Assistant: go to **Settings → Devices & Services → Add Integration**.  
+1. Ensure you have [HACS](https://www.hacs.xyz/) installed in your Home Assistant.
 4. Search for **NL Weather** and install.  
 5. Restart Home Assistant if required.  
 
@@ -62,6 +63,8 @@ You can get API keys from https://developer.dataplatform.knmi.nl/. Register an a
 
 You'll receive copies of all keys via e-mail as well. 
 
+> ⚠️ The API keys you receive look very similar for all services. This is correct. The end and beginning of the keys will be the same, but the middle does differ. 
+
 ### Step 2. Configure a weather location 
 
 To start receiving weather observations and forecasts, add a location: 
@@ -75,7 +78,7 @@ weather alerts.
 The integration will add `weather.weer_thuis_observations` and `weather.weer_thuis_forecast`, plus optional sensor 
 entities for detailed data such as:
 
-- Weather Warnings
+- Weather warnings
   - Color code
   - Text description
 - Distance to weather station
@@ -93,10 +96,8 @@ Apache License, Version 2.0
 
 ## Disclaimer / Notes
 
-- Forecast and weather observations provided by Koninklijk Nederlands Meteorologisch Instituut (KNMI) 
-licensed under CC-BY 4.0
-- Weather data, radar images, forecasts and warnings are provided by KNMI; the integration simply fetches and 
-exposes them in Home Assistant.  
+- Forecast, weather observations, radar and weather warnings provided by Koninklijk Nederlands Meteorologisch Instituut (KNMI) 
+licensed under CC-BY 4.0 
  
 ## Discussion
 
