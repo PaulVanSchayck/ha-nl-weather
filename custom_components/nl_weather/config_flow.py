@@ -41,9 +41,9 @@ from .const import (
     DOMAIN,
     RADAR_STYLES,
 )
-from .edr import TokenInvalid
-from .notification_service import NotificationService, TokenInvalid as NSTokenInvalid
-from .wms import TokenInvalid as WMSTokenInvalid  # TODO: Fix this
+from .api.edr import TokenInvalid
+from .api.notification_service import NotificationService, TokenInvalid as NSTokenInvalid
+from .api.wms import TokenInvalid as WMSTokenInvalid  # TODO: Fix this
 
 _LOGGER = logging.getLogger(__name__)
 
