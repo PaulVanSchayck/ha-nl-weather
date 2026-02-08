@@ -1,11 +1,11 @@
 {
-   "entity": {
+  "entity": {
     "camera": {
       "precipitation_radar": {
         "name": "Precipitation Radar"
       }
     },
-    "weather":{
+    "weather": {
       "observations": {
         "name": "Observations"
       },
@@ -37,6 +37,54 @@
       },
       "observations_time": {
         "name": "Observation time"
+      },
+      "observations_temperature": {
+        "name": "Temperature"
+      },
+      "observations_humidity": {
+        "name": "Humidity"
+      },
+      "observations_visibility": {
+        "name": "Visibility"
+      },
+      "observations_pressure": {
+        "name": "Pressure"
+      },
+      "observations_wind_speed": {
+        "name": "Wind speed"
+      },
+      "observations_wind_gust": {
+        "name": "Wind gust"
+      },
+      "observations_dewpoint": {
+        "name": "Dew point"
+      },
+      "observations_wind_azimuth": {
+        "name": "Wind azimuth"
+      },
+      "observations_cloud_coverage": {
+        "name": "Cloud coverage"
+      },
+      "observations_wind_direction": {
+        "name": "Wind direction",
+        "state": {
+          "N": "N",
+          "NNE": "NNE",
+          "NE": "NE",
+          "ENE": "ENE",
+          "E": "E",
+          "ESE": "ESE",
+          "SE": "SE",
+          "SSE": "SSE",
+          "S": "S",
+          "SSW": "SSW",
+          "SW": "SW",
+          "WSW": "WSW",
+          "W": "W",
+          "WNW": "WNW",
+          "NW": "NW",
+          "NNW": "NNW"
+        }
       }
     },
     "binary_sensor": {
@@ -92,10 +140,8 @@
       "initiate_flow": {
         "user": "Add location"
       },
-      "error": {
-      },
-      "abort": {
-      }
+      "error": {},
+      "abort": {}
     }
   },
   "options": {
