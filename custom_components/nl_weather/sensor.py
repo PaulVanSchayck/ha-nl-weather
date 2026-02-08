@@ -5,29 +5,29 @@ from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.sensor import (
-    SensorEntity,
     SensorDeviceClass,
+    SensorEntity,
     SensorEntityDescription,
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import (
-    UnitOfLength,
-    UnitOfTemperature,
-    UnitOfPressure,
-    UnitOfSpeed,
     DEGREE,
     PERCENTAGE,
+    UnitOfLength,
+    UnitOfPressure,
+    UnitOfSpeed,
+    UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from . import DOMAIN, KNMIDirectConfigEntry
 from .const import Alert
-from . import KNMIDirectConfigEntry, DOMAIN
-from .coordinator import NLWeatherUpdateCoordinator, NLWeatherEDRCoordinator
+from .coordinator import NLWeatherEDRCoordinator, NLWeatherUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,7 +53,9 @@ async def async_setup_entry(
 
         # Add generic range-based observation sensors
         for desc in OBSERVATION_DESCRIPTIONS:
-            entities.append(NLObservationRangeSensor(obs_coordinator, config_entry, subentry, desc))
+            entities.append(
+                NLObservationRangeSensor(obs_coordinator, config_entry, subentry, desc)
+            )
 
         async_add_entities(entities, config_subentry_id=subentry_id)
 
@@ -277,7 +279,7 @@ class NLObservationCloudCoverageSensor(
     @property
     def native_value(self):
         """Return cloud coverage as percentage (0-100) from okta value (0-8, or 9 for obscured).
-        
+
         Okta scale:
         - 0: 0/8 (0% coverage)
         - 1-7: 1/8 to 7/8 (12.5% to 87.5%)
@@ -287,7 +289,9 @@ class NLObservationCloudCoverageSensor(
         try:
             if self.coordinator.data is None:
                 return None
-            okta = self.coordinator.data[self._subentry_id]["ranges"]["nhc"]["values"][0]
+            okta = self.coordinator.data[self._subentry_id]["ranges"]["nhc"]["values"][
+                0
+            ]
             if okta is None:
                 return None
             if okta == 9:
@@ -451,7 +455,9 @@ OBSERVATION_DESCRIPTIONS: list[ObservationDescription] = [
 ]
 
 
-class NLObservationRangeSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEntity):
+class NLObservationRangeSensor(
+    CoordinatorEntity[NLWeatherEDRCoordinator], SensorEntity
+):
     """Generic sensor for EDR range-based observations."""
 
     def __init__(
@@ -467,7 +473,9 @@ class NLObservationRangeSensor(CoordinatorEntity[NLWeatherEDRCoordinator], Senso
             key=desc.key,
             translation_key=desc.translation_key,
         )
-        self._attr_unique_id = f"{config_entry.entry_id}_{subentry.subentry_id}_{desc.key}"
+        self._attr_unique_id = (
+            f"{config_entry.entry_id}_{subentry.subentry_id}_{desc.key}"
+        )
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
         )
@@ -489,9 +497,13 @@ class NLObservationRangeSensor(CoordinatorEntity[NLWeatherEDRCoordinator], Senso
         try:
             if self.coordinator.data is None:
                 return None
-            return self.coordinator.data[self._subentry_id]["ranges"][self._param]["values"][0]
+            return self.coordinator.data[self._subentry_id]["ranges"][self._param][
+                "values"
+            ][0]
         except (KeyError, IndexError, TypeError) as err:
             _LOGGER.debug(
-                "Error accessing EDR range data for %s: %s", self.entity_description.key, err
+                "Error accessing EDR range data for %s: %s",
+                self.entity_description.key,
+                err,
             )
             return None
