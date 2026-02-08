@@ -1,7 +1,8 @@
-import aiohttp
 import json
 import logging
 from datetime import datetime, timezone
+
+import aiohttp
 
 BASE_URL = "https://api.dataplatform.knmi.nl/edr/v1/collections/10-minute-in-situ-meteorological-observations"
 BBOX_NL = "3.3,50.6,7.3,53.5"
@@ -11,6 +12,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def _format_dt(dt):
     return dt.isoformat(timespec="seconds").replace("+00:00", "Z")
+
 
 class EDR:
     _session: aiohttp.ClientSession

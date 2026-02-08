@@ -1,4 +1,5 @@
-from math import radians, sin, cos, atan2, sqrt, log, tan, pi
+from math import atan2, cos, log, pi, radians, sin, sqrt, tan
+
 
 def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Calculate the Haversine distance between two points on the Earth specified in decimal degrees."""
@@ -11,6 +12,7 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     )
     c = 2 * atan2(sqrt(a), sqrt(1 - a))
     return R * c
+
 
 def closest_coverage(coverages, location):
     coverage, distance = min(
@@ -29,6 +31,7 @@ def closest_coverage(coverages, location):
         key=lambda x: x[1],
     )
     return coverage, distance
+
 
 def epsg4325_to_epsg3857(lon, lat):
     """Convert lon/lat (deg) to EPSG:3857 meters (x, y)."""
