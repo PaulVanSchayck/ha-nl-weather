@@ -33,10 +33,11 @@ from .api.edr import TokenInvalid
 from .api.notification_service import (
     NotificationService,
 )
+# TODO: Unify KNMI API exceptions to common shared exceptions 
 from .api.notification_service import (
     TokenInvalid as NSTokenInvalid,
 )
-from .api.wms import TokenInvalid as WMSTokenInvalid  # TODO: Fix this
+from .api.wms import TokenInvalid as WMSTokenInvalid 
 from .const import (
     ALERT_REGIONS,
     CONF_EDR_API_TOKEN,
