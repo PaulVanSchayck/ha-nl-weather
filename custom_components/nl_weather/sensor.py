@@ -307,22 +307,22 @@ class NLObservationWindDirectionSensor(
     """Sensor converting wind azimuth degrees to cardinal direction (ENUM)."""
 
     CARDINALS = [
-        "N",
-        "NNE",
-        "NE",
-        "ENE",
-        "E",
-        "ESE",
-        "SE",
-        "SSE",
-        "S",
-        "SSW",
-        "SW",
-        "WSW",
-        "W",
-        "WNW",
-        "NW",
-        "NNW",
+        "n",
+        "nne",
+        "ne",
+        "ene",
+        "e",
+        "ese",
+        "se",
+        "sse",
+        "s",
+        "ssw",
+        "sw",
+        "wsw",
+        "w",
+        "wnw",
+        "nw",
+        "nnw",
     ]
 
     def __init__(
