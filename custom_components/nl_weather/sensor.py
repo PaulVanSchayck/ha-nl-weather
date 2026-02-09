@@ -230,6 +230,7 @@ class NLObservationTimeSensor(CoordinatorEntity[NLWeatherEDRCoordinator], Sensor
             identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
         )
         self._attr_has_entity_name = True
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self.entity_description = SensorEntityDescription(
             key="time",
             translation_key="observations_time",
