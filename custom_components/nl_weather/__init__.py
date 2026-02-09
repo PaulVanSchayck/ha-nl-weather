@@ -8,10 +8,10 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api.app import App
-from .api.edr import EDR
-from .api.notification_service import NotificationService
-from .api.wms import WMS
+from .KNMI.app import App
+from .KNMI.edr import EDR
+from .KNMI.notification_service import NotificationService
+from .KNMI.wms import WMS
 from .const import CONF_MQTT_TOKEN, CONF_EDR_API_TOKEN, CONF_WMS_TOKEN, DOMAIN  # noqa: F401
 from .coordinator import NLWeatherUpdateCoordinator, NLWeatherEDRCoordinator
 

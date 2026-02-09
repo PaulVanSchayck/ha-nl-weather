@@ -19,7 +19,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from . import KNMIDirectConfigEntry
-from .api.helpers import epsg4325_to_epsg3857
+from .KNMI.helpers import epsg4325_to_epsg3857
 from .const import (
     CONF_MARK_LOCATIONS,
     CONF_RADAR_STYLE,

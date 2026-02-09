@@ -15,9 +15,9 @@ from .const import (
     PARAMETER_ATTRIBUTE_MAP,
     EDR_STATION_MINIMAL_DISTANCE,
 )
-from .api.edr import EDR, NotFoundError, ServerError
-from .api.helpers import closest_coverage
-from .api.notification_service import NotificationService
+from .KNMI.edr import EDR, NotFoundError, ServerError
+from .KNMI.helpers import closest_coverage
+from .KNMI.notification_service import NotificationService
 
 _LOGGER = logging.getLogger(__name__)
 

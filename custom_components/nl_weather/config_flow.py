@@ -29,15 +29,6 @@ from homeassistant.helpers.selector import (
 )
 
 from . import EDR, WMS
-from .api.edr import TokenInvalid
-from .api.notification_service import (
-    NotificationService,
-)
-# TODO: Unify KNMI API exceptions to common shared exceptions 
-from .api.notification_service import (
-    TokenInvalid as NSTokenInvalid,
-)
-from .api.wms import TokenInvalid as WMSTokenInvalid 
 from .const import (
     ALERT_REGIONS,
     CONF_EDR_API_TOKEN,
@@ -49,6 +40,16 @@ from .const import (
     DOMAIN,
     RADAR_STYLES,
 )
+from .KNMI.edr import TokenInvalid
+from .KNMI.notification_service import (
+    NotificationService,
+)
+
+# TODO: Unify KNMI API exceptions to common shared exceptions
+from .KNMI.notification_service import (
+    TokenInvalid as NSTokenInvalid,
+)
+from .KNMI.wms import TokenInvalid as WMSTokenInvalid
 
 _LOGGER = logging.getLogger(__name__)
 
