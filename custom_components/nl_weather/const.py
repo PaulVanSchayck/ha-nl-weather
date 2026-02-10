@@ -44,7 +44,7 @@ CONF_MARK_LOCATIONS: Final = "mark_locations"
 # Tabel 6: Beschrijving weercodegenerator
 CONDITION_CLASSES: dict[str, list[int | float]] = {
     ATTR_CONDITION_CLOUDY: [1, 2, 3, 10],
-    ATTR_CONDITION_FOG: [20, 30, 32, 33, 34, 35],
+    ATTR_CONDITION_FOG: [4, 5, 20, 30, 32, 33, 34, 35],
     ATTR_CONDITION_HAIL: [21, 22, 89],
     ATTR_CONDITION_LIGHTNING: [
         12,
@@ -86,7 +86,7 @@ CONDITION_CLASSES: dict[str, list[int | float]] = {
     ATTR_CONDITION_SUNNY: [0],
     ATTR_CONDITION_WINDY: [],
     ATTR_CONDITION_WINDY_VARIANT: [],
-    ATTR_CONDITION_EXCEPTIONAL: [4, 5],
+    ATTR_CONDITION_EXCEPTIONAL: [],
 }
 CONDITION_MAP = {
     cond_code: cond_ha
