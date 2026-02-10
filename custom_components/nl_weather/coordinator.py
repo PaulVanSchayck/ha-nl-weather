@@ -3,19 +3,21 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from .notification_service import NotificationService
-from .edr import EDR, NotFoundError, closest_coverage, ServerError
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import CONF_NAME, CONF_LATITUDE, CONF_LONGITUDE, CONF_REGION
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import utcnow
+
 from .const import (
     APP_API_SCAN_INTERVAL,
     PARAMETER_ATTRIBUTE_MAP,
     EDR_STATION_MINIMAL_DISTANCE,
 )
+from .KNMI.edr import EDR, NotFoundError, ServerError
+from .KNMI.helpers import closest_coverage
+from .KNMI.notification_service import NotificationService
 
 _LOGGER = logging.getLogger(__name__)
 
