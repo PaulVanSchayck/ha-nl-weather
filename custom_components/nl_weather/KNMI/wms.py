@@ -2,6 +2,7 @@ import aiohttp
 import asyncio
 import io
 import logging
+import xml.etree.ElementTree as ET
 
 BASE_URL = "https://api.dataplatform.knmi.nl/wms/adaguc-server"
 BASE_PARAMS = {
@@ -54,6 +55,14 @@ class WMS:
                 buffer.seek(0)
 
                 return buffer
+
+    async def get_capabilities_radar(self) -> ET.ElementTree:
+        params = {}
+        params["SERVICE"] = "WMS"
+        params["DATASET"] = "nl_rdr_data_rtcor_5m"
+        params["REQUEST"] = "GetCapabilities"
+        buf = await self.get(params)
+        return ET.parse(buf)
 
     async def radar_real_time_image(self, time, size, bbox, style):
         params = BASE_PARAMS.copy()
