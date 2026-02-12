@@ -7,7 +7,6 @@ import io
 import os
 from datetime import datetime, timedelta, timezone
 import logging
-from math import floor
 from PIL import Image, ImageDraw
 from PIL.ImageFile import ImageFile
 
@@ -214,6 +213,15 @@ class PrecipitationRadarCam(Camera):
 
         return True
 
+    async def __latest_image_datetime(self):
+        # Get the latest available image from a GetCapabilities call
+        tree = await self._wms.get_capabilities_radar()
+        root = tree.getroot()
+
+        for dim in root.findall(".//{*}Dimension[@name='time']"):
+            start, end, period = dim.text.strip().split("/")
+            return datetime.fromisoformat(end.replace("Z", "+00:00"))
+
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
@@ -221,13 +229,10 @@ class PrecipitationRadarCam(Camera):
             return self._last_image
 
         if self._last_modified is None:
-            # No event received yet. Retrieve initial image from 5 or more minutes ago
-            now = dt_util.utcnow()
-            self._last_modified = now.replace(
-                minute=floor(now.minute / 5) * 5, second=0, microsecond=0
-            ) - timedelta(minutes=5)
+            # No event received yet
+            self._last_modified = await self.__latest_image_datetime()
 
-        # get lock, check iff loading, await notification if loading
+        # get lock, check if loading, await notification if loading
         async with self._condition:
             # cannot be tested - mocked http response returns immediately
             if self._loading:
