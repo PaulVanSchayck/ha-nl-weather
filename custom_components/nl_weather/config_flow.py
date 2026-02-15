@@ -1,11 +1,10 @@
-from base64 import b64decode
 import binascii
 import json
 import logging
+from base64 import b64decode
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant import config_entries
 from homeassistant.config_entries import (
     ConfigEntry,
@@ -33,17 +32,24 @@ from . import EDR, WMS
 from .const import (
     ALERT_REGIONS,
     CONF_EDR_API_TOKEN,
+    CONF_MARK_LOCATIONS,
     CONF_MQTT_TOKEN,
     CONF_RADAR_STYLE,
     CONF_WMS_TOKEN,
-    CONF_MARK_LOCATIONS,
     DEFAULT_RADAR_STYLE,
     DOMAIN,
     RADAR_STYLES,
 )
-from .edr import TokenInvalid
-from .notification_service import NotificationService, TokenInvalid as NSTokenInvalid
-from .wms import TokenInvalid as WMSTokenInvalid  # TODO: Fix this
+from .KNMI.edr import TokenInvalid
+from .KNMI.notification_service import (
+    NotificationService,
+)
+
+# TODO: Unify KNMI API exceptions to common shared exceptions
+from .KNMI.notification_service import (
+    TokenInvalid as NSTokenInvalid,
+)
+from .KNMI.wms import TokenInvalid as WMSTokenInvalid
 
 _LOGGER = logging.getLogger(__name__)
 

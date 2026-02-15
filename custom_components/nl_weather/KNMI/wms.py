@@ -1,9 +1,8 @@
+import aiohttp
 import asyncio
 import io
 import logging
-import math
-
-import aiohttp
+import xml.etree.ElementTree as ET
 
 BASE_URL = "https://api.dataplatform.knmi.nl/wms/adaguc-server"
 BASE_PARAMS = {
@@ -16,17 +15,6 @@ BASE_PARAMS = {
 }
 
 _LOGGER = logging.getLogger(__name__)
-
-R = 6378137.0  # EPSG:3857 radius
-
-
-def epsg4325_to_epsg3857(lon, lat):
-    """Convert lon/lat (deg) to EPSG:3857 meters (x, y)."""
-    # clamp latitude to valid Web Mercator range to avoid math domain errors
-    lat = max(min(lat, 85.05112878), -85.05112878)
-    x = R * math.radians(lon)
-    y = R * math.log(math.tan(math.pi / 4.0 + math.radians(lat) / 2.0))
-    return x, y
 
 
 class WMS:
@@ -67,6 +55,14 @@ class WMS:
                 buffer.seek(0)
 
                 return buffer
+
+    async def get_capabilities_radar(self) -> ET.ElementTree:
+        params = {}
+        params["SERVICE"] = "WMS"
+        params["DATASET"] = "nl_rdr_data_rtcor_5m"
+        params["REQUEST"] = "GetCapabilities"
+        buf = await self.get(params)
+        return ET.parse(buf)
 
     async def radar_real_time_image(self, time, size, bbox, style):
         params = BASE_PARAMS.copy()

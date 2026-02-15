@@ -7,9 +7,11 @@ precipitation (e.g. rain) radar and warnings in The Netherlands — using open d
 KNMI (the Royal Netherlands Meteorological Institute).
 
 ![Screenshot of NL Weather](images/nl-weather.png "NL Weather integration")
+
 _Using default cards and radar in bright color theme_
 
 ![Screenshot of NL Weather with dark mode radar](images/nl-weather-dark.png "NL Weather integration")
+
 _In this screenshot the custom card [Weather Forecast Extended](https://github.com/Thyraz/weather-forecast-extended) 
 is used to display the forecast, warnings and observations. For the radar image the “Picture with entity” card is used._ 
 
