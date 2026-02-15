@@ -85,6 +85,18 @@
           "nw": "NW",
           "nnw": "NNW"
         }
+      },
+      "forecast_today_high": {
+        "name": "Today high"
+      },
+      "forecast_today_low": {
+        "name": "Today low"
+      },
+      "forecast_tomorrow_high": {
+        "name": "Tomorrow high"
+      },
+      "forecast_tomorrow_low": {
+        "name": "Tomorrow low"
       }
     },
     "binary_sensor": {
