@@ -498,7 +498,9 @@ class NLObservationWindDirectionSensor(
             return None
 
 
-class NLObservationRangeSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEntity):
+class NLObservationRangeSensor(
+    CoordinatorEntity[NLWeatherEDRCoordinator], SensorEntity
+):
     """Generic sensor for EDR range-based observations."""
 
     def __init__(
