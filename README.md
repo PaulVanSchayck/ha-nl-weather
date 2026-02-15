@@ -100,7 +100,7 @@ The integration creates the following entities for each configured location:
 - **Wind Direction** - Wind direction as cardinal direction (N, NE, E, SE, S, SW, W, NW, etc.)
 - **Dewpoint** - Dew point temperature in °C
 - **Cloud Coverage** - Cloud coverage as percentage (0-100%)
-- **Observation Time** - Timestamp of the observation
+- **Observation Time** - Timestamp of the observation (diagnostic)
 - **Observation Station Distance** - Distance to the weather station in km (diagnostic)
 - **Observation Station Name** - Name of the weather station (diagnostic)
 
