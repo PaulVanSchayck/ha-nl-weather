@@ -77,16 +77,43 @@ weather alerts.
 
 ## Entities Created
 
-The integration will add `weather.weer_thuis_observations` and `weather.weer_thuis_forecast`, plus optional sensor 
-entities for detailed data such as:
+The integration creates the following entities for each configured location:
 
-- Weather warnings
-  - Color code
-  - Text description
-- Distance to weather station
-- Name of weather stations
+### Weather Entities
+- `weather.{location}_observations` - Current weather observations
+- `weather.{location}_forecast` - Weather forecast
 
-This allows you to use the data in automations, dashboards (Lovelace), and scripts just like with any other weather integration.
+### Sensor Entities
+
+#### Weather Alert Sensors
+- **Weather Alert** - Text description of active weather alert (or "none" if no alert)
+- **Weather Alert Level** - Alert level as enum (none, yellow, orange, red)
+
+#### Observation Sensors
+- **Temperature** - Current temperature in °C
+- **Humidity** - Relative humidity in %
+- **Visibility** - Visibility distance in meters
+- **Pressure** - Atmospheric pressure in hPa
+- **Wind Speed** - Current wind speed in m/s
+- **Wind Gust** - Wind gust speed in m/s
+- **Wind Azimuth** - Wind direction in degrees
+- **Wind Direction** - Wind direction as cardinal direction (N, NE, E, SE, S, SW, W, NW, etc.)
+- **Dewpoint** - Dew point temperature in °C
+- **Cloud Coverage** - Cloud coverage as percentage (0-100%)
+- **Observation Time** - Timestamp of the observation
+- **Observation Station Distance** - Distance to the weather station in km (diagnostic)
+- **Observation Station Name** - Name of the weather station (diagnostic)
+
+#### Forecast Sensors
+- **Forecast Today High** - Maximum temperature for today in °C
+- **Forecast Today Low** - Minimum temperature for today in °C
+- **Forecast Tomorrow High** - Maximum temperature for tomorrow in °C
+- **Forecast Tomorrow Low** - Minimum temperature for tomorrow in °C
+
+### Binary Sensor Entities
+- **Weather Alert Active** - Binary sensor indicating if a weather alert is active (on/off)
+
+All these entities can be used in automations, dashboards (Lovelace), and scripts just like with any other weather integration.
 
 ## Contributing
 
