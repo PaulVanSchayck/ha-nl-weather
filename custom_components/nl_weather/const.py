@@ -39,6 +39,8 @@ CONF_WMS_TOKEN: Final = "wms_token"
 CONF_MQTT_TOKEN: Final = "mqtt_token"
 CONF_RADAR_STYLE: Final = "radar_style"
 CONF_MARK_LOCATIONS: Final = "mark_locations"
+CONF_STATION: Final = "station"
+CONF_MODE: Final = "mode"
 
 # https://www.knmi.nl/kennis-en-datacentrum/publicatie/handboek-waarnemingen
 # Tabel 6: Beschrijving weercodegenerator
@@ -130,9 +132,6 @@ ALERT_REGIONS = {
 
 APP_API_SCAN_INTERVAL = timedelta(minutes=15)
 
-# Only fetch from EDR for same station if below this value in kilometers
-EDR_STATION_MINIMAL_DISTANCE = 50
-
 # Based on https://gitlab.com/KNMI-OSS/KNMI-App/knmi-app-api/-/blob/main/app/helpers/weather.ts
 # And https://gitlab.com/KNMI-OSS/KNMI-App/knmi-app-android/-/blob/main/app/src/main/java/nl/knmi/weer/util/WeatherTypeExtension.kt
 # 1364-1371 are warning conditions
@@ -219,3 +218,8 @@ RADAR_STYLES: dict[str, RadarStyle] = {
 }
 
 DEFAULT_RADAR_STYLE = "light"
+
+
+class StationMode(StrEnum):
+    AUTO = "auto"
+    MANUAL = "manual"

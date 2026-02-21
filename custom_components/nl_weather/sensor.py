@@ -4,7 +4,6 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
 )
 from homeassistant.config_entries import ConfigSubentry
-from homeassistant.const import UnitOfLength
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -20,22 +19,26 @@ async def async_setup_entry(
     config_entry: KNMIDirectConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    obs_coordinator = config_entry.runtime_data.obs_coordinator
     for subentry_id, subentry in config_entry.subentries.items():
-        coordinator = config_entry.runtime_data.coordinators[subentry_id]
+        if subentry.subentry_type == "location":
+            coordinator = config_entry.runtime_data.app_coordinators[subentry_id]
 
-        async_add_entities(
-            [
-                NLWeatherAlertSensor(coordinator, config_entry, subentry),
-                NLWeatherAlertLevelSensor(coordinator, config_entry, subentry),
-                NLObservationStationDistanceSensor(
-                    obs_coordinator, config_entry, subentry
-                ),
-                NLObservationStationNameSensor(obs_coordinator, config_entry, subentry),
-                NLObservationTimeSensor(obs_coordinator, config_entry, subentry),
-            ],
-            config_subentry_id=subentry_id,
-        )
+            async_add_entities(
+                [
+                    NLWeatherAlertSensor(coordinator, config_entry, subentry),
+                    NLWeatherAlertLevelSensor(coordinator, config_entry, subentry),
+                ],
+                config_subentry_id=subentry_id,
+            )
+        elif subentry.subentry_type == "station":
+            coordinator = config_entry.runtime_data.edr_coordinators[subentry_id]
+
+            async_add_entities(
+                [
+                    NLObservationTimeSensor(coordinator, config_entry, subentry),
+                ],
+                config_subentry_id=subentry_id,
+            )
 
 
 # TODO: Clean up sensor creation using a base class
@@ -94,61 +97,6 @@ class NLWeatherAlertLevelSensor(
         return Alert(self.coordinator.data["hourly"]["forecast"][0]["alertLevel"])
 
 
-class NLObservationStationDistanceSensor(
-    CoordinatorEntity[NLWeatherEDRCoordinator], SensorEntity
-):
-    def __init__(
-        self, coordinator, config_entry: KNMIDirectConfigEntry, subentry: ConfigSubentry
-    ) -> None:
-        super().__init__(coordinator)
-
-        self._attr_unique_id = (
-            f"{config_entry.entry_id}_{subentry.subentry_id}_station_distance"
-        )
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
-        )
-        self._attr_has_entity_name = True
-        self.entity_description = SensorEntityDescription(
-            key="station_distance",
-            translation_key="observations_station_distance",
-        )
-        self.device_class = SensorDeviceClass.DISTANCE
-        self._subentry_id = subentry.subentry_id
-        self.native_unit_of_measurement = UnitOfLength.KILOMETERS
-        self.suggested_display_precision = 1
-
-    @property
-    def native_value(self):
-        return self.coordinator.data[self._subentry_id]["distance"]
-
-
-class NLObservationStationNameSensor(
-    CoordinatorEntity[NLWeatherEDRCoordinator], SensorEntity
-):
-    def __init__(
-        self, coordinator, config_entry: KNMIDirectConfigEntry, subentry: ConfigSubentry
-    ) -> None:
-        super().__init__(coordinator)
-
-        self._attr_unique_id = (
-            f"{config_entry.entry_id}_{subentry.subentry_id}_station_name"
-        )
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
-        )
-        self._attr_has_entity_name = True
-        self.entity_description = SensorEntityDescription(
-            key="station_name",
-            translation_key="observations_station_name",
-        )
-        self._subentry_id = subentry.subentry_id
-
-    @property
-    def native_value(self):
-        return self.coordinator.data[self._subentry_id]["station_name"]
-
-
 class NLObservationTimeSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEntity):
     def __init__(
         self, coordinator, config_entry: KNMIDirectConfigEntry, subentry: ConfigSubentry
@@ -171,4 +119,6 @@ class NLObservationTimeSensor(CoordinatorEntity[NLWeatherEDRCoordinator], Sensor
 
     @property
     def native_value(self):
-        return self.coordinator.data[self._subentry_id]["datetime"]
+        if self.coordinator.data is None:
+            return None
+        return self.coordinator.data["datetime"]

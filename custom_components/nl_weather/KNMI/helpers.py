@@ -14,23 +14,16 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return R * c
 
 
-def closest_coverage(coverages, location):
-    coverage, distance = min(
-        (
-            (
-                c,
-                haversine(
-                    c["domain"]["axes"]["y"]["values"][0],
-                    c["domain"]["axes"]["x"]["values"][0],
-                    location["lat"],
-                    location["lon"],
-                ),
-            )
-            for c in coverages
+def sort_coverage_on_distance(coverages, location):
+    return sorted(
+        coverages,
+        key=lambda c: haversine(
+            c["domain"]["axes"]["y"]["values"][0],
+            c["domain"]["axes"]["x"]["values"][0],
+            location["lat"],
+            location["lon"],
         ),
-        key=lambda x: x[1],
     )
-    return coverage, distance
 
 
 def epsg4325_to_epsg3857(lon, lat):
