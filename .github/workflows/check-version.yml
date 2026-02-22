@@ -1,0 +1,31 @@
+name: Check manifest version matches tag
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: tag
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Extract version from manifest.json
+        id: manifest
+        run: |
+          VERSION=$(jq -r .version custom_components/nl_weather/manifest.json)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Compare versions
+        run: |
+          if [ "${{ steps.tag.outputs.VERSION }}" != "${{ steps.manifest.outputs.VERSION }}" ]; then
+            echo "Tag version does not match manifest.json version"
+            exit 1
+          fi
