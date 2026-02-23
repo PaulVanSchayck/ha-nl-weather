@@ -37,6 +37,18 @@
       },
       "observations_time": {
         "name": "Waarnemingstijd"
+      },
+      "forecast_today_high": {
+        "name": "Vandaag maximum"
+      },
+      "forecast_today_low": {
+        "name": "Vandaag minimum"
+      },
+      "forecast_tomorrow_high": {
+        "name": "Morgen maximum"
+      },
+      "forecast_tomorrow_low": {
+        "name": "Morgen minimum"
       }
     },
     "binary_sensor": {
