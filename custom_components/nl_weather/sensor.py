@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -22,43 +22,37 @@ from .coordinator import NLWeatherEDRCoordinator, NLWeatherUpdateCoordinator
 
 
 @dataclass(frozen=True)
-class AlertSensorDescription:
-    key: str
-    translation_key: str
-    value_fn: Callable[[dict[str, Any]], Any]
-    icon: str | None = None
-    device_class: SensorDeviceClass | None = None
-    options: list[str] | None = None
+class AlertSensorDescription(SensorEntityDescription):
+    value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)
-class ObservationSensorDescription:
-    key: str
-    translation_key: str
-    value_fn: Callable[[dict[str, Any], str], Any]
-    device_class: SensorDeviceClass | None = None
-    native_unit: str | None = None
-    suggested_display_precision: int | None = None
-    entity_category: EntityCategory | None = None
+class ObservationSensorDescription(SensorEntityDescription):
+    value_fn: Callable[[dict[str, Any], str], Any] | None = field(
+        default=None, repr=False
+    )
 
 
 @dataclass(frozen=True)
-class ForecastTemperatureDescription:
-    key: str
-    translation_key: str
-    day_index: int
-    temp_key: str
+class ForecastTemperatureDescription(SensorEntityDescription):
+    day_index: int | None = None
+    temp_key: str | None = None
 
 
 def _get_alert_description(data: dict[str, Any]) -> str | None:
     alerts = data.get("alerts", [])
     if not alerts:
         return "none"
+    # TODO: Not dealing with multiple alerts yet
     return alerts[0].get("description")
 
 
-def _get_alert_level(data: dict[str, Any]) -> Alert | None:
-    return Alert(data["hourly"]["forecast"][0]["alertLevel"])
+def _get_alert_level(data: dict[str, Any]) -> Alert:
+    # TODO: Not dealing with multiple alerts yet
+    try:
+        return Alert(data["hourly"]["forecast"][0]["alertLevel"])
+    except (KeyError, IndexError, TypeError, ValueError):
+        return Alert.NONE
 
 
 ALERT_SENSOR_DESCRIPTIONS: list[AlertSensorDescription] = [
@@ -85,7 +79,7 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         translation_key="observations_station_distance",
         device_class=SensorDeviceClass.DISTANCE,
         entity_category=EntityCategory.DIAGNOSTIC,
-        native_unit=UnitOfLength.KILOMETERS,
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
         suggested_display_precision=1,
         value_fn=lambda data, subentry_id: data[subentry_id]["distance"],
     ),
@@ -96,7 +90,7 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         value_fn=lambda data, subentry_id: data[subentry_id]["station_name"],
     ),
     ObservationSensorDescription(
-        key="time",
+        key="observation_time",
         translation_key="observations_time",
         device_class=SensorDeviceClass.TIMESTAMP,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -109,24 +103,36 @@ FORECAST_TEMPERATURE_DESCRIPTIONS: list[ForecastTemperatureDescription] = [
     ForecastTemperatureDescription(
         key="forecast_today_high",
         translation_key="forecast_today_high",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         day_index=0,
         temp_key="max",
     ),
     ForecastTemperatureDescription(
         key="forecast_today_low",
         translation_key="forecast_today_low",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         day_index=0,
         temp_key="min",
     ),
     ForecastTemperatureDescription(
         key="forecast_tomorrow_high",
         translation_key="forecast_tomorrow_high",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         day_index=1,
         temp_key="max",
     ),
     ForecastTemperatureDescription(
         key="forecast_tomorrow_low",
         translation_key="forecast_tomorrow_low",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         day_index=1,
         temp_key="min",
     ),
@@ -170,13 +176,7 @@ class NLAlertSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity)
     ) -> None:
         super().__init__(coordinator)
 
-        self.entity_description = SensorEntityDescription(
-            key=desc.key,
-            translation_key=desc.translation_key,
-            icon=desc.icon,
-            device_class=desc.device_class,
-            options=desc.options,
-        )
+        self.entity_description = desc
         self._attr_unique_id = (
             f"{config_entry.entry_id}_{subentry.subentry_id}_{desc.key}"
         )
@@ -201,10 +201,7 @@ class NLObservationSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEnti
     ) -> None:
         super().__init__(coordinator)
 
-        self.entity_description = SensorEntityDescription(
-            key=desc.key,
-            translation_key=desc.translation_key,
-        )
+        self.entity_description = desc
         self._attr_unique_id = (
             f"{config_entry.entry_id}_{subentry.subentry_id}_{desc.key}"
         )
@@ -212,14 +209,6 @@ class NLObservationSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEnti
             identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
         )
         self._attr_has_entity_name = True
-        if desc.device_class is not None:
-            self.device_class = desc.device_class
-        if desc.native_unit is not None:
-            self.native_unit_of_measurement = desc.native_unit
-        if desc.suggested_display_precision is not None:
-            self.suggested_display_precision = desc.suggested_display_precision
-        if desc.entity_category is not None:
-            self._attr_entity_category = desc.entity_category
         self._subentry_id = subentry.subentry_id
         self._value_fn = desc.value_fn
 
@@ -240,13 +229,7 @@ class NLForecastTemperatureSensor(
     ) -> None:
         super().__init__(coordinator)
 
-        self.entity_description = SensorEntityDescription(
-            key=desc.key,
-            translation_key=desc.translation_key,
-            device_class=SensorDeviceClass.TEMPERATURE,
-            state_class=SensorStateClass.MEASUREMENT,
-            native_unit_of_measurement=UnitOfTemperature.CELSIUS,
-        )
+        self.entity_description = desc
         self._attr_unique_id = (
             f"{config_entry.entry_id}_{subentry.subentry_id}_{desc.key}"
         )
