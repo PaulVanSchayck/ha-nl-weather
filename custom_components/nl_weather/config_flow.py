@@ -10,7 +10,7 @@ from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlowResult,
     ConfigSubentryFlow,
-    OptionsFlowWithReload,
+    OptionsFlow,
 )
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME, CONF_REGION
 from homeassistant.core import HomeAssistant, callback
@@ -164,7 +164,7 @@ async def validate_mqtt_input(hass: HomeAssistant, data: dict) -> None:
         raise CannotConnect from err
 
 
-class OptionsFlowHandler(OptionsFlowWithReload):
+class OptionsFlowHandler(OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
