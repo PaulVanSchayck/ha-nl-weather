@@ -95,14 +95,45 @@
             "longitude": "Longitude",
             "region": "Region for which you receive weather alerts"
           }
-        },
-        "reconfigure": {
-          "title": "Update location",
-          "description": "..."
         }
       },
       "initiate_flow": {
         "user": "Add location"
+      },
+      "error": {
+      },
+      "abort": {
+      }
+    },
+    "station": {
+      "entry_type": "Weather Station",
+      "step": {
+        "user": {
+          "title": "Select mode",
+          "description": "Weather observations can be gathered in two different modes",
+          "data": {
+            "mode": "Mode"
+          }
+        },
+        "auto": {
+          "title": "Add location",
+          "description": "Configure a location to automatically gather the closest observations for",
+          "data": {
+            "name": "Name",
+            "latitude": "Latitude",
+            "longitude": "Longitude"
+          }
+        },
+        "manual": {
+          "title": "Select weather station",
+          "description": "Not all stations have all sensors. Stations at airports (areodromes) typically have all, while at wind stations only a few may be available.",
+          "data": {
+            "station": "Weather station"
+          }
+        }
+      },
+      "initiate_flow": {
+        "user": "Add weather station"
       },
       "error": {
       },
@@ -129,6 +160,12 @@
       "options": {
         "light": "Light",
         "dark": "Dark"
+      }
+    },
+    "mode": {
+      "options": {
+        "auto": "Automatically gather closest available observations",
+        "manual": "Manually select a weather station"
       }
     }
   }

@@ -90,13 +90,15 @@ class PrecipitationRadarCam(Camera):
         self._mark_locations = config_entry.options.get(CONF_MARK_LOCATIONS, True)
 
         # TODO: Deal with adding/removing location
-        self._locations = [
-            {
-                "lat": s.data[CONF_LATITUDE],
-                "lon": s.data[CONF_LONGITUDE],
-            }
-            for s in config_entry.subentries.values()
-        ]
+        self._locations = []
+        for s in config_entry.subentries.values():
+            if s.subentry_type == "location":
+                self._locations.append(
+                    {
+                        "lat": s.data[CONF_LATITUDE],
+                        "lon": s.data[CONF_LONGITUDE],
+                    }
+                )
 
     def _add_locations_markers(self, img):
         draw = ImageDraw.Draw(img)

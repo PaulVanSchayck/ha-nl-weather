@@ -95,14 +95,45 @@
             "longitude": "Lengtegraad",
             "region": "Regio waarvoor je weerwaarschuwingen ontvangt"
           }
-        },
-        "reconfigure": {
-          "title": "Update locatie",
-          "description": "..."
         }
       },
       "initiate_flow": {
         "user": "Nieuwe locatie"
+      },
+      "error": {
+      },
+      "abort": {
+      }
+    },
+    "station": {
+      "entry_type": "Weerstation",
+      "step": {
+        "user": {
+          "title": "Selecteer modus",
+          "description": "Waarnemingen kunnen op twee verschillende manieren verzameld worden",
+          "data": {
+            "mode": "Modus"
+          }
+        },
+        "auto": {
+          "title": "Nieuwe locatie",
+          "description": "Configureer een locatie om automatisch de dichtbijzijnde waarnemingen voor te verzamelen",
+          "data": {
+            "name": "Naam",
+            "latitude": "Breedtegraad",
+            "longitude": "Lengtegraad"
+          }
+        },
+        "manual": {
+          "title": "Selecteer weerstation",
+          "description": "Niet alle stations hebben alle sensoren. Stations op vliegvelden (areodromes) hebben alle sensoren, terwijl bijvoorbeeld een windmast (wind station) er slechts een paar heeft.",
+          "data": {
+            "station": "Weerstation"
+          }
+        }
+      },
+      "initiate_flow": {
+        "user": "Nieuw weerstation"
       },
       "error": {
       },
@@ -129,6 +160,12 @@
       "options": {
         "light": "Licht",
         "dark": "Donker"
+      }
+    },
+    "mode": {
+      "options": {
+        "auto": "Verzamel automatisch de dictsbijzijnde waarnemingen",
+        "manual": "Selecteer handmatig een weerstation"
       }
     }
   }

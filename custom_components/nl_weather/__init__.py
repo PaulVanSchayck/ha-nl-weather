@@ -1,10 +1,11 @@
 """The NL Weather integration."""
 
+import asyncio
 from dataclasses import dataclass
 import logging
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
+from homeassistant.const import CONF_MODE, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -12,8 +13,19 @@ from .KNMI.app import App
 from .KNMI.edr import EDR
 from .KNMI.notification_service import NotificationService
 from .KNMI.wms import WMS
-from .const import CONF_MQTT_TOKEN, CONF_EDR_API_TOKEN, CONF_WMS_TOKEN, DOMAIN  # noqa: F401
-from .coordinator import NLWeatherUpdateCoordinator, NLWeatherEDRCoordinator
+from .const import (
+    CONF_MQTT_TOKEN,
+    CONF_EDR_API_TOKEN,
+    CONF_WMS_TOKEN,
+    DOMAIN as DOMAIN,
+    StationMode,
+)
+from .coordinator import (
+    NLWeatherAutoEDRCoordinator,
+    NLWeatherManualEDRCoordinator,
+    NLWeatherUpdateCoordinator,
+    NLWeatherEDRCoordinator,
+)
 
 _PLATFORMS: list[Platform] = [
     Platform.WEATHER,
@@ -26,13 +38,12 @@ _LOGGER = logging.getLogger(__name__)
 
 @dataclass
 class RuntimeData:
-    """Class to hold your data."""
-
     notification_service: NotificationService
     wms: WMS
     app: App
-    coordinators: dict[str, NLWeatherUpdateCoordinator]
-    obs_coordinator: NLWeatherEDRCoordinator
+    edr: EDR
+    app_coordinators: dict[str, NLWeatherUpdateCoordinator]
+    edr_coordinators: dict[str, NLWeatherEDRCoordinator]
 
 
 type KNMIDirectConfigEntry = ConfigEntry[RuntimeData]  # noqa: F821
@@ -44,27 +55,43 @@ async def async_setup_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -
 
     session = async_get_clientsession(hass)
     ns = NotificationService(entry.data[CONF_MQTT_TOKEN])
+    edr = EDR(session, entry.data[CONF_EDR_API_TOKEN])
     entry.async_create_background_task(hass, ns.run(), "NotificationService")
 
     entry.runtime_data = RuntimeData(
         notification_service=ns,
         wms=WMS(session, entry.data[CONF_WMS_TOKEN]),
         app=App(session),
-        coordinators={},
-        obs_coordinator=NLWeatherEDRCoordinator(
-            hass, entry, ns, EDR(session, entry.data[CONF_EDR_API_TOKEN])
-        ),
+        edr=edr,
+        app_coordinators={},
+        edr_coordinators={},
     )
 
-    await entry.runtime_data.obs_coordinator.async_config_entry_first_refresh()
-
     for subentry_id, subentry in entry.subentries.items():
-        entry.runtime_data.coordinators[subentry_id] = NLWeatherUpdateCoordinator(
-            hass, entry, subentry
-        )
-        await entry.runtime_data.coordinators[
-            subentry_id
-        ].async_config_entry_first_refresh()
+        if subentry.subentry_type == "location":
+            entry.runtime_data.app_coordinators[subentry_id] = (
+                NLWeatherUpdateCoordinator(hass, entry, subentry)
+            )
+        elif subentry.subentry_type == "station":
+            if subentry.data[CONF_MODE] == StationMode.AUTO:
+                entry.runtime_data.edr_coordinators[subentry_id] = (
+                    NLWeatherAutoEDRCoordinator(hass, subentry, ns, edr)
+                )
+            elif subentry.data[CONF_MODE] == StationMode.MANUAL:
+                entry.runtime_data.edr_coordinators[subentry_id] = (
+                    NLWeatherManualEDRCoordinator(hass, subentry, ns, edr)
+                )
+
+    await asyncio.gather(
+        *[
+            c.async_config_entry_first_refresh()
+            for c in entry.runtime_data.app_coordinators.values()
+        ],
+        *[
+            c.async_config_entry_first_refresh()
+            for c in entry.runtime_data.edr_coordinators.values()
+        ],
+    )
 
     await hass.config_entries.async_forward_entry_setups(entry, _PLATFORMS)
 
