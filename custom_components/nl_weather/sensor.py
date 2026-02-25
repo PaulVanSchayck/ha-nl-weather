@@ -6,7 +6,6 @@ from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
-    SensorStateClass,
 )
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import UnitOfLength, UnitOfTemperature
@@ -104,7 +103,6 @@ FORECAST_TEMPERATURE_DESCRIPTIONS: list[ForecastTemperatureDescription] = [
         key="forecast_today_high",
         translation_key="forecast_today_high",
         device_class=SensorDeviceClass.TEMPERATURE,
-        state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         day_index=0,
         temp_key="max",
@@ -113,7 +111,6 @@ FORECAST_TEMPERATURE_DESCRIPTIONS: list[ForecastTemperatureDescription] = [
         key="forecast_today_low",
         translation_key="forecast_today_low",
         device_class=SensorDeviceClass.TEMPERATURE,
-        state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         day_index=0,
         temp_key="min",
@@ -122,7 +119,6 @@ FORECAST_TEMPERATURE_DESCRIPTIONS: list[ForecastTemperatureDescription] = [
         key="forecast_tomorrow_high",
         translation_key="forecast_tomorrow_high",
         device_class=SensorDeviceClass.TEMPERATURE,
-        state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         day_index=1,
         temp_key="max",
@@ -131,7 +127,6 @@ FORECAST_TEMPERATURE_DESCRIPTIONS: list[ForecastTemperatureDescription] = [
         key="forecast_tomorrow_low",
         translation_key="forecast_tomorrow_low",
         device_class=SensorDeviceClass.TEMPERATURE,
-        state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         day_index=1,
         temp_key="min",
