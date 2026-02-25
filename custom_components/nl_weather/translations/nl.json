@@ -37,6 +37,18 @@
       },
       "observations_time": {
         "name": "Waarnemingstijd"
+      },
+      "forecast_today_high": {
+        "name": "Max temperatuur vandaag"
+      },
+      "forecast_today_low": {
+        "name": "Min temperatuur vandaag"
+      },
+      "forecast_tomorrow_high": {
+        "name": "Max temperatuur morgen"
+      },
+      "forecast_tomorrow_low": {
+        "name": "Min temperatuur morgen"
       }
     },
     "binary_sensor": {

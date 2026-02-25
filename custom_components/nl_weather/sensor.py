@@ -1,18 +1,137 @@
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Any
+
 from homeassistant.components.sensor import (
-    SensorEntity,
     SensorDeviceClass,
+    SensorEntity,
     SensorEntityDescription,
 )
 from homeassistant.config_entries import ConfigSubentry
-from homeassistant.const import UnitOfLength
+from homeassistant.const import UnitOfLength, UnitOfTemperature
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from . import DOMAIN, KNMIDirectConfigEntry
 from .const import Alert
-from . import KNMIDirectConfigEntry, DOMAIN
-from .coordinator import NLWeatherUpdateCoordinator, NLWeatherEDRCoordinator
-from homeassistant.core import HomeAssistant
+from .coordinator import NLWeatherEDRCoordinator, NLWeatherUpdateCoordinator
+
+
+@dataclass(frozen=True)
+class AlertSensorDescription(SensorEntityDescription):
+    value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
+
+
+@dataclass(frozen=True)
+class ObservationSensorDescription(SensorEntityDescription):
+    value_fn: Callable[[dict[str, Any], str], Any] | None = field(
+        default=None, repr=False
+    )
+
+
+@dataclass(frozen=True)
+class ForecastTemperatureDescription(SensorEntityDescription):
+    day_index: int | None = None
+    temp_key: str | None = None
+
+
+def _get_alert_description(data: dict[str, Any]) -> str | None:
+    alerts = data.get("alerts", [])
+    if not alerts:
+        return "none"
+    # TODO: Not dealing with multiple alerts yet
+    return alerts[0].get("description")
+
+
+def _get_alert_level(data: dict[str, Any]) -> Alert:
+    # TODO: Not dealing with multiple alerts yet
+    try:
+        return Alert(data["hourly"]["forecast"][0]["alertLevel"])
+    except (KeyError, IndexError, TypeError, ValueError):
+        return Alert.NONE
+
+
+ALERT_SENSOR_DESCRIPTIONS: list[AlertSensorDescription] = [
+    AlertSensorDescription(
+        key="alert",
+        translation_key="weather_alert",
+        icon="mdi:weather-cloudy-alert",
+        value_fn=_get_alert_description,
+    ),
+    AlertSensorDescription(
+        key="alert_level",
+        translation_key="weather_alert_level",
+        icon="mdi:alert-box",
+        device_class=SensorDeviceClass.ENUM,
+        options=[a.value for a in Alert],
+        value_fn=_get_alert_level,
+    ),
+]
+
+
+OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
+    ObservationSensorDescription(
+        key="station_distance",
+        translation_key="observations_station_distance",
+        device_class=SensorDeviceClass.DISTANCE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        suggested_display_precision=1,
+        value_fn=lambda data, subentry_id: data[subentry_id]["distance"],
+    ),
+    ObservationSensorDescription(
+        key="station_name",
+        translation_key="observations_station_name",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data, subentry_id: data[subentry_id]["station_name"],
+    ),
+    ObservationSensorDescription(
+        key="observation_time",
+        translation_key="observations_time",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data, subentry_id: data[subentry_id]["datetime"],
+    ),
+]
+
+
+FORECAST_TEMPERATURE_DESCRIPTIONS: list[ForecastTemperatureDescription] = [
+    ForecastTemperatureDescription(
+        key="forecast_today_high",
+        translation_key="forecast_today_high",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        day_index=0,
+        temp_key="max",
+    ),
+    ForecastTemperatureDescription(
+        key="forecast_today_low",
+        translation_key="forecast_today_low",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        day_index=0,
+        temp_key="min",
+    ),
+    ForecastTemperatureDescription(
+        key="forecast_tomorrow_high",
+        translation_key="forecast_tomorrow_high",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        day_index=1,
+        temp_key="max",
+    ),
+    ForecastTemperatureDescription(
+        key="forecast_tomorrow_low",
+        translation_key="forecast_tomorrow_low",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        day_index=1,
+        temp_key="min",
+    ),
+]
 
 
 async def async_setup_entry(
@@ -24,151 +143,100 @@ async def async_setup_entry(
     for subentry_id, subentry in config_entry.subentries.items():
         coordinator = config_entry.runtime_data.coordinators[subentry_id]
 
-        async_add_entities(
-            [
-                NLWeatherAlertSensor(coordinator, config_entry, subentry),
-                NLWeatherAlertLevelSensor(coordinator, config_entry, subentry),
-                NLObservationStationDistanceSensor(
-                    obs_coordinator, config_entry, subentry
-                ),
-                NLObservationStationNameSensor(obs_coordinator, config_entry, subentry),
-                NLObservationTimeSensor(obs_coordinator, config_entry, subentry),
+        entities = [
+            *[
+                NLAlertSensor(coordinator, config_entry, subentry, desc)
+                for desc in ALERT_SENSOR_DESCRIPTIONS
             ],
-            config_subentry_id=subentry_id,
-        )
+            *[
+                NLObservationSensor(obs_coordinator, config_entry, subentry, desc)
+                for desc in OBSERVATION_SENSOR_DESCRIPTIONS
+            ],
+            *[
+                NLForecastTemperatureSensor(coordinator, config_entry, subentry, desc)
+                for desc in FORECAST_TEMPERATURE_DESCRIPTIONS
+            ],
+        ]
+
+        async_add_entities(entities, config_subentry_id=subentry_id)
 
 
-# TODO: Clean up sensor creation using a base class
-
-
-class NLWeatherAlertSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity):
+class NLAlertSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity):
     def __init__(
-        self, coordinator, config_entry: KNMIDirectConfigEntry, subentry: ConfigSubentry
+        self,
+        coordinator: NLWeatherUpdateCoordinator,
+        config_entry: KNMIDirectConfigEntry,
+        subentry: ConfigSubentry,
+        desc: AlertSensorDescription,
     ) -> None:
         super().__init__(coordinator)
 
-        self._attr_unique_id = f"{config_entry.entry_id}_{subentry.subentry_id}_alert"
+        self.entity_description = desc
+        self._attr_unique_id = (
+            f"{config_entry.entry_id}_{subentry.subentry_id}_{desc.key}"
+        )
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
         )
         self._attr_has_entity_name = True
-        self.entity_description = SensorEntityDescription(
-            key="alert",
-            icon="mdi:weather-cloudy-alert",
-            translation_key="weather_alert",
-        )
+        self._value_fn = desc.value_fn
 
     @property
     def native_value(self):
-        # TODO: Not dealing well with multiple alerts yet
-        if len(self.coordinator.data["alerts"]) == 0:
-            return "none"
-        return self.coordinator.data["alerts"][0]["description"]
+        return self._value_fn(self.coordinator.data)
 
 
-class NLWeatherAlertLevelSensor(
+class NLObservationSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEntity):
+    def __init__(
+        self,
+        coordinator: NLWeatherEDRCoordinator,
+        config_entry: KNMIDirectConfigEntry,
+        subentry: ConfigSubentry,
+        desc: ObservationSensorDescription,
+    ) -> None:
+        super().__init__(coordinator)
+
+        self.entity_description = desc
+        self._attr_unique_id = (
+            f"{config_entry.entry_id}_{subentry.subentry_id}_{desc.key}"
+        )
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
+        )
+        self._attr_has_entity_name = True
+        self._subentry_id = subentry.subentry_id
+        self._value_fn = desc.value_fn
+
+    @property
+    def native_value(self):
+        return self._value_fn(self.coordinator.data, self._subentry_id)
+
+
+class NLForecastTemperatureSensor(
     CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity
 ):
     def __init__(
-        self, coordinator, config_entry: KNMIDirectConfigEntry, subentry: ConfigSubentry
+        self,
+        coordinator: NLWeatherUpdateCoordinator,
+        config_entry: KNMIDirectConfigEntry,
+        subentry: ConfigSubentry,
+        desc: ForecastTemperatureDescription,
     ) -> None:
         super().__init__(coordinator)
 
+        self.entity_description = desc
         self._attr_unique_id = (
-            f"{config_entry.entry_id}_{subentry.subentry_id}_alert_level"
+            f"{config_entry.entry_id}_{subentry.subentry_id}_{desc.key}"
         )
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
         )
         self._attr_has_entity_name = True
-        self.entity_description = SensorEntityDescription(
-            key="alert_level",
-            options=[a.value for a in Alert],
-            icon="mdi:alert-box",
-            translation_key="weather_alert_level",
-            device_class=SensorDeviceClass.ENUM,
-        )
+        self._day_index = desc.day_index
+        self._temp_key = desc.temp_key
 
     @property
     def native_value(self):
-        return Alert(self.coordinator.data["hourly"]["forecast"][0]["alertLevel"])
-
-
-class NLObservationStationDistanceSensor(
-    CoordinatorEntity[NLWeatherEDRCoordinator], SensorEntity
-):
-    def __init__(
-        self, coordinator, config_entry: KNMIDirectConfigEntry, subentry: ConfigSubentry
-    ) -> None:
-        super().__init__(coordinator)
-
-        self._attr_unique_id = (
-            f"{config_entry.entry_id}_{subentry.subentry_id}_station_distance"
-        )
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
-        )
-        self._attr_has_entity_name = True
-        self.entity_description = SensorEntityDescription(
-            key="station_distance",
-            translation_key="observations_station_distance",
-        )
-        self.device_class = SensorDeviceClass.DISTANCE
-        self._subentry_id = subentry.subentry_id
-        self.native_unit_of_measurement = UnitOfLength.KILOMETERS
-        self.suggested_display_precision = 1
-
-    @property
-    def native_value(self):
-        return self.coordinator.data[self._subentry_id]["distance"]
-
-
-class NLObservationStationNameSensor(
-    CoordinatorEntity[NLWeatherEDRCoordinator], SensorEntity
-):
-    def __init__(
-        self, coordinator, config_entry: KNMIDirectConfigEntry, subentry: ConfigSubentry
-    ) -> None:
-        super().__init__(coordinator)
-
-        self._attr_unique_id = (
-            f"{config_entry.entry_id}_{subentry.subentry_id}_station_name"
-        )
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
-        )
-        self._attr_has_entity_name = True
-        self.entity_description = SensorEntityDescription(
-            key="station_name",
-            translation_key="observations_station_name",
-        )
-        self._subentry_id = subentry.subentry_id
-
-    @property
-    def native_value(self):
-        return self.coordinator.data[self._subentry_id]["station_name"]
-
-
-class NLObservationTimeSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEntity):
-    def __init__(
-        self, coordinator, config_entry: KNMIDirectConfigEntry, subentry: ConfigSubentry
-    ) -> None:
-        super().__init__(coordinator)
-
-        self._attr_unique_id = (
-            f"{config_entry.entry_id}_{subentry.subentry_id}_observation_time"
-        )
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
-        )
-        self._attr_has_entity_name = True
-        self.entity_description = SensorEntityDescription(
-            key="time",
-            translation_key="observations_time",
-        )
-        self.device_class = SensorDeviceClass.TIMESTAMP
-        self._subentry_id = subentry.subentry_id
-
-    @property
-    def native_value(self):
-        return self.coordinator.data[self._subentry_id]["datetime"]
+        return self.coordinator.data["daily"]["forecast"][self._day_index][
+            "temperature"
+        ][self._temp_key]
