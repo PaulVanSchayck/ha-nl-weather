@@ -1,5 +1,5 @@
 {
-   "entity": {
+  "entity": {
     "camera": {
       "precipitation_radar": {
         "name": "Precipitation Radar"
@@ -37,6 +37,18 @@
       },
       "observations_time": {
         "name": "Observation time"
+      },
+      "forecast_today_high": {
+        "name": "Max temperature today"
+      },
+      "forecast_today_low": {
+        "name": "Min temperature today"
+      },
+      "forecast_tomorrow_high": {
+        "name": "Max temperature tomorrow"
+      },
+      "forecast_tomorrow_low": {
+        "name": "Min temperature tomorrow"
       }
     },
     "binary_sensor": {

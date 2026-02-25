@@ -25,7 +25,8 @@ jobs:
           cache: "pip"
 
       - name: Install requirements
-        run: python3 -m pip install -r requirements.txt
+        # Install only ruff from requirements.txt (homeassistant not needed for linting)
+        run: python3 -m pip install $(grep "^ruff==" requirements.txt)
 
       - name: Lint
         run: python3 -m ruff check .

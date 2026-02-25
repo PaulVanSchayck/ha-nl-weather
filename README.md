@@ -83,6 +83,9 @@ entities for detailed data such as:
 - Weather warnings
   - Color code
   - Text description
+- Forecast temperature sensors
+  - Today's high and low temperatures
+  - Tomorrow's high and low temperatures
 - Distance to weather station
 - Name of weather stations
 

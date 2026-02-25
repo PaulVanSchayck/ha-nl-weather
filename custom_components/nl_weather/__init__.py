@@ -95,16 +95,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -
 
     await hass.config_entries.async_forward_entry_setups(entry, _PLATFORMS)
 
-    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
+    entry.async_on_unload(entry.add_update_listener(async_update_listener))
 
     return True
+
+
+async def async_update_listener(
+    hass: HomeAssistant, entry: KNMIDirectConfigEntry
+) -> None:
+    """Handle update."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, _PLATFORMS)
-
-
-async def async_reload_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -> None:
-    """Handle an options update."""
-    await hass.config_entries.async_reload(entry.entry_id)

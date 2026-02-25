@@ -10,7 +10,7 @@ from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlowResult,
     ConfigSubentryFlow,
-    OptionsFlowWithReload,
+    OptionsFlow,
 )
 from homeassistant.const import (
     CONF_LATITUDE,
@@ -91,44 +91,88 @@ OPTIONS_SCHEMA = vol.Schema(
 )
 
 
-def validate_token(token):
+def validate_token(token: str) -> None:
+    """Validate that token is a properly base64 encoded JSON string.
+
+    Args:
+        token: Token string to validate.
+
+    Raises:
+        IncorrectToken: If token is not properly base64 encoded or contains invalid JSON.
+    """
     try:
         json.loads(b64decode(token, validate=True))
-    except (binascii.Error, json.JSONDecodeError, UnicodeDecodeError):
-        raise IncorrectToken
+    except (binascii.Error, json.JSONDecodeError, UnicodeDecodeError) as err:
+        _LOGGER.error(
+            "Token validation failed - not valid base64-encoded JSON: %s", err
+        )
+        raise IncorrectToken from err
 
 
-async def validate_edr_input(hass: HomeAssistant, data: dict):
+async def validate_edr_input(hass: HomeAssistant, data: dict) -> None:
+    """Validate EDR API token and connection.
+
+    Args:
+        hass: Home Assistant instance.
+        data: Configuration data containing EDR API token.
+
+    Raises:
+        IncorrectToken: If token is not properly base64 encoded.
+        CannotConnect: If EDR API token validation fails.
+    """
     validate_token(data[CONF_EDR_API_TOKEN])
     edr = EDR(async_get_clientsession(hass), data[CONF_EDR_API_TOKEN])
 
     try:
         await edr.metadata()
-    except TokenInvalid:
-        raise CannotConnect
+    except TokenInvalid as err:
+        _LOGGER.error("EDR API token validation failed: %s", err)
+        raise CannotConnect from err
 
 
-async def validate_wms_input(hass: HomeAssistant, data: dict):
+async def validate_wms_input(hass: HomeAssistant, data: dict) -> None:
+    """Validate Web Map Service (WMS) token and connection.
+
+    Args:
+        hass: Home Assistant instance.
+        data: Configuration data containing WMS token.
+
+    Raises:
+        IncorrectToken: If token is not properly base64 encoded.
+        CannotConnect: If WMS token validation fails.
+    """
     validate_token(data[CONF_WMS_TOKEN])
     wms = WMS(async_get_clientsession(hass), data[CONF_WMS_TOKEN])
 
     try:
         await wms.get({})
-    except WMSTokenInvalid:
-        raise CannotConnect
+    except WMSTokenInvalid as err:
+        _LOGGER.error("WMS token validation failed: %s", err)
+        raise CannotConnect from err
 
 
-async def validate_mqtt_input(hass: HomeAssistant, data: dict):
+async def validate_mqtt_input(hass: HomeAssistant, data: dict) -> None:
+    """Validate MQTT Notification Service token and connection.
+
+    Args:
+        hass: Home Assistant instance.
+        data: Configuration data containing MQTT token.
+
+    Raises:
+        IncorrectToken: If token is not properly base64 encoded.
+        CannotConnect: If MQTT token validation fails.
+    """
     validate_token(data[CONF_MQTT_TOKEN])
     ns = NotificationService(data[CONF_MQTT_TOKEN])
 
     try:
         await ns.test_connection()
-    except NSTokenInvalid:
-        raise CannotConnect
+    except NSTokenInvalid as err:
+        _LOGGER.error("MQTT token validation failed: %s", err)
+        raise CannotConnect from err
 
 
-class OptionsFlowHandler(OptionsFlowWithReload):
+class OptionsFlowHandler(OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
