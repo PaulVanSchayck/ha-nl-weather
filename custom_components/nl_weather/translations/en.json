@@ -127,7 +127,9 @@
         "manual": {
           "title": "Select weather station",
           "description": "Not all stations have all sensors. Stations at airports (areodromes) typically have all, while at wind stations only a few may be available.",
-          "station": "Station"
+          "data": {
+            "station": "Weather station"
+          }
         }
       },
       "initiate_flow": {

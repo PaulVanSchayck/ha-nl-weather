@@ -127,7 +127,9 @@
         "manual": {
           "title": "Selecteer weerstation",
           "description": "Niet alle stations hebben alle sensoren. Stations op vliegvelden (areodromes) hebben alle sensoren, terwijl bijvoorbeeld een windmast (wind station) er slechts een paar heeft.",
-          "station": "Station"
+          "data": {
+            "station": "Weerstation"
+          }
         }
       },
       "initiate_flow": {
