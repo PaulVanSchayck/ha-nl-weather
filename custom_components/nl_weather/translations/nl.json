@@ -5,7 +5,7 @@
         "name": "Neerslagradar"
       }
     },
-    "weather":{
+    "weather": {
       "observations": {
         "name": "Waarnemingen"
       },
@@ -37,6 +37,66 @@
       },
       "observations_time": {
         "name": "Waarnemingstijd"
+      },
+      "observations_temperature": {
+        "name": "Temperatuur"
+      },
+      "observations_humidity": {
+        "name": "Luchtvochtigheid"
+      },
+      "observations_visibility": {
+        "name": "Zicht"
+      },
+      "observations_pressure": {
+        "name": "Luchtdruk"
+      },
+      "observations_wind_speed": {
+        "name": "Windsnelheid"
+      },
+      "observations_wind_gust": {
+        "name": "Windvlaag"
+      },
+      "observations_dewpoint": {
+        "name": "Dauwpunt"
+      },
+      "observations_wind_azimuth": {
+        "name": "Windrichting (graden)"
+      },
+      "observations_cloud_coverage": {
+        "name": "Bewolking"
+      },
+      "observations_wind_direction": {
+        "name": "Windrichting",
+        "state": {
+          "n": "N",
+          "nne": "NNO",
+          "ne": "NO",
+          "ene": "ONO",
+          "e": "O",
+          "ese": "OZO",
+          "se": "ZO",
+          "sse": "ZZO",
+          "s": "Z",
+          "ssw": "ZZW",
+          "sw": "ZW",
+          "wsw": "WZW",
+          "w": "W",
+          "wnw": "WNW",
+          "nw": "NW",
+          "nnw": "NNW"
+        }
+      },
+      "forecast_today_high": {
+        "name": "Vandaag maximum"
+      },
+      "forecast_today_low": {
+        "name": "Vandaag minimum"
+      },
+      "forecast_tomorrow_high": {
+        "name": "Morgen maximum"
+      },
+      "forecast_tomorrow_low": {
+        "name": "Morgen minimum"
       }
     },
     "binary_sensor": {
@@ -92,10 +152,8 @@
       "initiate_flow": {
         "user": "Nieuwe locatie"
       },
-      "error": {
-      },
-      "abort": {
-      }
+      "error": {},
+      "abort": {}
     }
   },
   "options": {

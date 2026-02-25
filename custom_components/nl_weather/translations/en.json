@@ -1,11 +1,11 @@
 {
-   "entity": {
+  "entity": {
     "camera": {
       "precipitation_radar": {
         "name": "Precipitation Radar"
       }
     },
-    "weather":{
+    "weather": {
       "observations": {
         "name": "Observations"
       },
@@ -37,6 +37,66 @@
       },
       "observations_time": {
         "name": "Observation time"
+      },
+      "observations_temperature": {
+        "name": "Temperature"
+      },
+      "observations_humidity": {
+        "name": "Humidity"
+      },
+      "observations_visibility": {
+        "name": "Visibility"
+      },
+      "observations_pressure": {
+        "name": "Pressure"
+      },
+      "observations_wind_speed": {
+        "name": "Wind speed"
+      },
+      "observations_wind_gust": {
+        "name": "Wind gust"
+      },
+      "observations_dewpoint": {
+        "name": "Dew point"
+      },
+      "observations_wind_azimuth": {
+        "name": "Wind azimuth"
+      },
+      "observations_cloud_coverage": {
+        "name": "Cloud coverage"
+      },
+      "observations_wind_direction": {
+        "name": "Wind direction",
+        "state": {
+          "n": "N",
+          "nne": "NNE",
+          "ne": "NE",
+          "ene": "ENE",
+          "e": "E",
+          "ese": "ESE",
+          "se": "SE",
+          "sse": "SSE",
+          "s": "S",
+          "ssw": "SSW",
+          "sw": "SW",
+          "wsw": "WSW",
+          "w": "W",
+          "wnw": "WNW",
+          "nw": "NW",
+          "nnw": "NNW"
+        }
+      },
+      "forecast_today_high": {
+        "name": "Today high"
+      },
+      "forecast_today_low": {
+        "name": "Today low"
+      },
+      "forecast_tomorrow_high": {
+        "name": "Tomorrow high"
+      },
+      "forecast_tomorrow_low": {
+        "name": "Tomorrow low"
       }
     },
     "binary_sensor": {
@@ -92,10 +152,8 @@
       "initiate_flow": {
         "user": "Add location"
       },
-      "error": {
-      },
-      "abort": {
-      }
+      "error": {},
+      "abort": {}
     }
   },
   "options": {
