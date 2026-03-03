@@ -125,7 +125,7 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
 
         if (
             filename_datetime == self._latest_filename_datetime
-            and max(v["distance"] for v in self.data.values())
+            and max([v["distance"] for v in self.data.values()], default=0)
             < EDR_STATION_MINIMAL_DISTANCE
         ):
             _LOGGER.debug(
