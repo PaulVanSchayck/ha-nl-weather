@@ -61,7 +61,8 @@ You can get API keys from https://developer.dataplatform.knmi.nl/. Register an a
 
 You'll receive copies of all keys via e-mail as well. 
 
-> ⚠️ The API keys you receive look very similar for all services. This is correct. The end and beginning of the keys will be the same, but the middle does differ. 
+> [!IMPORTANT]
+> The API keys you receive look very similar for all services. This is correct. The end and beginning of the keys will be the same, but the middle does differ. 
 
 ### Step 2. Add the integration and enter your API keys
 Add the integration via **Settings → Devices & Services → Add Integration → NL Weather** 
