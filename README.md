@@ -36,8 +36,8 @@ is used to display the forecast, warnings and observations. For the radar image 
 ### Via HACS (recommended)
 
 1. Ensure you have [HACS](https://www.hacs.xyz/) installed in your Home Assistant.
-4. Search for **NL Weather** and install.  
-5. Restart Home Assistant if required.  
+2. Search for **NL Weather** and install.  
+3. Restart Home Assistant if required.
 
 ### Manual Installation
 
@@ -45,11 +45,7 @@ If you prefer manual install (or HACS is not available):
 
 1. Download or clone this repository.  
 2. Copy the folder `custom_components/nl_weather` to your Home Assistant `custom_components/` directory.  
-3. Restart Home Assistant.  
-4. Add the integration via **Settings → Devices & Services → Add Integration → NL Weather** 
-
-> ⚠️ If the integration does not show up after installing via HACS or copying manually — try clearing browser cache, 
-> restart Home Assistant again, and verify that the folder structure is correct (i.e. `custom_components/nl_weather/…`).
+3. Restart Home Assistant.
 
 ## Configuration
 
@@ -67,12 +63,23 @@ You'll receive copies of all keys via e-mail as well.
 
 > ⚠️ The API keys you receive look very similar for all services. This is correct. The end and beginning of the keys will be the same, but the middle does differ. 
 
-### Step 2. Configure a weather location 
+### Step 2. Add the integration and enter your API keys
+Add the integration via **Settings → Devices & Services → Add Integration → NL Weather** 
+
+> ⚠️ If the integration does not show up after installing via HACS or copying manually — try clearing browser cache, 
+> restart Home Assistant again, and verify that the folder structure is correct (i.e. `custom_components/nl_weather/…`).
+
+A form is shown where you can enter your API keys for:
+1. EDR API
+2. Web Map Service (WMS)
+3. Notification Service (MQTT)
+
+### Step 3. Configure a weather location 
 
 To start receiving weather observations and forecasts, add a location: 
 **Settings → Devices & services → NL Weather → Add location**
 
-Enter (or modify) your location. The region you set will determine for which region you will receive 
+Enter (or modify) the GPS coordinates of your location. The region you set will determine for which region you will receive 
 weather alerts.
 
 ## Entities Created
