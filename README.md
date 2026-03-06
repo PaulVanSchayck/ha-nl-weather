@@ -67,8 +67,8 @@ You'll receive copies of all keys via e-mail as well.
 ### Step 2. Add the integration and enter your API keys
 Add the integration via **Settings → Devices & Services → Add Integration → NL Weather** 
 
-> ⚠️ If the integration does not show up after installing via HACS or copying manually — try clearing browser cache, 
-> restart Home Assistant again, and verify that the folder structure is correct (i.e. `custom_components/nl_weather/…`).
+> [!TIP]
+> If the integration does not show up after installing via HACS or copying manually — try clearing browser cache, restart Home Assistant again, and verify that the folder structure is correct (i.e. `custom_components/nl_weather/…`).
 
 A form is shown where you can enter your API keys for:
 1. EDR API
