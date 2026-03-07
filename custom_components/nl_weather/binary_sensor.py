@@ -19,8 +19,7 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     for subentry_id, subentry in config_entry.subentries.items():
-        coordinator = config_entry.runtime_data.coordinators[subentry_id]
-
+        coordinator = config_entry.runtime_data.app_coordinators[subentry_id]
         async_add_entities(
             [
                 NLWeatherAlertActiveSensor(coordinator, config_entry, subentry),

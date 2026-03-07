@@ -12,7 +12,13 @@ from homeassistant.config_entries import (
     ConfigSubentryFlow,
     OptionsFlow,
 )
-from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME, CONF_REGION
+from homeassistant.const import (
+    CONF_LATITUDE,
+    CONF_LONGITUDE,
+    CONF_MODE,
+    CONF_NAME,
+    CONF_REGION,
+)
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
@@ -35,10 +41,12 @@ from .const import (
     CONF_MARK_LOCATIONS,
     CONF_MQTT_TOKEN,
     CONF_RADAR_STYLE,
+    CONF_STATION,
     CONF_WMS_TOKEN,
     DEFAULT_RADAR_STYLE,
     DOMAIN,
     RADAR_STYLES,
+    StationMode,
 )
 from .KNMI.edr import TokenInvalid
 from .KNMI.notification_service import (
@@ -240,7 +248,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         cls, config_entry: ConfigEntry
     ) -> dict[str, type[ConfigSubentryFlow]]:
         """Return subentries supported by this integration."""
-        return {"location": LocationSubentryFlowHandler}
+        return {
+            "location": LocationSubentryFlowHandler,
+        }
 
     @staticmethod
     @callback
@@ -260,7 +270,13 @@ class LocationSubentryFlowHandler(ConfigSubentryFlow):
     async def async_step_location(self, user_input=None):
         """User flow to add a new location."""
         if user_input is not None:
-            return self.async_create_entry(data=user_input, title=user_input[CONF_NAME])
+            if user_input[CONF_MODE] == StationMode.MANUAL:
+                self._data = user_input
+                return await self.async_step_manual()
+            else:
+                return self.async_create_entry(
+                    data=user_input, title=user_input[CONF_NAME]
+                )
 
         return self.async_show_form(
             step_id="location",
@@ -284,6 +300,43 @@ class LocationSubentryFlowHandler(ConfigSubentryFlow):
                                     {"value": k, "label": v}
                                     for k, v in ALERT_REGIONS.items()
                                 ],
+                                "mode": "dropdown",
+                            }
+                        }
+                    ),
+                    vol.Required(CONF_MODE): vol.In([m.value for m in StationMode]),
+                }
+            ),
+        )
+
+    async def async_step_manual(self, user_input=None):
+        session = async_get_clientsession(self.hass)
+        edr = EDR(session, self._get_entry().data[CONF_EDR_API_TOKEN])
+        locations = await edr.locations()
+
+        options = sorted(
+            [
+                {
+                    "value": f["id"],
+                    "label": f"{f['properties']['name']} - {f['properties']['type']}",
+                }
+                for f in locations["features"]
+            ],
+            key=lambda o: o["label"],
+        )
+
+        if user_input is not None:
+            data = {**self._data, **user_input}
+            return self.async_create_entry(data=data, title=data[CONF_NAME])
+
+        return self.async_show_form(
+            step_id="manual",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_STATION): selector(
+                        {
+                            "select": {
+                                "options": options,
                                 "mode": "dropdown",
                             }
                         }

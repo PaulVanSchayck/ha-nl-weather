@@ -93,12 +93,16 @@
             "name": "Naam",
             "latitude": "Breedtegraad",
             "longitude": "Lengtegraad",
-            "region": "Regio waarvoor je weerwaarschuwingen ontvangt"
+            "region": "Regio waarvoor je weerwaarschuwingen ontvangt",
+            "mode": "Weerwaarnemingen kunnen op twee verschillende manieren verzameld worden"
           }
         },
-        "reconfigure": {
-          "title": "Update locatie",
-          "description": "..."
+        "manual": {
+          "title": "Selecteer weerstation",
+          "description": "Niet alle stations hebben alle sensoren. Stations op vliegvelden (areodromes) hebben alle sensoren, terwijl bijvoorbeeld een windmast (wind station) er slechts een paar heeft.",
+          "data": {
+            "station": "Weerstation"
+          }
         }
       },
       "initiate_flow": {
@@ -129,6 +133,12 @@
       "options": {
         "light": "Licht",
         "dark": "Donker"
+      }
+    },
+    "mode": {
+      "options": {
+        "auto": "Verzamel automatisch de dichtsbijzijnde waarnemingen",
+        "manual": "Selecteer handmatig een weerstation"
       }
     }
   }

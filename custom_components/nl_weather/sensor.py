@@ -27,9 +27,7 @@ class AlertSensorDescription(SensorEntityDescription):
 
 @dataclass(frozen=True)
 class ObservationSensorDescription(SensorEntityDescription):
-    value_fn: Callable[[dict[str, Any], str], Any] | None = field(
-        default=None, repr=False
-    )
+    value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)
@@ -80,20 +78,20 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         entity_category=EntityCategory.DIAGNOSTIC,
         native_unit_of_measurement=UnitOfLength.KILOMETERS,
         suggested_display_precision=1,
-        value_fn=lambda data, subentry_id: data[subentry_id]["distance"],
+        value_fn=lambda data: data["distance"],
     ),
     ObservationSensorDescription(
         key="station_name",
         translation_key="observations_station_name",
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda data, subentry_id: data[subentry_id]["station_name"],
+        value_fn=lambda data: data["station_name"],
     ),
     ObservationSensorDescription(
         key="observation_time",
         translation_key="observations_time",
         device_class=SensorDeviceClass.TIMESTAMP,
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda data, subentry_id: data[subentry_id]["datetime"],
+        value_fn=lambda data: data["datetime"],
     ),
 ]
 
@@ -139,22 +137,25 @@ async def async_setup_entry(
     config_entry: KNMIDirectConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    obs_coordinator = config_entry.runtime_data.obs_coordinator
     for subentry_id, subentry in config_entry.subentries.items():
-        coordinator = config_entry.runtime_data.coordinators[subentry_id]
+        entities = []
+        app_coordinator = config_entry.runtime_data.app_coordinators[subentry_id]
+        edr_coordinator = config_entry.runtime_data.edr_coordinators[subentry_id]
 
         entities = [
             *[
-                NLAlertSensor(coordinator, config_entry, subentry, desc)
+                NLAlertSensor(app_coordinator, config_entry, subentry, desc)
                 for desc in ALERT_SENSOR_DESCRIPTIONS
             ],
             *[
-                NLObservationSensor(obs_coordinator, config_entry, subentry, desc)
-                for desc in OBSERVATION_SENSOR_DESCRIPTIONS
+                NLForecastTemperatureSensor(
+                    app_coordinator, config_entry, subentry, desc
+                )
+                for desc in FORECAST_TEMPERATURE_DESCRIPTIONS
             ],
             *[
-                NLForecastTemperatureSensor(coordinator, config_entry, subentry, desc)
-                for desc in FORECAST_TEMPERATURE_DESCRIPTIONS
+                NLObservationSensor(edr_coordinator, config_entry, subentry, desc)
+                for desc in OBSERVATION_SENSOR_DESCRIPTIONS
             ],
         ]
 
@@ -209,7 +210,7 @@ class NLObservationSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEnti
 
     @property
     def native_value(self):
-        return self._value_fn(self.coordinator.data, self._subentry_id)
+        return self._value_fn(self.coordinator.data)
 
 
 class NLForecastTemperatureSensor(
