@@ -68,19 +68,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -
     )
 
     for subentry_id, subentry in entry.subentries.items():
-        if subentry.subentry_type == "location":
-            entry.runtime_data.app_coordinators[subentry_id] = (
-                NLWeatherUpdateCoordinator(hass, entry, subentry)
+        entry.runtime_data.app_coordinators[subentry_id] = NLWeatherUpdateCoordinator(
+            hass, entry, subentry
+        )
+        if subentry.data[CONF_MODE] == StationMode.AUTO:
+            entry.runtime_data.edr_coordinators[subentry_id] = (
+                NLWeatherAutoEDRCoordinator(hass, subentry, ns, edr)
             )
-        elif subentry.subentry_type == "station":
-            if subentry.data[CONF_MODE] == StationMode.AUTO:
-                entry.runtime_data.edr_coordinators[subentry_id] = (
-                    NLWeatherAutoEDRCoordinator(hass, subentry, ns, edr)
-                )
-            elif subentry.data[CONF_MODE] == StationMode.MANUAL:
-                entry.runtime_data.edr_coordinators[subentry_id] = (
-                    NLWeatherManualEDRCoordinator(hass, subentry, ns, edr)
-                )
+        elif subentry.data[CONF_MODE] == StationMode.MANUAL:
+            entry.runtime_data.edr_coordinators[subentry_id] = (
+                NLWeatherManualEDRCoordinator(hass, subentry, ns, edr)
+            )
 
     await asyncio.gather(
         *[

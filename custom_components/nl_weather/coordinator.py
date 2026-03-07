@@ -71,6 +71,7 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
     _latest_filename_datetime = datetime(
         year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc
     )
+    _station_names = {}
 
     def __init__(self, hass, subentry: ConfigSubentry, ns, edr) -> None:
         super().__init__(
@@ -99,6 +100,11 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
             self.get_coverage_datetime,
         )
 
+        # Cache all station names
+        stations = await self._edr.locations()
+        for feature in stations["features"]:
+            self._station_names[feature["id"]] = feature["properties"]["name"]
+
 
 class NLWeatherAutoEDRCoordinator(NLWeatherEDRCoordinator):
     """Coordinator that gets the closest values for a specific location from a mix of weather stations"""
@@ -123,6 +129,10 @@ class NLWeatherAutoEDRCoordinator(NLWeatherEDRCoordinator):
         data["datetime"] = datetime.fromisoformat(
             sorted_coverages[0]["domain"]["axes"]["t"]["values"][0]
         )
+        # TODO: Make this a concatenaded string of the stations used?
+        data["station_name"] = "Automatic (multiple)"
+        # TODO: Make this an average of the stations used?
+        data["distance"] = None
 
         return data
 
@@ -181,6 +191,9 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
         coverage["datetime"] = datetime.fromisoformat(
             coverage["domain"]["axes"]["t"]["values"][0]
         )
+        coverage["station_name"] = self._station_names[coverage["eumetnet:locationId"]]
+        # TODO: Calculate distance here
+        coverage["distance"] = None
         return coverage
 
     async def get_coverage_datetime(self, event) -> None:

@@ -93,35 +93,8 @@
             "name": "Naam",
             "latitude": "Breedtegraad",
             "longitude": "Lengtegraad",
-            "region": "Regio waarvoor je weerwaarschuwingen ontvangt"
-          }
-        }
-      },
-      "initiate_flow": {
-        "user": "Nieuwe locatie"
-      },
-      "error": {
-      },
-      "abort": {
-      }
-    },
-    "station": {
-      "entry_type": "Weerstation",
-      "step": {
-        "user": {
-          "title": "Selecteer modus",
-          "description": "Waarnemingen kunnen op twee verschillende manieren verzameld worden",
-          "data": {
-            "mode": "Modus"
-          }
-        },
-        "auto": {
-          "title": "Nieuwe locatie",
-          "description": "Configureer een locatie om automatisch de dichtbijzijnde waarnemingen voor te verzamelen",
-          "data": {
-            "name": "Naam",
-            "latitude": "Breedtegraad",
-            "longitude": "Lengtegraad"
+            "region": "Regio waarvoor je weerwaarschuwingen ontvangt",
+            "mode": "Weerwaarnemingen kunnen op twee verschillende manieren verzameld worden"
           }
         },
         "manual": {
@@ -133,7 +106,7 @@
         }
       },
       "initiate_flow": {
-        "user": "Nieuw weerstation"
+        "user": "Nieuwe locatie"
       },
       "error": {
       },
@@ -164,7 +137,7 @@
     },
     "mode": {
       "options": {
-        "auto": "Verzamel automatisch de dictsbijzijnde waarnemingen",
+        "auto": "Verzamel automatisch de dichtsbijzijnde waarnemingen",
         "manual": "Selecteer handmatig een weerstation"
       }
     }

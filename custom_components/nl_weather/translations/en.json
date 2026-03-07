@@ -93,35 +93,8 @@
             "name": "Name",
             "latitude": "Latitude",
             "longitude": "Longitude",
-            "region": "Region for which you receive weather alerts"
-          }
-        }
-      },
-      "initiate_flow": {
-        "user": "Add location"
-      },
-      "error": {
-      },
-      "abort": {
-      }
-    },
-    "station": {
-      "entry_type": "Weather Station",
-      "step": {
-        "user": {
-          "title": "Select mode",
-          "description": "Weather observations can be gathered in two different modes",
-          "data": {
-            "mode": "Mode"
-          }
-        },
-        "auto": {
-          "title": "Add location",
-          "description": "Configure a location to automatically gather the closest observations for",
-          "data": {
-            "name": "Name",
-            "latitude": "Latitude",
-            "longitude": "Longitude"
+            "region": "Region for which you receive weather alerts",
+            "mode": "Weather observations can be gathered in two different modes"
           }
         },
         "manual": {
@@ -133,7 +106,7 @@
         }
       },
       "initiate_flow": {
-        "user": "Add weather station"
+        "user": "Add location"
       },
       "error": {
       },

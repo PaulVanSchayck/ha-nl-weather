@@ -8,7 +8,7 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
 )
 from homeassistant.config_entries import ConfigSubentry
-from homeassistant.const import UnitOfTemperature
+from homeassistant.const import UnitOfLength, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
@@ -72,6 +72,21 @@ ALERT_SENSOR_DESCRIPTIONS: list[AlertSensorDescription] = [
 
 OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
     ObservationSensorDescription(
+        key="station_distance",
+        translation_key="observations_station_distance",
+        device_class=SensorDeviceClass.DISTANCE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        suggested_display_precision=1,
+        value_fn=lambda data: data["distance"],
+    ),
+    ObservationSensorDescription(
+        key="station_name",
+        translation_key="observations_station_name",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data["station_name"],
+    ),
+    ObservationSensorDescription(
         key="observation_time",
         translation_key="observations_time",
         device_class=SensorDeviceClass.TIMESTAMP,
@@ -124,31 +139,25 @@ async def async_setup_entry(
 ) -> None:
     for subentry_id, subentry in config_entry.subentries.items():
         entities = []
-        if subentry.subentry_type == "location":
-            app_coordinator = config_entry.runtime_data.app_coordinators[subentry_id]
+        app_coordinator = config_entry.runtime_data.app_coordinators[subentry_id]
+        edr_coordinator = config_entry.runtime_data.edr_coordinators[subentry_id]
 
-            entities = [
-                *[
-                    NLAlertSensor(app_coordinator, config_entry, subentry, desc)
-                    for desc in ALERT_SENSOR_DESCRIPTIONS
-                ],
-                *[
-                    NLForecastTemperatureSensor(
-                        app_coordinator, config_entry, subentry, desc
-                    )
-                    for desc in FORECAST_TEMPERATURE_DESCRIPTIONS
-                ],
-            ]
-
-        elif subentry.subentry_type == "station":
-            edr_coordinator = config_entry.runtime_data.edr_coordinators[subentry_id]
-
-            entities = [
-                *[
-                    NLObservationSensor(edr_coordinator, config_entry, subentry, desc)
-                    for desc in OBSERVATION_SENSOR_DESCRIPTIONS
-                ],
-            ]
+        entities = [
+            *[
+                NLAlertSensor(app_coordinator, config_entry, subentry, desc)
+                for desc in ALERT_SENSOR_DESCRIPTIONS
+            ],
+            *[
+                NLForecastTemperatureSensor(
+                    app_coordinator, config_entry, subentry, desc
+                )
+                for desc in FORECAST_TEMPERATURE_DESCRIPTIONS
+            ],
+            *[
+                NLObservationSensor(edr_coordinator, config_entry, subentry, desc)
+                for desc in OBSERVATION_SENSOR_DESCRIPTIONS
+            ],
+        ]
 
         async_add_entities(entities, config_subentry_id=subentry_id)
 

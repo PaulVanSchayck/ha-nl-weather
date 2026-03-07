@@ -60,23 +60,18 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     for subentry_id, subentry in config_entry.subentries.items():
-        entities = []
-        if subentry.subentry_type == "location":
-            entities = [
-                NLWeatherForecast(
-                    config_entry.runtime_data.app_coordinators[subentry_id],
-                    config_entry,
-                    subentry,
-                ),
-            ]
-        elif subentry.subentry_type == "station":
-            entities = [
-                NLWeatherObservations(
-                    config_entry.runtime_data.edr_coordinators[subentry_id],
-                    config_entry,
-                    subentry,
-                ),
-            ]
+        entities = [
+            NLWeatherForecast(
+                config_entry.runtime_data.app_coordinators[subentry_id],
+                config_entry,
+                subentry,
+            ),
+            NLWeatherObservations(
+                config_entry.runtime_data.edr_coordinators[subentry_id],
+                config_entry,
+                subentry,
+            ),
+        ]
         async_add_entities(
             entities,
             config_subentry_id=subentry_id,
@@ -99,18 +94,9 @@ class NLWeatherObservations(CoordinatorEntity[NLWeatherEDRCoordinator], WeatherE
         self._attr_unique_id = (
             f"{config_entry.entry_id}_{subentry.subentry_id}_observations"
         )
-        if subentry.data["mode"] == "auto":
-            name = f"Waarnemingen {subentry.data[CONF_NAME]}"
-        else:
-            name = f"Station {subentry.data[CONF_NAME]}"
 
         self._attr_device_info = DeviceInfo(
-            name=name,
-            entry_type=DeviceEntryType.SERVICE,
             identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
-            manufacturer="KNMI.nl",
-            model="Waarnemingen",
-            configuration_url="https://www.knmi.nl",
         )
         self._attr_translation_key = "observations"
         self._attr_has_entity_name = True
@@ -120,6 +106,14 @@ class NLWeatherObservations(CoordinatorEntity[NLWeatherEDRCoordinator], WeatherE
         self._attr_native_wind_speed_unit = UnitOfSpeed.METERS_PER_SECOND
         self._attr_native_temperature_unit = UnitOfTemperature.CELSIUS
         self._attr_native_visibility_unit = UnitOfLength.METERS
+
+    @property
+    def available(self) -> bool:
+        return (
+            self.get_latest_range_value(ATTR_WEATHER_CONDITION) is not None
+            and self.get_latest_range_value(ATTR_WEATHER_VISIBILITY) is not None
+            and self.get_latest_range_value(ATTR_WEATHER_CLOUD_COVERAGE) is not None
+        )
 
     @property
     def condition(self) -> str | None:
@@ -132,8 +126,6 @@ class NLWeatherObservations(CoordinatorEntity[NLWeatherEDRCoordinator], WeatherE
         except KeyError:
             _LOGGER.exception("Unknown condition")
             return ATTR_CONDITION_SUNNY
-
-        # TODO: Not handling the case where these extra attributes are not available
 
         # Foggy condition is reported well above 1000 m visibility. Only below 1000 meter it is "fog"
         if condition == ATTR_CONDITION_FOG and self.native_visibility > 1000:
@@ -233,7 +225,7 @@ class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEn
             name=f"Weer {subentry.data[CONF_NAME]}",
             entry_type=DeviceEntryType.SERVICE,
             manufacturer="KNMI.nl",
-            model="Verwachtingen & Waarschuwingen",
+            model="Waarnemingen, verwachtingen & waarschuwingen",
             configuration_url="https://www.knmi.nl",
         )
         self._attr_translation_key = "forecast"
