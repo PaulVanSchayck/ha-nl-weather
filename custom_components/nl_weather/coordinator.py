@@ -12,7 +12,7 @@ from homeassistant.util import utcnow
 
 from .const import APP_API_SCAN_INTERVAL, CONF_STATION, PARAMETER_ATTRIBUTE_MAP
 from .KNMI.edr import NotFoundError, ServerError
-from .KNMI.helpers import sort_coverage_on_distance
+from .KNMI.helpers import coverage_distance, sort_coverage_on_distance
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -85,6 +85,11 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
         self._config = subentry.data
         self._subentry = subentry
 
+        self._location = {
+            "lat": self._config[CONF_LATITUDE],
+            "lon": self._config[CONF_LONGITUDE],
+        }
+
     async def get_coverage_datetime(self, event) -> None:
         pass
 
@@ -108,13 +113,6 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
 
 class NLWeatherAutoEDRCoordinator(NLWeatherEDRCoordinator):
     """Coordinator that gets the closest values for a specific location from a mix of weather stations"""
-
-    def __init__(self, hass, subentry: ConfigSubentry, ns, edr) -> None:
-        super().__init__(hass, subentry, ns, edr)
-        self._location = {
-            "lat": self._config[CONF_LATITUDE],
-            "lon": self._config[CONF_LONGITUDE],
-        }
 
     def _prepare_data(self, coverages):
         sorted_coverages = sort_coverage_on_distance(coverages, self._location)
@@ -185,15 +183,14 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
 
     def __init__(self, hass, subentry: ConfigSubentry, ns, edr) -> None:
         super().__init__(hass, subentry, ns, edr)
-        self._location = self._config[CONF_STATION]
+        self._station = self._config[CONF_STATION]
 
     def _prepare_data(self, coverage):
         coverage["datetime"] = datetime.fromisoformat(
             coverage["domain"]["axes"]["t"]["values"][-1]
         )
         coverage["station_name"] = self._station_names[coverage["eumetnet:locationId"]]
-        # TODO: Calculate distance here
-        coverage["distance"] = None
+        coverage["distance"] = coverage_distance(coverage, self._location)
         return coverage
 
     async def get_coverage_datetime(self, event) -> None:
@@ -212,7 +209,7 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
             await asyncio.sleep(15)
             try:
                 coverage = await self._edr.get_location_coverage(
-                    self._location, filename_datetime, PARAMETER_ATTRIBUTE_MAP.values()
+                    self._station, filename_datetime, PARAMETER_ATTRIBUTE_MAP.values()
                 )
                 self._latest_filename_datetime = filename_datetime
                 self.async_set_updated_data(self._prepare_data(coverage))
@@ -221,7 +218,7 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
                 _LOGGER.debug(f"Retrying fetching EDR coverage due to error: {e}")
                 continue
         _LOGGER.warning(
-            f"Could not retrieve coverage for {self._location} at {filename_datetime} after 3 attempts"
+            f"Could not retrieve coverage for {self._station} at {filename_datetime} after 3 attempts"
         )
 
     async def _async_setup(self):
@@ -231,14 +228,14 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
         # Get some initial observation data
         try:
             coverage = await self._edr.get_location_coverage(
-                self._location,
+                self._station,
                 self._latest_filename_datetime,
                 PARAMETER_ATTRIBUTE_MAP.values(),
             )
             self.async_set_updated_data(self._prepare_data(coverage))
         except NotFoundError:
             _LOGGER.debug(
-                f"Could not fill initial data from {self._location} at {self._latest_filename_datetime}"
+                f"Could not fill initial data from {self._station} at {self._latest_filename_datetime}"
             )
             # TODO: This doesn't help yet
             self.async_set_updated_data(None)

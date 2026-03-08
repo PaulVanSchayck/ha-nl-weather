@@ -100,7 +100,6 @@ class NLWeatherObservations(CoordinatorEntity[NLWeatherEDRCoordinator], WeatherE
         )
         self._attr_translation_key = "observations"
         self._attr_has_entity_name = True
-        self._subentry_id = subentry.subentry_id
 
         # Units
         self._attr_native_wind_speed_unit = UnitOfSpeed.METERS_PER_SECOND

@@ -31,6 +31,15 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return EARTH_RADIUS_KM * c
 
 
+def coverage_distance(coverage, location):
+    return haversine(
+        coverage["domain"]["axes"]["y"]["values"][0],
+        coverage["domain"]["axes"]["x"]["values"][0],
+        location["lat"],
+        location["lon"],
+    )
+
+
 def sort_coverage_on_distance(coverages, location):
     """Sort the coverages closest to the given location.
 
@@ -43,12 +52,7 @@ def sort_coverage_on_distance(coverages, location):
     """
     return sorted(
         coverages,
-        key=lambda c: haversine(
-            c["domain"]["axes"]["y"]["values"][0],
-            c["domain"]["axes"]["x"]["values"][0],
-            location["lat"],
-            location["lon"],
-        ),
+        key=lambda c: coverage_distance(c, location),
     )
 
 
