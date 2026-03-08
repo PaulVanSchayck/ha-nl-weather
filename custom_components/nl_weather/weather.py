@@ -195,7 +195,7 @@ class NLWeatherObservations(CoordinatorEntity[NLWeatherEDRCoordinator], WeatherE
         p = PARAMETER_ATTRIBUTE_MAP[attribute]
         if p not in self.coordinator.data["ranges"]:
             return None
-        return self.coordinator.data["ranges"][p]["values"][0]
+        return self.coordinator.data["ranges"][p]["values"][-1]
 
 
 class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEntity):

@@ -127,7 +127,7 @@ class NLWeatherAutoEDRCoordinator(NLWeatherEDRCoordinator):
 
         # TODO: Do this prettier
         data["datetime"] = datetime.fromisoformat(
-            sorted_coverages[0]["domain"]["axes"]["t"]["values"][0]
+            sorted_coverages[0]["domain"]["axes"]["t"]["values"][-1]
         )
         # TODO: Make this a concatenaded string of the stations used?
         data["station_name"] = "Automatic (multiple)"
@@ -165,6 +165,7 @@ class NLWeatherAutoEDRCoordinator(NLWeatherEDRCoordinator):
         )
 
     async def _async_setup(self):
+        await super()._async_setup()
         self._latest_filename_datetime = await self._edr.get_latest_datetime()
 
         # Get some initial observation data
@@ -173,7 +174,6 @@ class NLWeatherAutoEDRCoordinator(NLWeatherEDRCoordinator):
         )
 
         self.async_set_updated_data(self._prepare_data(coverages))
-        return await super()._async_setup()
 
 
 class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
@@ -189,7 +189,7 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
 
     def _prepare_data(self, coverage):
         coverage["datetime"] = datetime.fromisoformat(
-            coverage["domain"]["axes"]["t"]["values"][0]
+            coverage["domain"]["axes"]["t"]["values"][-1]
         )
         coverage["station_name"] = self._station_names[coverage["eumetnet:locationId"]]
         # TODO: Calculate distance here
@@ -225,6 +225,7 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
         )
 
     async def _async_setup(self):
+        await super()._async_setup()
         self._latest_filename_datetime = await self._edr.get_latest_datetime()
 
         # Get some initial observation data
@@ -241,5 +242,3 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
             )
             # TODO: This doesn't help yet
             self.async_set_updated_data(None)
-
-        return await super()._async_setup()
