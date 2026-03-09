@@ -108,3 +108,38 @@ async def async_update_listener(
 async def async_unload_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, _PLATFORMS)
+
+
+async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry):
+    """Migrate old entry."""
+    _LOGGER.debug(
+        "Migrating configuration from version %s.%s",
+        config_entry.version,
+        config_entry.minor_version,
+    )
+
+    if config_entry.version > 1:
+        # This means the user has downgraded from a future version
+        return False
+
+    if config_entry.version == 1:
+        if config_entry.minor_version < 2:
+            for subentry in config_entry.subentries.values():
+                new_data = {**subentry.data}
+                new_data[CONF_MODE] = StationMode.AUTO
+                hass.config_entries.async_update_subentry(
+                    config_entry, subentry, data=new_data
+                )
+
+            hass.config_entries.async_update_entry(
+                config_entry,
+                minor_version=2,
+            )
+
+    _LOGGER.debug(
+        "Migration to configuration version %s.%s successful",
+        config_entry.version,
+        config_entry.minor_version,
+    )
+
+    return True
