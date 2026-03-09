@@ -12,7 +12,11 @@ from homeassistant.util import utcnow
 
 from .const import APP_API_SCAN_INTERVAL, CONF_STATION, PARAMETER_ATTRIBUTE_MAP
 from .KNMI.edr import NotFoundError, ServerError
-from .KNMI.helpers import coverage_distance, sort_coverage_on_distance
+from .KNMI.helpers import (
+    coverage_distance,
+    sort_coverages_on_distance,
+    unique_items_sorted_by_frequency,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -115,22 +119,38 @@ class NLWeatherAutoEDRCoordinator(NLWeatherEDRCoordinator):
     """Coordinator that gets the closest values for a specific location from a mix of weather stations"""
 
     def _prepare_data(self, coverages):
-        sorted_coverages = sort_coverage_on_distance(coverages, self._location)
+        sorted_coverages = sort_coverages_on_distance(coverages, self._location)
 
-        data = {"ranges": {}, "datetime": None}
+        data = {"params": {}, "datetime": None, "station_name": ""}
+        stations, distances, datetimes = [], [], []
+
         for param in PARAMETER_ATTRIBUTE_MAP.values():
-            for coverage in sorted_coverages:
-                if param in coverage["ranges"]:
-                    data["ranges"][param] = coverage["ranges"][param]
+            for coverage, distance in sorted_coverages:
+                if param not in coverage["ranges"]:
+                    continue
+                data["params"][param] = coverage["ranges"][param]["values"][-1]
+                stations.append(coverage["eumetnet:locationId"])
+                distances.append(distance)
+                datetimes.append(coverage["domain"]["axes"]["t"]["values"][-1])
+                break
 
-        # TODO: Do this prettier
+        if len(data["params"]) == 0:
+            _LOGGER.warning("Found not a single parameter in the coverages")
+            return data
+
+        # Prepare for display
         data["datetime"] = datetime.fromisoformat(
-            sorted_coverages[0]["domain"]["axes"]["t"]["values"][-1]
+            unique_items_sorted_by_frequency(datetimes)[0]
         )
-        # TODO: Make this a concatenaded string of the stations used?
-        data["station_name"] = "Automatic (multiple)"
-        # TODO: Make this an average of the stations used?
-        data["distance"] = None
+        data["station_name"] = ", ".join(
+            list(
+                map(
+                    lambda s: self._station_names[s],
+                    unique_items_sorted_by_frequency(stations),
+                )
+            )
+        )
+        data["distance"] = unique_items_sorted_by_frequency(distances)[0]
 
         return data
 
@@ -186,12 +206,14 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
         self._station = self._config[CONF_STATION]
 
     def _prepare_data(self, coverage):
-        coverage["datetime"] = datetime.fromisoformat(
-            coverage["domain"]["axes"]["t"]["values"][-1]
-        )
-        coverage["station_name"] = self._station_names[coverage["eumetnet:locationId"]]
-        coverage["distance"] = coverage_distance(coverage, self._location)
-        return coverage
+        return {
+            "datetime": datetime.fromisoformat(
+                coverage["domain"]["axes"]["t"]["values"][-1]
+            ),
+            "station_name": self._station_names[coverage["eumetnet:locationId"]],
+            "distance": coverage_distance(coverage, self._location),
+            "params": {p: i["values"][-1] for p, i in coverage["ranges"].items()},
+        }
 
     async def get_coverage_datetime(self, event) -> None:
         filename_datetime = datetime.strptime(
