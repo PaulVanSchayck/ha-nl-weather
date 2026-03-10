@@ -99,7 +99,7 @@
         },
         "manual": {
           "title": "Select weather station",
-          "description": "Not all stations have all sensors. Stations at airports (areodromes) typically have all, while at wind stations only a few may be available.",
+          "description": "Weather stations provide different measurements. Airport stations (aerodromes) usually provide all sensors, while wind stations may only provide a few. After selecting a station, Home Assistant will only have sensors available for the measurements that station actually provides.\n\nSee this [map]({knmi_stations_map}) for where the stations are located.",
           "data": {
             "station": "Weather station"
           }

@@ -99,7 +99,7 @@
         },
         "manual": {
           "title": "Selecteer weerstation",
-          "description": "Niet alle stations hebben alle sensoren. Stations op vliegvelden (areodromes) hebben alle sensoren, terwijl bijvoorbeeld een windmast (wind station) er slechts een paar heeft.",
+          "description": "Weerstations leveren verschillende soorten metingen. Stations op luchthavens bieden meestal alle sensoren, terwijl windstations er vaak maar een paar hebben. Na het kiezen van een station zijn alleen sensoren beschikbaar voor de metingen die dat station daadwerkelijk levert.\n\nBekijk [deze kaart]({knmi_stations_map}) om te zien waar de stations zich bevinden.",
           "data": {
             "station": "Weerstation"
           }

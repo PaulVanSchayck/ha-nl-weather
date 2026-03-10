@@ -342,8 +342,11 @@ class LocationSubentryFlowHandler(ConfigSubentryFlow):
                             }
                         }
                     ),
-                }
+                },
             ),
+            description_placeholders={
+                "knmi_stations_map": "https://cdn.knmi.nl/system/downloads/files/000/000/060/original/Kaart_AWS_NL_land_zee_incl_border_20230609_KNMI.png"
+            },
         )
 
 

@@ -102,6 +102,8 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
         return self.data
 
     async def _async_setup(self):
+        self._latest_filename_datetime = await self._edr.get_latest_datetime()
+
         # TODO: Handle removal of this callback
         self._ns.set_callback(
             "10-minute-in-situ-meteorological-observations",
@@ -184,7 +186,6 @@ class NLWeatherAutoEDRCoordinator(NLWeatherEDRCoordinator):
 
     async def _async_setup(self):
         await super()._async_setup()
-        self._latest_filename_datetime = await self._edr.get_latest_datetime()
 
         # Get some initial observation data
         coverages = await self._edr.get_cube_coverages(
@@ -245,7 +246,6 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
 
     async def _async_setup(self):
         await super()._async_setup()
-        self._latest_filename_datetime = await self._edr.get_latest_datetime()
 
         # Get some initial observation data
         try:
