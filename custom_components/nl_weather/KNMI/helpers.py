@@ -31,32 +31,42 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return EARTH_RADIUS_KM * c
 
 
-def closest_coverage(coverages, location):
-    """Find the coverage object closest to the given location.
+def coverage_distance(coverage, location):
+    """Calculate the distance between a coverage and a location
+
+    Args:
+        coverage: Coverage object
+        location: Dictionary with 'lat' and 'lon' keys for the target location.
+
+    Return:
+        Distance in kilometers
+    """
+    return haversine(
+        coverage["domain"]["axes"]["y"]["values"][0],
+        coverage["domain"]["axes"]["x"]["values"][0],
+        location["lat"],
+        location["lon"],
+    )
+
+
+def sort_coverages_on_distance(coverages, location):
+    """Sort the coverages closest to the given location.
 
     Args:
         coverages: List of coverage objects with domain axis information.
         location: Dictionary with 'lat' and 'lon' keys for the target location.
 
     Returns:
-        Tuple of (coverage_object, distance_in_km) for the closest coverage.
+        Sorted coverages as tuple (coverage, distance)
     """
-    coverage, distance = min(
-        (
-            (
-                c,
-                haversine(
-                    c["domain"]["axes"]["y"]["values"][0],
-                    c["domain"]["axes"]["x"]["values"][0],
-                    location["lat"],
-                    location["lon"],
-                ),
-            )
-            for c in coverages
-        ),
+    return sorted(
+        ((c, coverage_distance(c, location)) for c in coverages),
         key=lambda x: x[1],
     )
-    return coverage, distance
+
+
+def unique_items_sorted_by_frequency(items):
+    return sorted(set(items), key=items.count, reverse=True)
 
 
 def epsg4325_to_epsg3857(lon: float, lat: float) -> tuple[float, float]:

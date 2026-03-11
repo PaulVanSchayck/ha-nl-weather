@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import aiohttp
 
@@ -12,6 +12,11 @@ _LOGGER = logging.getLogger(__name__)
 
 def _format_dt(dt):
     return dt.isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _past_half_hour(dt):
+    past = dt - timedelta(minutes=30)
+    return f"{_format_dt(past)}/{_format_dt(dt)}"
 
 
 class EDR:
@@ -49,38 +54,38 @@ class EDR:
     async def locations(self):
         # Get current locations
         dt = _format_dt(datetime.now(timezone.utc))
-        params = {
-            "datetime": dt,
-        }
+        params = {"datetime": dt, "bbox": BBOX_NL}
         return await self.get("/locations", params)
 
     async def cube(self, params):
         return await self.get("/cube", params)
 
-    async def get_coverage(self, dt: datetime, parameters):
+    async def location(self, location, params):
+        return await self.get(f"/locations/{location}", params)
+
+    async def get_cube_coverages(self, dt: datetime, parameters):
         params = {
-            "datetime": dt.isoformat(timespec="seconds").replace("+00:00", "Z"),
+            "datetime": _past_half_hour(dt),
             "parameter-name": ",".join(parameters),
             "bbox": BBOX_NL,
         }
         coverage_collection = await self.cube(params)
-
-        # Find all coverages with all parameters listed
-        coverages = [
-            c
-            for c in coverage_collection["coverages"]
-            if all(p in c["ranges"] for p in parameters)
-        ]
-        _LOGGER.debug(f"Found {len(coverages)} coverages with all parameters")
-
+        coverages = coverage_collection["coverages"]
+        _LOGGER.debug(f"Found {len(coverages)} coverages")
         return coverages
 
-    async def get_latest_coverage(self, parameters):
+    async def get_location_coverage(self, location, dt: datetime, parameters):
+        params = {
+            "datetime": _past_half_hour(dt),
+            "parameter-name": ",".join(parameters),
+        }
+        coverage_collection = await self.location(location, params)
+
+        return coverage_collection["coverages"][0]
+
+    async def get_latest_datetime(self):
         metadata = await self.metadata()
-        latest_dt = datetime.fromisoformat(
-            metadata["extent"]["temporal"]["interval"][0][1]
-        )
-        return await self.get_coverage(latest_dt, parameters), latest_dt
+        return datetime.fromisoformat(metadata["extent"]["temporal"]["interval"][0][1])
 
 
 class NotFoundError(Exception):

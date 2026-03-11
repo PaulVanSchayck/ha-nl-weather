@@ -26,7 +26,9 @@ is used to display the forecast, warnings and observations. For the radar image 
 - Precipitation / rain radar and forecast (rain intensity, movement, etc.)
   - Can mark home location on the radar image
   - Radar has a dark and light color theme 
-- Weather observations fetched from closest KNMI automatic weather station
+- Weather observations can be fetched in two modes
+  1. Manually select a weather station
+  2. Automatically fetch the closest observations from one or more weather station
 - Data fetched directly from official KNMI APIs
   - Requires account at KNMI Data Platform
   - Uses KNMI's MQTT Notification Service to reduce polling
@@ -95,9 +97,13 @@ entities for detailed data such as:
   - Today's high and low temperatures
   - Tomorrow's high and low temperatures
 - Distance to weather station
-- Name of weather stations
+  - If multiple stations are used, the distance to the one used for most sensors is used
+- Time of latest weather observation
+  - If multiple stations are used, the distance to the one used for most sensors is used
+- Name of weather station
+  - If multiple stations are used, they are shown comma separated
 
-This allows you to use the data in automations, dashboards (Lovelace), and scripts just like with any other weather integration.
+This allows you to use the data in automations, dashboards, and scripts just like with any other weather integration.
 
 ## Contributing
 
