@@ -103,6 +103,12 @@ The integration creates the following entities for each configured location:
 
 Available observation sensors depend on the selected weather station. Airport stations usually provide the most complete set of measurements.
 
+When using automatic station selection, observation values can come from multiple nearby stations (per parameter). In that case:
+
+- Station name shows all contributing stations, ordered by how often they were used
+- Station distance shows the distance that was used most often
+- Observation time shows the most frequent observation timestamp among contributing stations
+
 This allows you to use the data in automations, dashboards, and scripts just like with any other weather integration.
 
 ## Contributing
