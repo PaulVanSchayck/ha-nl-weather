@@ -29,7 +29,24 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import DOMAIN, KNMIDirectConfigEntry
-from .const import Alert
+from .const import (
+    Alert,
+    ATTR_WEATHER_CLOUD_COVERAGE,
+    ATTR_WEATHER_DEW_POINT,
+    ATTR_WEATHER_HUMIDITY,
+    ATTR_WEATHER_PRESSURE,
+    ATTR_WEATHER_TEMPERATURE,
+    ATTR_WEATHER_VISIBILITY,
+    ATTR_WEATHER_WIND_BEARING,
+    ATTR_WEATHER_WIND_GUST_SPEED,
+    ATTR_WEATHER_WIND_SPEED,
+    ATTR_WEATHER_SOLAR_RADIATION,
+    ATTR_WEATHER_SUNSHINE,
+    ATTR_WEATHER_TEMPERATURE_GRASS,
+    ATTR_WEATHER_CLOUD_CEILING,
+    ATTR_WEATHER_TEMPERATURE_SOIL,
+    PARAMETER_ATTRIBUTE_MAP,
+)
 from .coordinator import NLWeatherEDRCoordinator, NLWeatherUpdateCoordinator
 
 
@@ -65,12 +82,15 @@ def _get_alert_level(data: dict[str, Any]) -> Alert:
         return Alert.NONE
 
 
-def _get_observation_param(data: dict[str, Any], param: str) -> Any:
-    return data.get("params", {}).get(param)
+def _get_observation_param(
+    data: dict[str, Any],
+    weather_attribute: str,
+) -> Any:
+    return data.get("params", {}).get(PARAMETER_ATTRIBUTE_MAP[weather_attribute])
 
 
 def _get_cloud_coverage(data: dict[str, Any]) -> float | int | None:
-    okta = _get_observation_param(data, "nhc")
+    okta = _get_observation_param(data, ATTR_WEATHER_CLOUD_COVERAGE)
     if okta is None:
         return None
     if okta == 9:
@@ -79,7 +99,7 @@ def _get_cloud_coverage(data: dict[str, Any]) -> float | int | None:
 
 
 def _get_wind_direction_cardinal(data: dict[str, Any]) -> str | None:
-    degrees = _get_observation_param(data, "dd")
+    degrees = _get_observation_param(data, ATTR_WEATHER_WIND_BEARING)
     if degrees is None:
         return None
     index = int((float(degrees) + 11.25) / 22.5) % 16
@@ -112,7 +132,7 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         suggested_display_precision=1,
-        value_fn=lambda data: _get_observation_param(data, "ta"),
+        value_fn=lambda data: _get_observation_param(data, ATTR_WEATHER_TEMPERATURE),
     ),
     ObservationSensorDescription(
         key="humidity",
@@ -121,7 +141,7 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=PERCENTAGE,
         suggested_display_precision=0,
-        value_fn=lambda data: _get_observation_param(data, "rh"),
+        value_fn=lambda data: _get_observation_param(data, ATTR_WEATHER_HUMIDITY),
     ),
     ObservationSensorDescription(
         key="visibility",
@@ -130,7 +150,7 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfLength.METERS,
         suggested_display_precision=0,
-        value_fn=lambda data: _get_observation_param(data, "zm"),
+        value_fn=lambda data: _get_observation_param(data, ATTR_WEATHER_VISIBILITY),
     ),
     ObservationSensorDescription(
         key="pressure",
@@ -139,7 +159,7 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfPressure.HPA,
         suggested_display_precision=0,
-        value_fn=lambda data: _get_observation_param(data, "pp"),
+        value_fn=lambda data: _get_observation_param(data, ATTR_WEATHER_PRESSURE),
     ),
     ObservationSensorDescription(
         key="wind_speed",
@@ -148,7 +168,7 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfSpeed.METERS_PER_SECOND,
         suggested_display_precision=1,
-        value_fn=lambda data: _get_observation_param(data, "ff"),
+        value_fn=lambda data: _get_observation_param(data, ATTR_WEATHER_WIND_SPEED),
     ),
     ObservationSensorDescription(
         key="wind_gust",
@@ -157,7 +177,9 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfSpeed.METERS_PER_SECOND,
         suggested_display_precision=1,
-        value_fn=lambda data: _get_observation_param(data, "gff"),
+        value_fn=lambda data: _get_observation_param(
+            data, ATTR_WEATHER_WIND_GUST_SPEED
+        ),
     ),
     ObservationSensorDescription(
         key="dewpoint",
@@ -166,7 +188,7 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         suggested_display_precision=1,
-        value_fn=lambda data: _get_observation_param(data, "td"),
+        value_fn=lambda data: _get_observation_param(data, ATTR_WEATHER_DEW_POINT),
     ),
     ObservationSensorDescription(
         key="wind_direction",
@@ -176,7 +198,7 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT_ANGLE,
         native_unit_of_measurement=DEGREE,
         suggested_display_precision=0,
-        value_fn=lambda data: _get_observation_param(data, "dd"),
+        value_fn=lambda data: _get_observation_param(data, ATTR_WEATHER_WIND_BEARING),
     ),
     ObservationSensorDescription(
         key="cloud_coverage",
@@ -194,7 +216,9 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfIrradiance.WATTS_PER_SQUARE_METER,
         suggested_display_precision=0,
-        value_fn=lambda data: _get_observation_param(data, "qg"),
+        value_fn=lambda data: _get_observation_param(
+            data, ATTR_WEATHER_SOLAR_RADIATION
+        ),
     ),
     ObservationSensorDescription(
         key="sunshine",
@@ -203,7 +227,7 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfTime.MINUTES,
         suggested_display_precision=0,
-        value_fn=lambda data: _get_observation_param(data, "ss"),
+        value_fn=lambda data: _get_observation_param(data, ATTR_WEATHER_SUNSHINE),
     ),
     ObservationSensorDescription(
         key="temperature_grass",
@@ -212,7 +236,9 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         suggested_display_precision=1,
-        value_fn=lambda data: _get_observation_param(data, "tg"),
+        value_fn=lambda data: _get_observation_param(
+            data, ATTR_WEATHER_TEMPERATURE_GRASS
+        ),
     ),
     ObservationSensorDescription(
         key="cloud_ceiling",
@@ -222,7 +248,7 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfLength.FEET,
         suggested_display_precision=0,
-        value_fn=lambda data: _get_observation_param(data, "hc"),
+        value_fn=lambda data: _get_observation_param(data, ATTR_WEATHER_CLOUD_CEILING),
     ),
     ObservationSensorDescription(
         key="temperature_soil",
@@ -231,7 +257,9 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         suggested_display_precision=1,
-        value_fn=lambda data: _get_observation_param(data, "tb2"),
+        value_fn=lambda data: _get_observation_param(
+            data, ATTR_WEATHER_TEMPERATURE_SOIL
+        ),
     ),
     ObservationSensorDescription(
         key="wind_direction_cardinal",
