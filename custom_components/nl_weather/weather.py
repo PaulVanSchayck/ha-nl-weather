@@ -117,7 +117,7 @@ class NLWeatherObservations(CoordinatorEntity[NLWeatherEDRCoordinator], WeatherE
     @property
     def condition(self) -> str | None:
         """Return the current condition."""
-        if c := self.get_latest_range_value(ATTR_WEATHER_CONDITION) is None:
+        if (c := self.get_latest_range_value(ATTR_WEATHER_CONDITION)) is None:
             return None
 
         try:
