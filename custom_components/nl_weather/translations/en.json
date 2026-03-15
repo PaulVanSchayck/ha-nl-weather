@@ -65,6 +65,21 @@
       "observations_cloud_coverage": {
         "name": "Cloud coverage"
       },
+      "observations_solar_radiation": {
+        "name": "Solar radiation"
+      },
+      "observations_sunshine": {
+        "name": "Sunshine duration (per 10 min)"
+      },
+      "observations_temperature_grass": {
+        "name": "Temperature (10 cm)"
+      },
+      "observations_cloud_ceiling": {
+        "name": "Cloud ceiling"
+      },
+      "observations_temperature_soil": {
+        "name": "Temperature soil (-10 cm)"
+      },
       "observations_wind_direction": {
         "name": "Wind direction (degrees)"
       },

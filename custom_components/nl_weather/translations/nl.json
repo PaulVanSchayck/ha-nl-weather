@@ -65,6 +65,21 @@
       "observations_cloud_coverage": {
         "name": "Bewolking"
       },
+      "observations_solar_radiation": {
+        "name": "Zonnestraling"
+      },
+      "observations_sunshine": {
+        "name": "Zonneschijnduur (per 10 min)"
+      },
+      "observations_temperature_grass": {
+        "name": "Temperatuur (10 cm)"
+      },
+      "observations_cloud_ceiling": {
+        "name": "Wolkendekhoogte"
+      },
+      "observations_temperature_soil": {
+        "name": "Grondtemperatuur (-10 cm)"
+      },
       "observations_wind_direction": {
         "name": "Windrichting (graden)"
       },

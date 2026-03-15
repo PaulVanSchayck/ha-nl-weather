@@ -97,6 +97,11 @@ CONDITION_MAP = {
 }
 
 ATTR_WEATHER_CONDITION = "condition"
+ATTR_WEATHER_SOLAR_RADIATION = "radiation"
+ATTR_WEATHER_SUNSHINE = "sunshine"
+ATTR_WEATHER_TEMPERATURE_GRASS = "temperature_grass"
+ATTR_WEATHER_CLOUD_CEILING = "cloud_ceiling"
+ATTR_WEATHER_TEMPERATURE_SOIL = "temperature_soil"
 
 PARAMETER_ATTRIBUTE_MAP = {
     ATTR_WEATHER_HUMIDITY: "rh",
@@ -109,6 +114,11 @@ PARAMETER_ATTRIBUTE_MAP = {
     ATTR_WEATHER_WIND_SPEED: "ff",
     ATTR_WEATHER_CLOUD_COVERAGE: "nhc",
     ATTR_WEATHER_CONDITION: "ww",
+    ATTR_WEATHER_SOLAR_RADIATION: "qg",
+    ATTR_WEATHER_SUNSHINE: "ss",
+    ATTR_WEATHER_TEMPERATURE_GRASS: "tg",
+    ATTR_WEATHER_CLOUD_CEILING: "hc",
+    ATTR_WEATHER_TEMPERATURE_SOIL: "tb2",
 }
 
 # Based on https://gitlab.com/KNMI-OSS/KNMI-App/knmi-app-android/-/blob/main/app/src/main/assets/alert_regions_simplified.geojson
