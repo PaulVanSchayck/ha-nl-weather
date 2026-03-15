@@ -6,9 +6,20 @@ from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
+    SensorStateClass,
+)
+from homeassistant.components.weather.significant_change import (
+    VALID_CARDINAL_DIRECTIONS,
 )
 from homeassistant.config_entries import ConfigSubentry
-from homeassistant.const import UnitOfLength, UnitOfTemperature
+from homeassistant.const import (
+    DEGREE,
+    PERCENTAGE,
+    UnitOfLength,
+    UnitOfPressure,
+    UnitOfSpeed,
+    UnitOfTemperature,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
@@ -52,6 +63,27 @@ def _get_alert_level(data: dict[str, Any]) -> Alert:
         return Alert.NONE
 
 
+def _get_observation_param(data: dict[str, Any], param: str) -> Any:
+    return data.get("params", {}).get(param)
+
+
+def _get_cloud_coverage(data: dict[str, Any]) -> float | int | None:
+    okta = _get_observation_param(data, "nhc")
+    if okta is None:
+        return None
+    if okta == 9:
+        return 100
+    return round(okta / 8 * 100, 1)
+
+
+def _get_wind_direction_cardinal(data: dict[str, Any]) -> str | None:
+    degrees = _get_observation_param(data, "dd")
+    if degrees is None:
+        return None
+    index = int((float(degrees) + 11.25) / 22.5) % 16
+    return VALID_CARDINAL_DIRECTIONS[index]
+
+
 ALERT_SENSOR_DESCRIPTIONS: list[AlertSensorDescription] = [
     AlertSensorDescription(
         key="alert",
@@ -72,26 +104,115 @@ ALERT_SENSOR_DESCRIPTIONS: list[AlertSensorDescription] = [
 
 OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
     ObservationSensorDescription(
+        key="temperature",
+        translation_key="observations_temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        suggested_display_precision=1,
+        value_fn=lambda data: _get_observation_param(data, "ta"),
+    ),
+    ObservationSensorDescription(
+        key="humidity",
+        translation_key="observations_humidity",
+        device_class=SensorDeviceClass.HUMIDITY,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=PERCENTAGE,
+        suggested_display_precision=0,
+        value_fn=lambda data: _get_observation_param(data, "rh"),
+    ),
+    ObservationSensorDescription(
+        key="visibility",
+        translation_key="observations_visibility",
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfLength.METERS,
+        suggested_display_precision=0,
+        value_fn=lambda data: _get_observation_param(data, "zm"),
+    ),
+    ObservationSensorDescription(
+        key="pressure",
+        translation_key="observations_pressure",
+        device_class=SensorDeviceClass.ATMOSPHERIC_PRESSURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfPressure.HPA,
+        suggested_display_precision=0,
+        value_fn=lambda data: _get_observation_param(data, "pp"),
+    ),
+    ObservationSensorDescription(
+        key="wind_speed",
+        translation_key="observations_wind_speed",
+        device_class=SensorDeviceClass.WIND_SPEED,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfSpeed.METERS_PER_SECOND,
+        suggested_display_precision=1,
+        value_fn=lambda data: _get_observation_param(data, "ff"),
+    ),
+    ObservationSensorDescription(
+        key="wind_gust",
+        translation_key="observations_wind_gust",
+        device_class=SensorDeviceClass.WIND_SPEED,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfSpeed.METERS_PER_SECOND,
+        suggested_display_precision=1,
+        value_fn=lambda data: _get_observation_param(data, "gff"),
+    ),
+    ObservationSensorDescription(
+        key="dewpoint",
+        translation_key="observations_dewpoint",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        suggested_display_precision=1,
+        value_fn=lambda data: _get_observation_param(data, "td"),
+    ),
+    ObservationSensorDescription(
+        key="wind_direction",
+        translation_key="observations_wind_direction",
+        icon="mdi:compass-outline",
+        device_class=SensorDeviceClass.WIND_DIRECTION,
+        state_class=SensorStateClass.MEASUREMENT_ANGLE,
+        native_unit_of_measurement=DEGREE,
+        suggested_display_precision=0,
+        value_fn=lambda data: _get_observation_param(data, "dd"),
+    ),
+    ObservationSensorDescription(
+        key="cloud_coverage",
+        translation_key="observations_cloud_coverage",
+        icon="mdi:cloud-percent",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=PERCENTAGE,
+        suggested_display_precision=0,
+        value_fn=_get_cloud_coverage,
+    ),
+    ObservationSensorDescription(
+        key="wind_direction_cardinal",
+        translation_key="observations_wind_direction_cardinal",
+        device_class=SensorDeviceClass.ENUM,
+        options=VALID_CARDINAL_DIRECTIONS,
+        value_fn=_get_wind_direction_cardinal,
+    ),
+    ObservationSensorDescription(
         key="station_distance",
         translation_key="observations_station_distance",
         device_class=SensorDeviceClass.DISTANCE,
         entity_category=EntityCategory.DIAGNOSTIC,
         native_unit_of_measurement=UnitOfLength.KILOMETERS,
         suggested_display_precision=1,
-        value_fn=lambda data: data["distance"],
+        value_fn=lambda data: data.get("distance"),
     ),
     ObservationSensorDescription(
         key="station_name",
         translation_key="observations_station_name",
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda data: data["station_name"],
+        value_fn=lambda data: data.get("station_name"),
     ),
     ObservationSensorDescription(
         key="observation_time",
         translation_key="observations_time",
         device_class=SensorDeviceClass.TIMESTAMP,
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda data: data["datetime"],
+        value_fn=lambda data: data.get("datetime"),
     ),
 ]
 
@@ -210,6 +331,8 @@ class NLObservationSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEnti
 
     @property
     def native_value(self):
+        if self.coordinator.data is None:
+            return None
         return self._value_fn(self.coordinator.data)
 
 

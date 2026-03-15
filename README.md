@@ -87,21 +87,27 @@ weather alerts.
 
 ## Entities Created
 
-The integration will add `weather.weer_thuis_observations` and `weather.weer_thuis_forecast`, plus optional sensor 
-entities for detailed data such as:
+The integration creates the following entities for each configured location:
 
-- Weather warnings
-  - Color code
-  - Text description
-- Forecast temperature sensors
-  - Today's high and low temperatures
-  - Tomorrow's high and low temperatures
-- Distance to weather station
-  - If multiple stations are used, the distance to the one used for most sensors is used
-- Time of latest weather observation
-  - If multiple stations are used, the distance to the one used for most sensors is used
-- Name of weather station
-  - If multiple stations are used, they are shown comma separated
+### Weather Entities
+
+- `weather.weer_{location}_observations` for current weather observations
+- `weather.weer_{location}_forecast` for the weather forecast
+
+### Sensor Entities
+
+- Weather alert text and alert level
+- Observation temperature, humidity, visibility, pressure, wind speed, wind gust, wind direction (degrees), wind direction (cardinal), dew point, and cloud coverage
+- Forecast temperature sensors for today's and tomorrow's highs and lows
+- Observation time, station distance, and station name as diagnostic sensors
+
+Available observation sensors depend on the selected weather station. Airport stations usually provide the most complete set of measurements.
+
+When using automatic station selection, observation values can come from multiple nearby stations (per parameter). In that case:
+
+- Station name shows all contributing stations, ordered by how often they were used
+- Station distance shows the distance that was used most often
+- Observation time shows the most frequent observation timestamp among contributing stations
 
 This allows you to use the data in automations, dashboards, and scripts just like with any other weather integration.
 
