@@ -91,13 +91,13 @@ The integration creates the following entities for each configured location:
 
 ### Weather Entities
 
-- `weather.{location}_observations` for current weather observations
-- `weather.{location}_forecast` for the weather forecast
+- `weather.weer_{location}_observations` for current weather observations
+- `weather.weer_{location}_forecast` for the weather forecast
 
 ### Sensor Entities
 
 - Weather alert text and alert level
-- Observation temperature, humidity, visibility, pressure, wind speed, wind gust, wind azimuth, wind direction, dew point, and cloud coverage
+- Observation temperature, humidity, visibility, pressure, wind speed, wind gust, wind direction (degrees), wind direction (cardinal), dew point, and cloud coverage
 - Forecast temperature sensors for today's and tomorrow's highs and lows
 - Observation time, station distance, and station name as diagnostic sensors
 

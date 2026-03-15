@@ -8,6 +8,9 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
+from homeassistant.components.weather.significant_change import (
+    VALID_CARDINAL_DIRECTIONS,
+)
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import (
     DEGREE,
@@ -44,26 +47,6 @@ class ForecastTemperatureDescription(SensorEntityDescription):
     temp_key: str | None = None
 
 
-CARDINAL_DIRECTIONS = [
-    "n",
-    "nne",
-    "ne",
-    "ene",
-    "e",
-    "ese",
-    "se",
-    "sse",
-    "s",
-    "ssw",
-    "sw",
-    "wsw",
-    "w",
-    "wnw",
-    "nw",
-    "nnw",
-]
-
-
 def _get_alert_description(data: dict[str, Any]) -> str | None:
     alerts = data.get("alerts", [])
     if not alerts:
@@ -93,12 +76,12 @@ def _get_cloud_coverage(data: dict[str, Any]) -> float | int | None:
     return round(okta / 8 * 100, 1)
 
 
-def _get_wind_direction(data: dict[str, Any]) -> str | None:
+def _get_wind_direction_cardinal(data: dict[str, Any]) -> str | None:
     degrees = _get_observation_param(data, "dd")
     if degrees is None:
         return None
     index = int((float(degrees) + 11.25) / 22.5) % 16
-    return CARDINAL_DIRECTIONS[index]
+    return VALID_CARDINAL_DIRECTIONS[index]
 
 
 ALERT_SENSOR_DESCRIPTIONS: list[AlertSensorDescription] = [
@@ -184,8 +167,9 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         value_fn=lambda data: _get_observation_param(data, "td"),
     ),
     ObservationSensorDescription(
-        key="wind_azimuth",
-        translation_key="observations_wind_azimuth",
+        key="wind_direction",
+        translation_key="observations_wind_direction",
+        icon="mdi:compass-outline",
         device_class=SensorDeviceClass.WIND_DIRECTION,
         state_class=SensorStateClass.MEASUREMENT_ANGLE,
         native_unit_of_measurement=DEGREE,
@@ -195,17 +179,18 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
     ObservationSensorDescription(
         key="cloud_coverage",
         translation_key="observations_cloud_coverage",
+        icon="mdi:cloud-percent",
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=PERCENTAGE,
-        suggested_display_precision=1,
+        suggested_display_precision=0,
         value_fn=_get_cloud_coverage,
     ),
     ObservationSensorDescription(
-        key="wind_direction",
-        translation_key="observations_wind_direction",
+        key="wind_direction_cardinal",
+        translation_key="observations_wind_direction_cardinal",
         device_class=SensorDeviceClass.ENUM,
-        options=CARDINAL_DIRECTIONS,
-        value_fn=_get_wind_direction,
+        options=VALID_CARDINAL_DIRECTIONS,
+        value_fn=_get_wind_direction_cardinal,
     ),
     ObservationSensorDescription(
         key="station_distance",

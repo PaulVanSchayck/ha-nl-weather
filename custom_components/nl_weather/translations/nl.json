@@ -54,7 +54,7 @@
         "name": "Windsnelheid"
       },
       "observations_wind_gust": {
-        "name": "Windvlaag"
+        "name": "Windstoten"
       },
       "observations_dewpoint": {
         "name": "Dauwpunt"
@@ -66,6 +66,9 @@
         "name": "Bewolking"
       },
       "observations_wind_direction": {
+        "name": "Windrichting (graden)"
+      },
+      "observations_wind_direction_cardinal": {
         "name": "Windrichting",
         "state": {
           "n": "N",

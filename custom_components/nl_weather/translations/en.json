@@ -66,6 +66,9 @@
         "name": "Cloud coverage"
       },
       "observations_wind_direction": {
+        "name": "Wind direction (degrees)"
+      },
+      "observations_wind_direction_cardinal": {
         "name": "Wind direction",
         "state": {
           "n": "N",
