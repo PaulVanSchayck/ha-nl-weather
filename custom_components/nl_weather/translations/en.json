@@ -75,7 +75,7 @@
         "name": "Cloud ceiling"
       },
       "observations_temperature_soil": {
-        "name": "Temperature soil (-10 cm)"
+        "name": "Soil temperature (-10 cm)"
       },
       "observations_wind_direction": {
         "name": "Wind direction (degrees)"
