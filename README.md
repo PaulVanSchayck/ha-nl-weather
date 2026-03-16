@@ -85,23 +85,35 @@ To start receiving weather observations and forecasts, add a location:
 Enter (or modify) the GPS coordinates of your location. The region you set will determine for which region you will receive 
 weather alerts.
 
-## Entities Created
+## Entities created
 
 The integration creates the following entities for each configured location:
 
-### Weather Entities
+### Weather entities
 
 - `weather.weer_{location}_observations` for current weather observations
 - `weather.weer_{location}_forecast` for the weather forecast
 
-### Sensor Entities
+### Sensor entities
 
 - Weather alert text and alert level
-- Observation temperature, humidity, visibility, pressure, wind speed, wind gust, wind direction (degrees), wind direction (cardinal), dew point, and cloud coverage
 - Forecast temperature sensors for today's and tomorrow's highs and lows
+- Observations
+  - Temperature (air at 1.5 m and 10 cm and soil at -10 cm)
+  - Relative humidity
+  - Dew point
+  - Visibility
+  - Air pressure at mean sea level
+  - Wind speed
+  - Wind gusts
+  - Wind direction (in degrees and cardinal)
+  - Cloud coverage
+  - Cloud ceiling
+  - Sunshine duration
+  - Solar radiation 
 - Observation time, station distance, and station name as diagnostic sensors
 
-Available observation sensors depend on the selected weather station. Airport stations usually provide the most complete set of measurements.
+Available observation sensors depend on the selected weather station. Airport stations usually provide the most complete set of measurements. More information about observations can be found in [KNMI documentation](https://english.knmidata.nl/open-data/10-minute-in-situ-meteorological-observations).
 
 When using automatic station selection, observation values can come from multiple nearby stations (per parameter). In that case:
 
