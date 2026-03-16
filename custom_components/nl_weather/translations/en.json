@@ -59,9 +59,6 @@
       "observations_dewpoint": {
         "name": "Dew point"
       },
-      "observations_wind_azimuth": {
-        "name": "Wind azimuth"
-      },
       "observations_cloud_coverage": {
         "name": "Cloud coverage"
       },

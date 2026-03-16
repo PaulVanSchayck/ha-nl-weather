@@ -59,9 +59,6 @@
       "observations_dewpoint": {
         "name": "Dauwpunt"
       },
-      "observations_wind_azimuth": {
-        "name": "Windrichting (graden)"
-      },
       "observations_cloud_coverage": {
         "name": "Bewolking"
       },
