@@ -53,20 +53,34 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_update_data(self) -> dict[str, Any]:
         """Obtain the latest data from KNMI App API."""
         try:
-            data = await self._api.weather(self._forecast_location_id, self._region)
+            summary = await self._api.weather(self._forecast_location_id, self._region)
+
+            # Fetch all individual days
+            for daily_forecast in summary["daily"]["forecast"]:
+                day_detail = await self._api.weather_detail(
+                    self._forecast_location_id, self._region, daily_forecast["date"]
+                )
+                # Augment the summary data with daily data
+                daily_forecast["precipitation"]["chance"] = day_detail[
+                    "precipitationChance"
+                ]["chance"]
+                daily_forecast["uv_index"] = (
+                    day_detail["uvIndex"]["value"] if "uvIndex" in day_detail else None
+                )
+                daily_forecast["wind"] = day_detail["wind"]
         except ServerError as err:
             # TODO: Improve error handling
             raise UpdateFailed(f"Error while retrieving data: {err}") from err
 
         # Prune hours that already passed from the data, this is way more convenient to do here already
         current_hour = utcnow().replace(minute=0, second=0, microsecond=0)
-        data["hourly"]["forecast"] = [
+        summary["hourly"]["forecast"] = [
             h
-            for h in data["hourly"]["forecast"]
+            for h in summary["hourly"]["forecast"]
             if datetime.fromisoformat(h["dateTime"]) >= current_hour
         ]
 
-        return data
+        return summary
 
 
 class NLWeatherEDRCoordinator(DataUpdateCoordinator):

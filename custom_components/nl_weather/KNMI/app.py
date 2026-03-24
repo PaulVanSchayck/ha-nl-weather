@@ -15,7 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 
 class App:
     _session: aiohttp.ClientSession
-    _area_definition = None
+    _area_definition: dict
 
     def __init__(self, aiohttp_session):
         self._session = aiohttp_session
@@ -63,6 +63,10 @@ class App:
     async def weather(self, location, region):
         params = {"location": location, "region": region}
         return await self.get("weather", params)
+
+    async def weather_detail(self, location, region, date):
+        params = {"location": location, "region": region, "date": date}
+        return await self.get("weather/detail", params)
 
 
 class NotFoundError(Exception):
