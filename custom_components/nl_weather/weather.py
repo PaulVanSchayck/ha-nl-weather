@@ -38,8 +38,11 @@ from homeassistant.const import (
 from homeassistant.helpers import sun
 from homeassistant.helpers.device_registry import DeviceInfo, DeviceEntryType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from . import KNMIDirectConfigEntry
-from .coordinator import NLWeatherUpdateCoordinator, NLWeatherEDRCoordinator
+from .coordinator import (
+    NLWeatherConfigEntry,
+    NLWeatherUpdateCoordinator,
+    NLWeatherEDRCoordinator,
+)
 from .const import (
     DOMAIN,
     CONDITION_MAP,
@@ -56,7 +59,7 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: KNMIDirectConfigEntry,
+    config_entry: NLWeatherConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     for subentry_id, subentry in config_entry.subentries.items():
@@ -87,7 +90,7 @@ class NLWeatherObservations(CoordinatorEntity[NLWeatherEDRCoordinator], WeatherE
     def __init__(
         self,
         coordinator: NLWeatherEDRCoordinator,
-        config_entry: KNMIDirectConfigEntry,
+        config_entry: NLWeatherConfigEntry,
         subentry: ConfigSubentry,
     ) -> None:
         super().__init__(coordinator)
@@ -208,7 +211,7 @@ class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEn
     _daily_forecast: list[Forecast] = []
 
     def __init__(
-        self, coordinator, config_entry: KNMIDirectConfigEntry, subentry: ConfigSubentry
+        self, coordinator, config_entry: NLWeatherConfigEntry, subentry: ConfigSubentry
     ) -> None:
         super().__init__(coordinator)
 

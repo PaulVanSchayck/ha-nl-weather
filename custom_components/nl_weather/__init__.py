@@ -1,7 +1,6 @@
 """The NL Weather integration."""
 
 import asyncio
-from dataclasses import dataclass
 import logging
 
 from homeassistant.config_entries import ConfigEntry
@@ -21,10 +20,11 @@ from .const import (
     StationMode,
 )
 from .coordinator import (
+    NLWeatherConfigEntry,
     NLWeatherAutoEDRCoordinator,
     NLWeatherManualEDRCoordinator,
     NLWeatherUpdateCoordinator,
-    NLWeatherEDRCoordinator,
+    RuntimeData,
 )
 
 _PLATFORMS: list[Platform] = [
@@ -36,20 +36,7 @@ _PLATFORMS: list[Platform] = [
 _LOGGER = logging.getLogger(__name__)
 
 
-@dataclass
-class RuntimeData:
-    notification_service: NotificationService
-    wms: WMS
-    app: App
-    edr: EDR
-    app_coordinators: dict[str, NLWeatherUpdateCoordinator]
-    edr_coordinators: dict[str, NLWeatherEDRCoordinator]
-
-
-type KNMIDirectConfigEntry = ConfigEntry[RuntimeData]  # noqa: F821
-
-
-async def async_setup_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: NLWeatherConfigEntry) -> bool:
     """Set up from a config entry."""
     _LOGGER.debug("async_setup_entry")
 
@@ -99,13 +86,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -
 
 
 async def async_update_listener(
-    hass: HomeAssistant, entry: KNMIDirectConfigEntry
+    hass: HomeAssistant, entry: NLWeatherConfigEntry
 ) -> None:
     """Handle update."""
     await hass.config_entries.async_reload(entry.entry_id)
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: KNMIDirectConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: NLWeatherConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, _PLATFORMS)
 

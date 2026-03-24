@@ -17,7 +17,7 @@ from homeassistant.helpers.device_registry import DeviceInfo, DeviceEntryType
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
-from . import KNMIDirectConfigEntry
+from .coordinator import NLWeatherConfigEntry
 from .KNMI.helpers import epsg4325_to_epsg3857
 from .const import (
     CONF_MARK_LOCATIONS,
@@ -38,7 +38,7 @@ BACKGROUND_IMAGE_BBOX_PARAM = ",".join(map(str, BACKGROUND_IMAGE_BBOX))
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: KNMIDirectConfigEntry,
+    config_entry: NLWeatherConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     async_add_entities([PrecipitationRadarCam(config_entry)])
@@ -61,7 +61,7 @@ class PrecipitationRadarCam(Camera):
     _mark_locations = True
     _locations = []
 
-    def __init__(self, config_entry: KNMIDirectConfigEntry) -> None:
+    def __init__(self, config_entry: NLWeatherConfigEntry) -> None:
         super().__init__()
 
         # Condition that guards the loading indicator.

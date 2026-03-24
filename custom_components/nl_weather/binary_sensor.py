@@ -8,14 +8,14 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import Alert
-from . import KNMIDirectConfigEntry, DOMAIN
-from .coordinator import NLWeatherUpdateCoordinator
+from . import DOMAIN
+from .coordinator import NLWeatherUpdateCoordinator, NLWeatherConfigEntry
 from homeassistant.core import HomeAssistant
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: KNMIDirectConfigEntry,
+    config_entry: NLWeatherConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     for subentry_id, subentry in config_entry.subentries.items():
@@ -32,7 +32,7 @@ class NLWeatherAlertActiveSensor(
     CoordinatorEntity[NLWeatherUpdateCoordinator], BinarySensorEntity
 ):
     def __init__(
-        self, coordinator, config_entry: KNMIDirectConfigEntry, subentry: ConfigSubentry
+        self, coordinator, config_entry: NLWeatherConfigEntry, subentry: ConfigSubentry
     ) -> None:
         super().__init__(coordinator)
 

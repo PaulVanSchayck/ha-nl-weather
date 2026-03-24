@@ -28,7 +28,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from . import DOMAIN, KNMIDirectConfigEntry
+from . import DOMAIN
 from .const import (
     Alert,
     ATTR_WEATHER_CLOUD_COVERAGE,
@@ -47,7 +47,11 @@ from .const import (
     ATTR_WEATHER_TEMPERATURE_SOIL,
     PARAMETER_ATTRIBUTE_MAP,
 )
-from .coordinator import NLWeatherEDRCoordinator, NLWeatherUpdateCoordinator
+from .coordinator import (
+    NLWeatherConfigEntry,
+    NLWeatherEDRCoordinator,
+    NLWeatherUpdateCoordinator,
+)
 
 
 @dataclass(frozen=True)
@@ -331,7 +335,7 @@ FORECAST_TEMPERATURE_DESCRIPTIONS: list[ForecastTemperatureDescription] = [
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: KNMIDirectConfigEntry,
+    config_entry: NLWeatherConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     for subentry_id, subentry in config_entry.subentries.items():
@@ -363,7 +367,7 @@ class NLAlertSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity)
     def __init__(
         self,
         coordinator: NLWeatherUpdateCoordinator,
-        config_entry: KNMIDirectConfigEntry,
+        config_entry: NLWeatherConfigEntry,
         subentry: ConfigSubentry,
         desc: AlertSensorDescription,
     ) -> None:
@@ -388,7 +392,7 @@ class NLObservationSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEnti
     def __init__(
         self,
         coordinator: NLWeatherEDRCoordinator,
-        config_entry: KNMIDirectConfigEntry,
+        config_entry: NLWeatherConfigEntry,
         subentry: ConfigSubentry,
         desc: ObservationSensorDescription,
     ) -> None:
@@ -418,7 +422,7 @@ class NLForecastTemperatureSensor(
     def __init__(
         self,
         coordinator: NLWeatherUpdateCoordinator,
-        config_entry: KNMIDirectConfigEntry,
+        config_entry: NLWeatherConfigEntry,
         subentry: ConfigSubentry,
         desc: ForecastTemperatureDescription,
     ) -> None:

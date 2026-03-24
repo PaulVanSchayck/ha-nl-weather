@@ -1,4 +1,6 @@
+from __future__ import annotations
 import asyncio
+from dataclasses import dataclass
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -11,7 +13,10 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import utcnow
 
 from .const import APP_API_SCAN_INTERVAL, CONF_STATION, PARAMETER_ATTRIBUTE_MAP
-from .KNMI.edr import NotFoundError, ServerError
+from .KNMI.edr import EDR, NotFoundError, ServerError
+from .KNMI.app import App
+from .KNMI.notification_service import NotificationService
+from .KNMI.wms import WMS
 from .KNMI.helpers import (
     coverage_distance,
     sort_coverages_on_distance,
@@ -19,6 +24,19 @@ from .KNMI.helpers import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class RuntimeData:
+    notification_service: NotificationService
+    wms: WMS
+    app: App
+    edr: EDR
+    app_coordinators: dict[str, NLWeatherUpdateCoordinator]
+    edr_coordinators: dict[str, NLWeatherEDRCoordinator]
+
+
+type NLWeatherConfigEntry = ConfigEntry[RuntimeData]
 
 
 class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
