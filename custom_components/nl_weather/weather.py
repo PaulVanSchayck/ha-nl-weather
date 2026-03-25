@@ -285,15 +285,19 @@ class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEn
             cast(
                 Forecast,
                 {
-                    "datetime": h["date"],
+                    "datetime": d["date"],
                     "condition": CONDITION_FORECAST_MAP[
-                        h["weatherType"]
+                        d["weatherType"]
                     ],  # TODO: Handle exceptions
-                    "native_temperature": h["temperature"]["max"],
-                    "native_templow": h["temperature"]["min"],
-                    "native_precipitation": h["precipitation"]["amount"],
-                    "precipitation_probability": h["precipitation"]["chance"] * 100,
+                    "native_temperature": d["temperature"]["max"],
+                    "native_templow": d["temperature"]["min"],
+                    "native_precipitation": d["precipitation"]["amount"],
+                    "precipitation_probability": d["precipitation"]["chance"] * 100,
+                    "native_wind_speed": d["wind"]["speed"],
+                    "native_wind_gust_speed": d["wind"]["gusts"],
+                    "wind_bearing": d["wind"]["degree"],
+                    "uv_index": d["uv_index"],
                 },
             )
-            for h in self.coordinator.data["daily"]["forecast"]
+            for d in self.coordinator.data["daily"]["forecast"]
         ]
