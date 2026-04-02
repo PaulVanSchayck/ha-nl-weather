@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import aiohttp
 
 BASE_URL = "https://api.dataplatform.knmi.nl/edr/v1/collections/10-minute-in-situ-meteorological-observations"
-BBOX_NL = "3.3,50.6,7.3,53.5"
+BBOX_NL = "-68.5,12.0,7.4,55.7"
 
 _LOGGER = logging.getLogger(__name__)
 
