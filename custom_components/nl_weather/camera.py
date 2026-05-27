@@ -145,8 +145,6 @@ class PrecipitationRadarCam(Camera):
 
     async def __retrieve_radar_image(self, ref_time) -> bool:
         """Retrieve new radar image and return whether this succeeded."""
-        images = list()
-        fetch = list()
 
         async def fetch_forecast_with_time(r, t):
             return t, await self._wms.radar_forecast_image(
@@ -165,37 +163,66 @@ class PrecipitationRadarCam(Camera):
                 self._radar_style.wms_style,
             )
 
+        # Create all fetch tasks
+        pending_tasks = {}
+        # Store processed images by time for ordered assembly
+        time_to_image = {}
+
         # Fetch images from previous hour
         time = ref_time - timedelta(minutes=60)
         while time < ref_time:
-            fetch.append(fetch_realtime_with_time(time))
+            task = asyncio.create_task(fetch_realtime_with_time(time))
+            pending_tasks[task] = time
             time += timedelta(minutes=10)
         time = ref_time
         # Fetch prediction for next two hour
         while time <= ref_time + timedelta(minutes=120):
-            fetch.append(fetch_forecast_with_time(ref_time, time))
+            task = asyncio.create_task(fetch_forecast_with_time(ref_time, time))
+            pending_tasks[task] = time
             time += timedelta(minutes=10)
 
-        # TODO: Handle errors better here
-        radar_images = await asyncio.gather(*fetch)
+        _LOGGER.debug(f"Fetching {len(pending_tasks)} radar images")
+
+        # Process images as they complete (reduces memory pressure)
+        for completed_task in asyncio.as_completed(pending_tasks.keys()):
+            try:
+                img_time, buf = await completed_task
+                # Process the image immediately while waiting for others
+                img = Image.open(buf, formats=["PNG"]).convert("RGBA")
+                del buf  # Release BytesIO buffer immediately after loading
+
+                draw = ImageDraw.Draw(img)
+                draw.text(
+                    (28, 28),
+                    dt_util.as_local(img_time).strftime("%a %H:%M"),
+                    fill=self._radar_style.time_past_color
+                    if img_time <= ref_time
+                    else self._radar_style.time_future_color,
+                    font_size=45,
+                    stroke_width=0.8,
+                )
+
+                # Composite and release intermediate image
+                composite = Image.composite(img, self._background_image, img)
+                img.close()  # Release original image after compositing
+                time_to_image[img_time] = composite
+            except Exception as e:
+                _LOGGER.error("Error processing radar image: %s", e, exc_info=True)
+                # Continue processing remaining images
+                continue
+
+        _LOGGER.debug(f"Retrieved and processed {len(time_to_image)} radar images")
+
+        # Assemble GIF from images in chronological order
+        if not time_to_image:
+            _LOGGER.warning("No radar images were successfully retrieved")
+            return False
+
+        # Sort by time to maintain correct animation order
+        sorted_times = sorted(time_to_image.keys())
+        images = [time_to_image[t] for t in sorted_times]
 
         _LOGGER.debug("Done retrieving radar images, now converting to gif")
-
-        for time, buf in radar_images:
-            img = Image.open(buf, formats=["PNG"]).convert("RGBA")
-            draw = ImageDraw.Draw(img)
-            draw.text(
-                (28, 28),
-                dt_util.as_local(time).strftime("%a %H:%M"),
-                fill=self._radar_style.time_past_color
-                if time <= ref_time
-                else self._radar_style.time_future_color,
-                font_size=45,
-                stroke_width=0.8,
-            )
-            images.append(Image.composite(img, self._background_image, img))
-
-        _LOGGER.debug("Generated image")
 
         with io.BytesIO() as output:
             images[0].save(
@@ -209,6 +236,12 @@ class PrecipitationRadarCam(Camera):
                 disposal=2,
             )
             self._last_image = output.getvalue()
+
+        # Release image objects to free memory
+        for img in images:
+            img.close()
+        del time_to_image
+        del images
 
         _LOGGER.debug("Stored image")
 
