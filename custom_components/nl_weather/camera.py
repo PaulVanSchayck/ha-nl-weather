@@ -10,7 +10,7 @@ import logging
 from PIL import Image, ImageDraw
 from PIL.ImageFile import ImageFile
 
-from custom_components.nl_weather.KNMI.wms import WMSException
+from .KNMI.wms import WMSException
 from homeassistant.components.camera import Camera
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
@@ -188,26 +188,9 @@ class PrecipitationRadarCam(Camera):
         for completed_task in asyncio.as_completed(pending_tasks.keys()):
             try:
                 img_time, buf = await completed_task
-                # Process the image immediately while waiting for others
                 img = Image.open(buf, formats=["PNG"]).convert("RGBA")
                 # Release BytesIO buffer immediately after loading
                 del buf
-
-                draw = ImageDraw.Draw(img)
-                draw.text(
-                    (28, 28),
-                    dt_util.as_local(img_time).strftime("%a %H:%M"),
-                    fill=self._radar_style.time_past_color
-                    if img_time <= ref_time
-                    else self._radar_style.time_future_color,
-                    font_size=45,
-                    stroke_width=0.8,
-                )
-
-                # Composite and release intermediate image
-                composite = Image.composite(img, self._background_image, img)
-                img.close()  # Release original image after compositing
-                time_to_image[img_time] = composite
             except (WMSException, asyncio.TimeoutError) as e:
                 _LOGGER.warning("Error processing radar image: %s", e)
                 # Continue processing remaining images
@@ -216,6 +199,22 @@ class PrecipitationRadarCam(Camera):
                 _LOGGER.exception("Error processing radar image: %s", e)
                 # Stop processing. Probably fatal
                 break
+
+            draw = ImageDraw.Draw(img)
+            draw.text(
+                (28, 28),
+                dt_util.as_local(img_time).strftime("%a %H:%M"),
+                fill=self._radar_style.time_past_color
+                if img_time <= ref_time
+                else self._radar_style.time_future_color,
+                font_size=45,
+                stroke_width=0.8,
+            )
+
+            # Composite and release intermediate image
+            composite = Image.composite(img, self._background_image, img)
+            img.close()
+            time_to_image[img_time] = composite
 
         _LOGGER.debug(f"Retrieved and processed {len(time_to_image)} radar images")
 
