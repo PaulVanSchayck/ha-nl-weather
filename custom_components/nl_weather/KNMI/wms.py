@@ -43,7 +43,7 @@ class WMS:
                     # TODO: Also handle quota exceeded
                     raise TokenInvalid(await resp.json()) from None
                 elif resp.status == 429:
-                    raise RateLimitExceeded() from None
+                    raise RateLimitExceeded("Rate limit exceeded") from None
                 elif resp.status >= 500:
                     raise ServerError(f"Status code: {resp.status}") from None
 
@@ -88,21 +88,25 @@ class WMS:
         return await self.get(params)
 
 
-class NotFoundError(Exception):
+class WMSException(Exception):
+    """Base WMS Exception"""
+
+
+class NotFoundError(WMSException):
     """Exception class for no result found"""
 
 
-class TokenInvalid(Exception):
+class TokenInvalid(WMSException):
     """Exception class when token is not accepted"""
 
 
-class ServerError(Exception):
+class ServerError(WMSException):
     """Exception class for server error"""
 
 
-class InvalidRequest(Exception):
+class InvalidRequest(WMSException):
     """Exception class for invalid request"""
 
 
-class RateLimitExceeded(Exception):
+class RateLimitExceeded(WMSException):
     """Exception class for rate limit exceeded"""
