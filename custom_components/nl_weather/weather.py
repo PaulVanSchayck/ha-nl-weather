@@ -304,3 +304,7 @@ class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEn
             )
             for d in self.coordinator.data["daily"]["forecast"]
         ]
+
+    async def async_get_minute_forecast(self) -> dict[str, list[dict]] | dict:
+        """Return Minute forecast."""
+        return self.coordinator.data["minute"]

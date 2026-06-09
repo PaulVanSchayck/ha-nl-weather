@@ -68,6 +68,10 @@ class App:
         params = {"location": location, "region": region, "date": date}
         return await self.get("weather/detail", params)
 
+    async def precipitation_graph(self, location, date):
+        params = {"location": location, "time": date}
+        return await self.get("precipitation/graph", params)
+
 
 class NotFoundError(Exception):
     """Exception class for no result found"""

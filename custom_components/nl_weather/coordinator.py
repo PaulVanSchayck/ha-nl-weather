@@ -3,6 +3,7 @@ import asyncio
 from dataclasses import dataclass
 import logging
 from datetime import datetime, timezone
+from math import floor
 from typing import Any
 
 from homeassistant.config_entries import ConfigSubentry
@@ -11,6 +12,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import utcnow
+from homeassistant.util import dt as dt_util
 
 from .const import APP_API_SCAN_INTERVAL, CONF_STATION, PARAMETER_ATTRIBUTE_MAP
 from .KNMI.edr import EDR, NotFoundError, ServerError
@@ -39,13 +41,17 @@ class RuntimeData:
 type NLWeatherConfigEntry = ConfigEntry[RuntimeData]
 
 
+def _format_dt(dt):
+    return dt.isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
 class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Coordinator for NL Weather forecast data."""
 
     config_entry: ConfigEntry
 
     def __init__(
-        self, hass: HomeAssistant, entry: ConfigEntry, subentry: ConfigSubentry
+        self, hass: HomeAssistant, entry: NLWeatherConfigEntry, subentry: ConfigSubentry
     ) -> None:
         """Initialize the coordinator."""
         super().__init__(
@@ -68,6 +74,16 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self.hass.async_add_executor_job(self._api.load_area_definition)
         self._forecast_location_id = self._api.get_closest_location(self._location)
 
+    def _get_minute_weather_data(self, precipitation_graph):
+        """Get minute weather data from the forecast."""
+        return [
+            {
+                "datetime": time,
+                "precipitation": precipitation_graph["precipitation"]["amounts"][idx],
+            }
+            for idx, time in enumerate(precipitation_graph["precipitation"]["times"])
+        ]
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Obtain the latest data from KNMI App API."""
         try:
@@ -86,6 +102,17 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     day_detail["uvIndex"]["value"] if "uvIndex" in day_detail else None
                 )
                 daily_forecast["wind"] = day_detail["wind"]
+
+            # Fetch precipitation nowcast graph
+            now = dt_util.utcnow()
+            latest_5_minutes = now.replace(
+                minute=floor(now.minute / 5) * 5, second=0, microsecond=0
+            )
+            precipitation_graph = await self._api.precipitation_graph(
+                self._forecast_location_id, _format_dt(latest_5_minutes)
+            )
+            summary["minute"] = self._get_minute_weather_data(precipitation_graph)
+            _LOGGER.debug(summary["minute"])
         except ServerError as err:
             # TODO: Improve error handling
             raise UpdateFailed(f"Error while retrieving data: {err}") from err
