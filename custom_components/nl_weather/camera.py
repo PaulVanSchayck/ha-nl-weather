@@ -7,10 +7,11 @@ import io
 import os
 from datetime import datetime, timedelta, timezone
 import logging
+from random import randint
 from PIL import Image, ImageDraw
 from PIL.ImageFile import ImageFile
 
-from .KNMI.wms import WMSException
+from .KNMI.wms import RATE_LIMIT_PER_SECOND, WMSException
 from homeassistant.components.camera import Camera
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
@@ -173,12 +174,16 @@ class PrecipitationRadarCam(Camera):
         time = ref_time - timedelta(minutes=60)
         while time < ref_time:
             task = asyncio.create_task(fetch_realtime_with_time(time))
+            # Wait the minimum of the API rate limit before sending the next request
+            await asyncio.sleep(1 / RATE_LIMIT_PER_SECOND)
             pending_tasks[task] = time
             time += timedelta(minutes=10)
         time = ref_time
         # Fetch prediction for next two hour
         while time <= ref_time + timedelta(minutes=120):
             task = asyncio.create_task(fetch_forecast_with_time(ref_time, time))
+            # Wait the minimum of the API rate limit before sending the next request
+            await asyncio.sleep(1 / RATE_LIMIT_PER_SECOND)
             pending_tasks[task] = time
             time += timedelta(minutes=10)
 
@@ -310,8 +315,8 @@ class PrecipitationRadarCam(Camera):
                 self._condition.notify_all()
 
     async def _set_latest(self, event):
-        # Allowing for some time for the image to be available in WMS
-        await asyncio.sleep(15)
+        # Allowing for some time for the image to be available in WMS, plus some jitter time to allow to hit the cache more often
+        await asyncio.sleep(15 + randint(0, 10))
         self._last_modified = datetime.strptime(
             event["data"]["filename"], "RAD_NL25_RAC_FM_%Y%m%d%H%M.h5"
         ).replace(tzinfo=timezone.utc)

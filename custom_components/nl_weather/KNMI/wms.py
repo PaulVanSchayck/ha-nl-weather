@@ -13,6 +13,7 @@ BASE_PARAMS = {
     "TRANSPARENT": "TRUE",
     "CRS": "EPSG:3857",
 }
+RATE_LIMIT_PER_SECOND = 20
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ class WMS:
         self._session = aiohttp_session
         self._token = token
         # This limits the amount of simultaneous requests
-        self._semaphore = asyncio.Semaphore(5)
+        self._semaphore = asyncio.Semaphore(2)
 
     async def get(self, params):
         headers = {"Authorization": self._token}
@@ -32,8 +33,10 @@ class WMS:
             async with self._session.get(
                 f"{BASE_URL}", headers=headers, params=params
             ) as resp:
+                cache = resp.headers.get("adaguc-cache", "unknown")
+                age = resp.headers.get("age", "unknown")
                 _LOGGER.debug(
-                    f"Called WMS endpoint (status: {resp.status}): {resp.url}"
+                    f"Called WMS endpoint (status: {resp.status}, cache: {cache}, age: {age}): {resp.url}"
                 )
                 if resp.status == 400:
                     raise InvalidRequest(await resp.json()) from None
