@@ -13,7 +13,8 @@ BASE_PARAMS = {
     "TRANSPARENT": "TRUE",
     "CRS": "EPSG:3857",
 }
-RATE_LIMIT_PER_SECOND = 20
+# This is lower than the reported 20, but staying on the safe side
+RATE_LIMIT_PER_SECOND = 15
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,11 +26,22 @@ class WMS:
         self._session = aiohttp_session
         self._token = token
         # This limits the amount of simultaneous requests
-        self._semaphore = asyncio.Semaphore(2)
+        self._semaphore = asyncio.Semaphore(1)
+        self.lock = asyncio.Lock()
+        self.last_call = 0
+
+    async def wait_for_rate(self):
+        async with self.lock:
+            now = asyncio.get_event_loop().time()
+            wait = 1 / RATE_LIMIT_PER_SECOND - (now - self.last_call)
+            if wait > 0:
+                await asyncio.sleep(wait)
+            self.last_call = asyncio.get_event_loop().time()
 
     async def get(self, params):
         headers = {"Authorization": self._token}
         async with self._semaphore:
+            await self.wait_for_rate()
             async with self._session.get(
                 f"{BASE_URL}", headers=headers, params=params
             ) as resp:

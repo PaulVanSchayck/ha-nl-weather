@@ -11,7 +11,7 @@ from random import randint
 from PIL import Image, ImageDraw
 from PIL.ImageFile import ImageFile
 
-from .KNMI.wms import RATE_LIMIT_PER_SECOND, WMSException
+from .KNMI.wms import WMSException
 from homeassistant.components.camera import Camera
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
@@ -174,16 +174,12 @@ class PrecipitationRadarCam(Camera):
         time = ref_time - timedelta(minutes=60)
         while time < ref_time:
             task = asyncio.create_task(fetch_realtime_with_time(time))
-            # Wait the minimum of the API rate limit before sending the next request
-            await asyncio.sleep(1 / RATE_LIMIT_PER_SECOND)
             pending_tasks[task] = time
             time += timedelta(minutes=10)
         time = ref_time
         # Fetch prediction for next two hour
         while time <= ref_time + timedelta(minutes=120):
             task = asyncio.create_task(fetch_forecast_with_time(ref_time, time))
-            # Wait the minimum of the API rate limit before sending the next request
-            await asyncio.sleep(1 / RATE_LIMIT_PER_SECOND)
             pending_tasks[task] = time
             time += timedelta(minutes=10)
 
@@ -203,6 +199,8 @@ class PrecipitationRadarCam(Camera):
             except Exception as e:
                 _LOGGER.exception("Error processing radar image: %s", e)
                 # Stop processing. Probably fatal
+                for task in pending_tasks.keys():
+                    task.cancel()
                 break
 
             draw = ImageDraw.Draw(img)
