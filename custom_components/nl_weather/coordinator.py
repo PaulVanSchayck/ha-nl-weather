@@ -160,13 +160,19 @@ class NLWeatherAutoEDRCoordinator(NLWeatherEDRCoordinator):
 
         for param in PARAMETER_ATTRIBUTE_MAP.values():
             for coverage, distance in sorted_coverages:
+                # Not all stations have all sensors
                 if param not in coverage["ranges"]:
                     continue
                 data["params"][param] = coverage["ranges"][param]["values"][-1]
+                # The value may be null for this station
+                if data["params"][param] is None:
+                    continue
                 stations.append(coverage["eumetnet:locationId"])
                 distances.append(distance)
                 datetimes.append(coverage["domain"]["axes"]["t"]["values"][-1])
                 break
+            if param not in data["params"]:
+                _LOGGER.warning(f"Did not find {param} in any coverage")
 
         if len(data["params"]) == 0:
             _LOGGER.warning("Found not a single parameter in the coverages")
