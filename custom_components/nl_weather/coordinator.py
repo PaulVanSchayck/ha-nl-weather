@@ -75,8 +75,9 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._forecast_cell = self._api.get_forecast_cell(self._location)
         self._radar_cell = self._api.get_radar_cell(self._location)
 
-    def _get_minute_weather_data(self, precipitation_graph):
+    def _get_precipitation_nowcast(self, precipitation_graph):
         """Get minute weather data from the forecast."""
+        # TODO: Do we need to interpolate from 5 minute to minute values?
         return [
             {
                 "datetime": time,
@@ -109,11 +110,11 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             latest_5_minutes = now.replace(
                 minute=floor(now.minute / 5) * 5, second=0, microsecond=0
             )
+            # TODO: Do we like a different update frequency for this data?
             precipitation_graph = await self._api.precipitation_graph(
                 self._radar_cell, _format_dt(latest_5_minutes)
             )
-            summary["minute"] = self._get_minute_weather_data(precipitation_graph)
-            _LOGGER.debug(summary["minute"])
+            summary["minute"] = self._get_precipitation_nowcast(precipitation_graph)
         except ServerError as err:
             # TODO: Improve error handling
             raise UpdateFailed(f"Error while retrieving data: {err}") from err

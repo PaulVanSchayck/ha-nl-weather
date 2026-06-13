@@ -117,6 +117,9 @@
     "binary_sensor": {
       "weather_alert_active": {
         "name": "Alert active"
+      },
+      "precipitation_nowcast": {
+        "name": "Precipitation forecasted"
       }
     }
   },

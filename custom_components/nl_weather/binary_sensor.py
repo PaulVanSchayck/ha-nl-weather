@@ -23,6 +23,9 @@ async def async_setup_entry(
         async_add_entities(
             [
                 NLWeatherAlertActiveSensor(coordinator, config_entry, subentry),
+                NLWeatherPrecipitationNowcastSensor(
+                    coordinator, config_entry, subentry
+                ),
             ],
             config_subentry_id=subentry_id,
         )
@@ -54,3 +57,33 @@ class NLWeatherAlertActiveSensor(
         return (
             self.coordinator.data["hourly"]["forecast"][0]["alertLevel"] != Alert.NONE
         )
+
+
+class NLWeatherPrecipitationNowcastSensor(
+    CoordinatorEntity[NLWeatherUpdateCoordinator], BinarySensorEntity
+):
+    def __init__(
+        self, coordinator, config_entry: NLWeatherConfigEntry, subentry: ConfigSubentry
+    ) -> None:
+        super().__init__(coordinator)
+
+        self._attr_unique_id = (
+            f"{config_entry.entry_id}_{subentry.subentry_id}_precipitation_nowcast"
+        )
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
+        )
+        self._attr_has_entity_name = True
+        self.entity_description = BinarySensorEntityDescription(
+            key="precipitation_nowcast",
+            icon="mdi:weather-pouring",
+            translation_key="precipitation_nowcast",
+        )
+
+    @property
+    def extra_state_attributes(self):
+        return {"forecast": self.coordinator.data["minute"]}
+
+    @property
+    def is_on(self):
+        return any(p["precipitation"] > 0 for p in self.coordinator.data["minute"])
