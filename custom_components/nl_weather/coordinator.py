@@ -20,6 +20,7 @@ from .KNMI.app import App
 from .KNMI.notification_service import NotificationService
 from .KNMI.wms import WMS
 from .KNMI.helpers import (
+    Coordinate,
     coverage_distance,
     sort_coverages_on_distance,
     unique_items_sorted_by_frequency,
@@ -63,16 +64,16 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=APP_API_SCAN_INTERVAL,
         )
         self._api = entry.runtime_data.app
-        self._location = {
-            "lat": subentry.data[CONF_LATITUDE],
-            "lon": subentry.data[CONF_LONGITUDE],
-        }
+        self._location = Coordinate(
+            subentry.data[CONF_LATITUDE],
+            subentry.data[CONF_LONGITUDE],
+        )
         self._region = subentry.data[CONF_REGION]
 
     async def _async_setup(self) -> None:
-        # Calculate forecast location ID
-        await self.hass.async_add_executor_job(self._api.load_area_definition)
-        self._forecast_location_id = self._api.get_closest_location(self._location)
+        # Calculate grid cells for this location
+        self._forecast_cell = self._api.get_forecast_cell(self._location)
+        self._radar_cell = self._api.get_radar_cell(self._location)
 
     def _get_minute_weather_data(self, precipitation_graph):
         """Get minute weather data from the forecast."""
@@ -87,12 +88,12 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_update_data(self) -> dict[str, Any]:
         """Obtain the latest data from KNMI App API."""
         try:
-            summary = await self._api.weather(self._forecast_location_id, self._region)
+            summary = await self._api.weather(self._forecast_cell, self._region)
 
             # Fetch all individual days
             for daily_forecast in summary["daily"]["forecast"]:
                 day_detail = await self._api.weather_detail(
-                    self._forecast_location_id, self._region, daily_forecast["date"]
+                    self._forecast_cell, self._region, daily_forecast["date"]
                 )
                 # Augment the summary data with daily data
                 daily_forecast["precipitation"]["chance"] = day_detail[
@@ -109,7 +110,7 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 minute=floor(now.minute / 5) * 5, second=0, microsecond=0
             )
             precipitation_graph = await self._api.precipitation_graph(
-                self._forecast_location_id, _format_dt(latest_5_minutes)
+                self._radar_cell, _format_dt(latest_5_minutes)
             )
             summary["minute"] = self._get_minute_weather_data(precipitation_graph)
             _LOGGER.debug(summary["minute"])
@@ -148,10 +149,10 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
         self._config = subentry.data
         self._subentry = subentry
 
-        self._location = {
-            "lat": self._config[CONF_LATITUDE],
-            "lon": self._config[CONF_LONGITUDE],
-        }
+        self._location = Coordinate(
+            self._config[CONF_LATITUDE],
+            self._config[CONF_LONGITUDE],
+        )
 
     async def get_coverage_datetime(self, event) -> None:
         pass

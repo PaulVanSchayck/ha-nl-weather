@@ -1,12 +1,19 @@
 """Helpers for KNMI data processing."""
 
+from dataclasses import dataclass
 from math import atan2, cos, log, pi, radians, sin, sqrt, tan
-from typing import Final
+from typing import Any, Final
 
 # Earth radius constants
 EARTH_RADIUS_KM: Final = 6371.0  # Haversine formula Earth radius (kilometers)
 EARTH_RADIUS_METERS: Final = 6378137.0  # EPSG:3857 Web Mercator radius (meters)
 WEB_MERCATOR_MAX_LAT: Final = 85.05112878  # Maximum valid latitude for Web Mercator
+
+
+@dataclass
+class Coordinate:
+    lat: float
+    lon: float
 
 
 def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -31,30 +38,30 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return EARTH_RADIUS_KM * c
 
 
-def coverage_distance(coverage, location):
-    """Calculate the distance between a coverage and a location
+def coverage_distance(coverage: Any, location: Coordinate) -> float:
+    """Calculate the distance between a coverage and a location.
 
     Args:
-        coverage: Coverage object
-        location: Dictionary with 'lat' and 'lon' keys for the target location.
+        coverage: Coverage object.
+        location: Coordinate object for the target location.
 
     Return:
-        Distance in kilometers
+        Distance in kilometers.
     """
     return haversine(
         coverage["domain"]["axes"]["y"]["values"][0],
         coverage["domain"]["axes"]["x"]["values"][0],
-        location["lat"],
-        location["lon"],
+        location.lat,
+        location.lon,
     )
 
 
-def sort_coverages_on_distance(coverages, location):
+def sort_coverages_on_distance(coverages: list[Any], location: Coordinate):
     """Sort the coverages closest to the given location.
 
     Args:
         coverages: List of coverage objects with domain axis information.
-        location: Dictionary with 'lat' and 'lon' keys for the target location.
+        location: Coordinate object for the target location.
 
     Returns:
         Sorted coverages as tuple (coverage, distance)
@@ -69,18 +76,17 @@ def unique_items_sorted_by_frequency(items):
     return sorted(set(items), key=items.count, reverse=True)
 
 
-def epsg4325_to_epsg3857(lon: float, lat: float) -> tuple[float, float]:
-    """Convert lon/lat (degrees) to EPSG:3857 meters (x, y).
+def epsg4325_to_epsg3857(coord: Coordinate) -> tuple[float, float]:
+    """Convert a Coordinate from EPSG:4326 to EPSG:3857 meters (x, y).
 
     Args:
-        lon: Longitude in decimal degrees.
-        lat: Latitude in decimal degrees.
+        coord: Coordinate in decimal degrees.
 
     Returns:
         Tuple of (x, y) coordinates in EPSG:3857 meters (Web Mercator projection).
     """
     # Clamp latitude to valid Web Mercator range to avoid math domain errors
-    lat = max(min(lat, WEB_MERCATOR_MAX_LAT), -WEB_MERCATOR_MAX_LAT)
-    x = EARTH_RADIUS_METERS * radians(lon)
+    lat = max(min(coord.lat, WEB_MERCATOR_MAX_LAT), -WEB_MERCATOR_MAX_LAT)
+    x = EARTH_RADIUS_METERS * radians(coord.lon)
     y = EARTH_RADIUS_METERS * log(tan(pi / 4.0 + radians(lat) / 2.0))
     return x, y
