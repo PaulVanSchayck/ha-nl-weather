@@ -25,6 +25,7 @@ from homeassistant.components.weather import (
     ATTR_CONDITION_FOG,
     ATTR_CONDITION_WINDY,
     ATTR_CONDITION_WINDY_VARIANT,
+    utcnow,
 )
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import (
@@ -320,5 +321,11 @@ class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEn
         ]
 
     async def async_get_minute_forecast(self) -> dict[str, list[dict]] | dict:
-        """Return Minute forecast."""
-        return {"forecast": self.coordinator.data["minute"]}
+        """Return minute forecast"""
+        # Filter from now, as this is what the other nowcast integrations (OpenWeatherMaps and DWD-nowcast) seem to do
+        now = utcnow()
+        return {
+            "forecast": [
+                p for p in self.coordinator.data["minute"] if p["datetime"] >= now
+            ]
+        }
