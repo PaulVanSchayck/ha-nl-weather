@@ -12,7 +12,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import utcnow
-from homeassistant.util import dt as dt_util
 
 from .const import APP_API_SCAN_INTERVAL, CONF_STATION, PARAMETER_ATTRIBUTE_MAP
 from .KNMI.edr import EDR, NotFoundError, ServerError
@@ -84,7 +83,7 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # TODO: Do we need to interpolate from 5 minute to minute values?
         return [
             {
-                "datetime": time,
+                "datetime": datetime.fromisoformat(time),
                 "precipitation": precipitation_graph["precipitation"]["amounts"][idx],
             }
             for idx, time in enumerate(precipitation_graph["precipitation"]["times"])
@@ -110,7 +109,7 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 daily_forecast["wind"] = day_detail["wind"]
 
             # Fetch precipitation nowcast graph
-            now = dt_util.utcnow()
+            now = utcnow()
             latest_5_minutes = now.replace(
                 minute=floor(now.minute / 5) * 5, second=0, microsecond=0
             )

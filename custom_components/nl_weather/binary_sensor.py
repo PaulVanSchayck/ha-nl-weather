@@ -11,6 +11,7 @@ from .const import Alert
 from . import DOMAIN
 from .coordinator import NLWeatherUpdateCoordinator, NLWeatherConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.util import utcnow
 
 
 async def async_setup_entry(
@@ -86,4 +87,8 @@ class NLWeatherPrecipitationNowcastSensor(
 
     @property
     def is_on(self):
-        return any(p["precipitation"] > 0 for p in self.coordinator.data["minute"])
+        now = utcnow()
+        return any(
+            p["datetime"] > now and p["precipitation"] > 0
+            for p in self.coordinator.data["minute"]
+        )
