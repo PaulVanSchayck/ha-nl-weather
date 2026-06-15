@@ -19,6 +19,7 @@ from .KNMI.edr import EDR, NotFoundError, ServerError
 from .KNMI.app import App
 from .KNMI.notification_service import NotificationService
 from .KNMI.wms import WMS
+from .KNMI.grid_definitions import GridDefinitions, GridManager
 from .KNMI.helpers import (
     Coordinate,
     coverage_distance,
@@ -72,8 +73,11 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_setup(self) -> None:
         # Calculate grid cells for this location
-        self._forecast_cell = self._api.get_forecast_cell(self._location)
-        self._radar_cell = self._api.get_radar_cell(self._location)
+        grid_manager = GridManager.default()
+        self._forecast_cell = grid_manager.cell(
+            GridDefinitions.FORECAST, self._location
+        )
+        self._radar_cell = grid_manager.cell(GridDefinitions.RADAR, self._location)
 
     def _get_precipitation_nowcast(self, precipitation_graph):
         """Get minute weather data from the forecast."""

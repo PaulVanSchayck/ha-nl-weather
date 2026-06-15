@@ -1,9 +1,6 @@
 import aiohttp
 import json
 import logging
-from custom_components.nl_weather.KNMI.grid_definitions import GridManager
-
-from .helpers import Coordinate
 
 BASE_URL = "https://api.app.knmi.cloud"
 _LOGGER = logging.getLogger(__name__)
@@ -32,24 +29,16 @@ class App:
                 raise
             return json.loads(body)
 
-    def get_forecast_cell(self, location: Coordinate):
-        grid_manager = GridManager.from_defaults()
-        return grid_manager.cell(location, "A")
-
-    def get_radar_cell(self, location: Coordinate):
-        grid_manager = GridManager.from_defaults()
-        return grid_manager.cell(location, "B")
-
-    async def weather(self, location, region):
-        params = {"location": location, "region": region}
+    async def weather(self, cell_id, region):
+        params = {"location": cell_id, "region": region}
         return await self.get("weather", params)
 
-    async def weather_detail(self, location, region, date):
-        params = {"location": location, "region": region, "date": date}
+    async def weather_detail(self, cell_id, region, date):
+        params = {"location": cell_id, "region": region, "date": date}
         return await self.get("weather/detail", params)
 
-    async def precipitation_graph(self, location, date):
-        params = {"location": location, "time": date}
+    async def precipitation_graph(self, radar_cell_id, date):
+        params = {"location": radar_cell_id, "time": date}
         return await self.get("precipitation/graph", params)
 
 

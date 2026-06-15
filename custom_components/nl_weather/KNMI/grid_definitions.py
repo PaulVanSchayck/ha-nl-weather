@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import Optional, Dict
 
 from pyproj import Transformer
@@ -8,160 +8,139 @@ from pyproj import Transformer
 from .helpers import Coordinate
 
 
+class GridDefinitions(StrEnum):
+    FORECAST = "A"
+    RADAR = "B"
+
+
 class Direction(Enum):
     SWCR = "SWCR"
     NWCR = "NWCR"
 
 
-@dataclass
+@dataclass(frozen=True)
 class Steps:
-    latitude: int
-    longitude: int
+    lat: int
+    lon: int
 
 
-# From:
-# https://gitlab.com/KNMI-OSS/KNMI-App/knmi-app-android/-/blob/main/app/src/main/java/nl/knmi/weer/crs/ProjectionDefinition.kt
-PROJ_MAP = {
-    "epsg4326": "EPSG:4326",
-    "epsg28992": "EPSG:28992",
-    "radar": "+proj=stere +lat_0=90 +lon_0=0 +lat_ts=60 "
-    "+a=6378.14 +b=6356.75 +x_0=0 y_0=0",
-}
+class Grid:
+    """
+    Compile immutable grid with optional transformer.
+    """
 
-
-class ProjectionClient:
-    def __init__(self):
-        os.environ.setdefault("PROJ_IGNORE_CELESTIAL_BODY", "YES")
-        self._transformers = {}
-
-    def transform(self, coord: Coordinate, from_proj: str, to_proj: str) -> Coordinate:
-        if from_proj == to_proj:
-            return coord
-
-        key = (from_proj, to_proj)
-        if key not in self._transformers:
-            self._transformers[key] = Transformer.from_crs(
-                from_proj, to_proj, always_xy=True
-            )
-
-        transformer = self._transformers[key]
-        lon, lat = transformer.transform(coord.lon, coord.lat)
-
-        return Coordinate(lat=lat, lon=lon)
-
-
-class GridDefinition:
     def __init__(
         self,
-        south_west: Coordinate,
-        north_east: Coordinate,
+        sw: Coordinate,
+        ne: Coordinate,
         steps: Steps,
         prefix: str,
         proj: str,
         direction: Direction,
     ):
-        self.south_west = south_west
-        self.north_east = north_east
+        self.sw = sw
+        self.ne = ne
         self.steps = steps
         self.prefix = prefix
-        self.proj = PROJ_MAP[proj.lower()]
         self.direction = direction
 
-        self.latitude_multiplier = steps.latitude / (north_east.lat - south_west.lat)
-        self.longitude_multiplier = steps.longitude / (north_east.lon - south_west.lon)
+        os.environ.setdefault("PROJ_IGNORE_CELESTIAL_BODY", "YES")
+        self.transformer = (
+            None
+            if proj.lower() == "epsg4326"
+            else Transformer.from_crs(
+                "EPSG:4326",
+                self._normalize_proj(proj),
+                always_xy=True,
+            )
+        )
 
-        self.projection_client = ProjectionClient()
+        self.lat_mult = self.steps.lat / (self.ne.lat - self.sw.lat)
+        self.lon_mult = self.steps.lon / (self.ne.lon - self.sw.lon)
 
-    def contains(self, coord: Coordinate) -> bool:
+    @staticmethod
+    def _normalize_proj(proj: str) -> str:
+        # From:
+        # https://gitlab.com/KNMI-OSS/KNMI-App/knmi-app-android/-/blob/main/app/src/main/java/nl/knmi/weer/crs/ProjectionDefinition.kt
+        proj = proj.lower()
+        if proj == "epsg28992":
+            return "EPSG:28992"
+        if proj == "radar":
+            return "+proj=stere +lat_0=90 +lon_0=0 +lat_ts=60 +a=6378.14 +b=6356.75 +x_0=0 y_0=0"
+        return proj
+
+    def _to_grid(self, coord: Coordinate) -> Coordinate:
+        if self.transformer is None:
+            return coord
+        x, y = self.transformer.transform(coord.lon, coord.lat)
+        return Coordinate(lat=y, lon=x)
+
+    def contains(self, c: Coordinate) -> bool:
         if self.direction == Direction.SWCR:
             return (
-                coord.lat >= self.south_west.lat
-                and coord.lat < self.north_east.lat
-                and coord.lon >= self.south_west.lon
-                and coord.lon < self.north_east.lon
-            )
-        else:  # NWCR
-            return (
-                coord.lat > self.south_west.lat
-                and coord.lat <= self.north_east.lat
-                and coord.lon >= self.south_west.lon
-                and coord.lon < self.north_east.lon
+                self.sw.lat <= c.lat < self.ne.lat
+                and self.sw.lon <= c.lon < self.ne.lon
             )
 
-    def _cell_number(self, coord: Coordinate) -> Optional[int]:
-        if not self.contains(coord):
+        return self.sw.lat < c.lat <= self.ne.lat and self.sw.lon <= c.lon < self.ne.lon
+
+    def cell_number(self, coord_epsg4326: Coordinate) -> Optional[int]:
+        c = self._to_grid(coord_epsg4326)
+
+        if not self.contains(c):
             return None
 
         if self.direction == Direction.SWCR:
-            lat_cell = int((coord.lat - self.south_west.lat) * self.latitude_multiplier)
-            lon_cell = int(
-                (coord.lon - self.south_west.lon) * self.longitude_multiplier
-            )
-        else:  # NWCR
-            lat_cell = int((self.north_east.lat - coord.lat) * self.latitude_multiplier)
-            lon_cell = int(
-                (coord.lon - self.south_west.lon) * self.longitude_multiplier
-            )
+            lat_cell = int((c.lat - self.sw.lat) * self.lat_mult)
+            lon_cell = int((c.lon - self.sw.lon) * self.lon_mult)
+        else:
+            lat_cell = int((self.ne.lat - c.lat) * self.lat_mult)
+            lon_cell = int((c.lon - self.sw.lon) * self.lon_mult)
 
-        return lat_cell + lon_cell * self.steps.latitude
+        return lat_cell + lon_cell * self.steps.lat
 
-    def cell_number(self, coord_epsg4326: Coordinate) -> Optional[int]:
-        coord = (
-            coord_epsg4326
-            if self.proj == "EPSG:4326"
-            else self.projection_client.transform(
-                coord_epsg4326, "EPSG:4326", self.proj
-            )
-        )
-        return self._cell_number(coord)
-
-    def cell(self, coord_epsg4326: Coordinate) -> Optional[str]:
-        num = self.cell_number(coord_epsg4326)
-        return f"{self.prefix}{num}" if num is not None else None
+    def cell(self, coord: Coordinate) -> Optional[str]:
+        n = self.cell_number(coord)
+        return None if n is None else f"{self.prefix}{n}"
 
 
 class GridManager:
-    def __init__(self, grids: Dict[str, GridDefinition]):
+    def __init__(self, grids: Dict[GridDefinitions, Grid]):
         self.grids = grids
 
     @staticmethod
-    def from_defaults() -> "GridManager":
+    def default() -> "GridManager":
         # These grid definitions are from:
         # https://gitlab.com/KNMI-OSS/KNMI-App/knmi-app-android/-/blob/main/app/src/main/java/nl/knmi/weer/network/config/AppRemoteConfigClient.kt
         return GridManager(
             {
-                "A": GridDefinition(
-                    Coordinate(50.7, 3.2),
-                    Coordinate(53.6, 7.4),
-                    Steps(35, 30),
-                    "A",
-                    "epsg4326",
-                    Direction.NWCR,
+                GridDefinitions.FORECAST: Grid(
+                    sw=Coordinate(50.7, 3.2),
+                    ne=Coordinate(53.6, 7.4),
+                    steps=Steps(35, 30),
+                    prefix=GridDefinitions.FORECAST.value,
+                    proj="epsg4326",
+                    direction=Direction.NWCR,
                 ),
-                "B": GridDefinition(
-                    Coordinate(-4240, 247),
-                    Coordinate(-3889, 510),
-                    Steps(351, 263),
-                    "B",
-                    "radar",
-                    Direction.NWCR,
+                GridDefinitions.RADAR: Grid(
+                    sw=Coordinate(-4240, 247),
+                    ne=Coordinate(-3889, 510),
+                    steps=Steps(351, 263),
+                    prefix=GridDefinitions.RADAR.value,
+                    proj="radar",
+                    direction=Direction.NWCR,
                 ),
-                "C": GridDefinition(
-                    Coordinate(50.755, 3.365),
-                    Coordinate(53.555, 7.225),
-                    Steps(281, 387),
-                    "C",
-                    "epsg4326",
-                    Direction.NWCR,
-                ),
+                # Defined in code, but unused currently
+                # "C": Grid(
+                #     sw=Coordinate(50.755, 3.365),
+                #     ne=Coordinate(53.555, 7.225),
+                #     steps=Steps(281, 387),
+                #     prefix="C",
+                #     proj="epsg4326",
+                #     direction=Direction.NWCR,
+                # ),
             }
         )
 
-    def cell(self, coord: Coordinate, grid_key: str) -> Optional[str]:
-        grid = self.grids.get(grid_key)
-        if not grid:
-            raise ValueError(f"Unknown grid: {grid_key}")
-        return grid.cell(coord)
-
-    def cell_all(self, coord: Coordinate) -> Dict[str, Optional[str]]:
-        return {key: grid.cell(coord) for key, grid in self.grids.items()}
+    def cell(self, grid_id: GridDefinitions, coord: Coordinate) -> Optional[str]:
+        return self.grids[grid_id].cell(coord)
