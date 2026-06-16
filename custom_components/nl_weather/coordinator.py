@@ -3,6 +3,7 @@ import asyncio
 from dataclasses import dataclass
 import logging
 from datetime import datetime, timezone
+from math import floor
 from typing import Any
 
 from homeassistant.config_entries import ConfigSubentry
@@ -17,7 +18,10 @@ from .KNMI.edr import EDR, NotFoundError, ServerError
 from .KNMI.app import App
 from .KNMI.notification_service import NotificationService
 from .KNMI.wms import WMS
+from .KNMI.grid_definitions import GridDefinitions, GridManager
 from .KNMI.helpers import (
+    Coordinate,
+    format_dt,
     coverage_distance,
     sort_coverages_on_distance,
     unique_items_sorted_by_frequency,
@@ -45,7 +49,7 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     config_entry: ConfigEntry
 
     def __init__(
-        self, hass: HomeAssistant, entry: ConfigEntry, subentry: ConfigSubentry
+        self, hass: HomeAssistant, entry: NLWeatherConfigEntry, subentry: ConfigSubentry
     ) -> None:
         """Initialize the coordinator."""
         super().__init__(
@@ -57,26 +61,39 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=APP_API_SCAN_INTERVAL,
         )
         self._api = entry.runtime_data.app
-        self._location = {
-            "lat": subentry.data[CONF_LATITUDE],
-            "lon": subentry.data[CONF_LONGITUDE],
-        }
+        self._location = Coordinate(
+            subentry.data[CONF_LATITUDE],
+            subentry.data[CONF_LONGITUDE],
+        )
         self._region = subentry.data[CONF_REGION]
 
     async def _async_setup(self) -> None:
-        # Calculate forecast location ID
-        await self.hass.async_add_executor_job(self._api.load_area_definition)
-        self._forecast_location_id = self._api.get_closest_location(self._location)
+        # Calculate grid cells for this location
+        grid_manager = GridManager.default()
+        self._forecast_cell = grid_manager.cell(
+            GridDefinitions.FORECAST, self._location
+        )
+        self._radar_cell = grid_manager.cell(GridDefinitions.RADAR, self._location)
+
+    def _get_precipitation_nowcast(self, precipitation_graph):
+        """Get minute weather data from the forecast."""
+        return [
+            {
+                "datetime": datetime.fromisoformat(time),
+                "precipitation": precipitation_graph["precipitation"]["amounts"][idx],
+            }
+            for idx, time in enumerate(precipitation_graph["precipitation"]["times"])
+        ]
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Obtain the latest data from KNMI App API."""
         try:
-            summary = await self._api.weather(self._forecast_location_id, self._region)
+            summary = await self._api.weather(self._forecast_cell, self._region)
 
             # Fetch all individual days
             for daily_forecast in summary["daily"]["forecast"]:
                 day_detail = await self._api.weather_detail(
-                    self._forecast_location_id, self._region, daily_forecast["date"]
+                    self._forecast_cell, self._region, daily_forecast["date"]
                 )
                 # Augment the summary data with daily data
                 daily_forecast["precipitation"]["chance"] = day_detail[
@@ -86,6 +103,17 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     day_detail["uvIndex"]["value"] if "uvIndex" in day_detail else None
                 )
                 daily_forecast["wind"] = day_detail["wind"]
+
+            # Fetch precipitation nowcast graph
+            now = utcnow()
+            latest_5_minutes = now.replace(
+                minute=floor(now.minute / 5) * 5, second=0, microsecond=0
+            )
+            # TODO: Do we like a different update frequency for this data?
+            precipitation_graph = await self._api.precipitation_graph(
+                self._radar_cell, format_dt(latest_5_minutes)
+            )
+            summary["minute"] = self._get_precipitation_nowcast(precipitation_graph)
         except ServerError as err:
             # TODO: Improve error handling
             raise UpdateFailed(f"Error while retrieving data: {err}") from err
@@ -121,10 +149,10 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
         self._config = subentry.data
         self._subentry = subentry
 
-        self._location = {
-            "lat": self._config[CONF_LATITUDE],
-            "lon": self._config[CONF_LONGITUDE],
-        }
+        self._location = Coordinate(
+            self._config[CONF_LATITUDE],
+            self._config[CONF_LONGITUDE],
+        )
 
     async def get_coverage_datetime(self, event) -> None:
         pass

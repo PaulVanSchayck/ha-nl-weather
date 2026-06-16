@@ -26,6 +26,7 @@ from homeassistant.components.weather import (
     ATTR_CONDITION_WINDY,
     ATTR_CONDITION_WINDY_VARIANT,
 )
+from homeassistant.util import utcnow
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import (
     UnitOfSpeed,
@@ -38,6 +39,8 @@ from homeassistant.const import (
 from homeassistant.helpers import sun
 from homeassistant.helpers.device_registry import DeviceInfo, DeviceEntryType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers import entity_platform
+
 from .coordinator import (
     NLWeatherConfigEntry,
     NLWeatherUpdateCoordinator,
@@ -49,11 +52,13 @@ from .const import (
     PARAMETER_ATTRIBUTE_MAP,
     ATTR_WEATHER_CONDITION,
     CONDITION_FORECAST_MAP,
+    NLWeatherEntityFeature,
 )
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, SupportsResponse
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+SERVICE_GET_MINUTE_FORECAST = "get_minute_forecast"
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -62,6 +67,14 @@ async def async_setup_entry(
     config_entry: NLWeatherConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
+    platform = entity_platform.async_get_current_platform()
+    platform.async_register_entity_service(
+        name=SERVICE_GET_MINUTE_FORECAST,
+        schema=None,
+        func="async_get_minute_forecast",
+        supports_response=SupportsResponse.ONLY,
+    )
+
     for subentry_id, subentry in config_entry.subentries.items():
         entities = [
             NLWeatherForecast(
@@ -205,7 +218,9 @@ class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEn
     _attr_attribution = "Forecast data provided by Koninklijk Nederlands Meteorologisch Instituut (KNMI) licensed under CC-BY 4.0"
     _attr_has_entity_name = True
     _attr_supported_features = (
-        WeatherEntityFeature.FORECAST_DAILY | WeatherEntityFeature.FORECAST_HOURLY
+        WeatherEntityFeature.FORECAST_DAILY
+        | WeatherEntityFeature.FORECAST_HOURLY
+        | NLWeatherEntityFeature.FORECAST_MINUTE
     )
     _hourly_forecast: list[Forecast] = []
     _daily_forecast: list[Forecast] = []
@@ -304,3 +319,13 @@ class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEn
             )
             for d in self.coordinator.data["daily"]["forecast"]
         ]
+
+    async def async_get_minute_forecast(self) -> dict[str, list[dict]] | dict:
+        """Return minute forecast"""
+        # Filter from now, as this is what the other nowcast integrations (OpenWeatherMaps and DWD-nowcast) seem to do
+        now = utcnow()
+        return {
+            "forecast": [
+                p for p in self.coordinator.data["minute"] if p["datetime"] >= now
+            ]
+        }

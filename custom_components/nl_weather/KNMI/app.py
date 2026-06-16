@@ -1,15 +1,8 @@
 import aiohttp
 import json
 import logging
-import os
-
-from .helpers import haversine
 
 BASE_URL = "https://api.app.knmi.cloud"
-AREA_DEFINITION_PATH = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "area_definition-nl_30x35_v2-1.json")
-)
-
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -36,37 +29,17 @@ class App:
                 raise
             return json.loads(body)
 
-    def load_area_definition(self):
-        with open(AREA_DEFINITION_PATH, "r") as f:
-            self._area_definition = json.load(f)
-
-    def get_closest_location(self, location):
-        return min(
-            self._area_definition["features"],
-            key=lambda f: haversine(
-                # This gets the center of each polygon (each polygon defines a square box)
-                (
-                    f["geometry"]["coordinates"][0][0][1]
-                    + f["geometry"]["coordinates"][0][2][1]
-                )
-                / 2,
-                (
-                    f["geometry"]["coordinates"][0][0][0]
-                    + f["geometry"]["coordinates"][0][1][0]
-                )
-                / 2,
-                location["lat"],
-                location["lon"],
-            ),
-        )["properties"]["id"]
-
-    async def weather(self, location, region):
-        params = {"location": location, "region": region}
+    async def weather(self, cell_id, region):
+        params = {"location": cell_id, "region": region}
         return await self.get("weather", params)
 
-    async def weather_detail(self, location, region, date):
-        params = {"location": location, "region": region, "date": date}
+    async def weather_detail(self, cell_id, region, date):
+        params = {"location": cell_id, "region": region, "date": date}
         return await self.get("weather/detail", params)
+
+    async def precipitation_graph(self, radar_cell_id, date):
+        params = {"location": radar_cell_id, "time": date}
+        return await self.get("precipitation/graph", params)
 
 
 class NotFoundError(Exception):

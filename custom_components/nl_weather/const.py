@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import timedelta
-from enum import StrEnum
+from enum import IntFlag, StrEnum
 from typing import Final
 
 from homeassistant.components.weather import (
@@ -233,3 +233,9 @@ DEFAULT_RADAR_STYLE = "light"
 class StationMode(StrEnum):
     AUTO = "auto"
     MANUAL = "manual"
+
+
+class NLWeatherEntityFeature(IntFlag):
+    """Supported features of the update entity."""
+
+    FORECAST_MINUTE = 32
