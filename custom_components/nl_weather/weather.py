@@ -25,8 +25,8 @@ from homeassistant.components.weather import (
     ATTR_CONDITION_FOG,
     ATTR_CONDITION_WINDY,
     ATTR_CONDITION_WINDY_VARIANT,
-    utcnow,
 )
+from homeassistant.util import utcnow
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import (
     UnitOfSpeed,

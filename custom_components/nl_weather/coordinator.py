@@ -21,6 +21,7 @@ from .KNMI.wms import WMS
 from .KNMI.grid_definitions import GridDefinitions, GridManager
 from .KNMI.helpers import (
     Coordinate,
+    format_dt,
     coverage_distance,
     sort_coverages_on_distance,
     unique_items_sorted_by_frequency,
@@ -40,10 +41,6 @@ class RuntimeData:
 
 
 type NLWeatherConfigEntry = ConfigEntry[RuntimeData]
-
-
-def _format_dt(dt):
-    return dt.isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -80,7 +77,6 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def _get_precipitation_nowcast(self, precipitation_graph):
         """Get minute weather data from the forecast."""
-        # TODO: Do we need to interpolate from 5 minute to minute values?
         return [
             {
                 "datetime": datetime.fromisoformat(time),
@@ -115,7 +111,7 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
             # TODO: Do we like a different update frequency for this data?
             precipitation_graph = await self._api.precipitation_graph(
-                self._radar_cell, _format_dt(latest_5_minutes)
+                self._radar_cell, format_dt(latest_5_minutes)
             )
             summary["minute"] = self._get_precipitation_nowcast(precipitation_graph)
         except ServerError as err:

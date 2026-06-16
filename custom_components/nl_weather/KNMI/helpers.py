@@ -1,6 +1,7 @@
 """Helpers for KNMI data processing."""
 
 from dataclasses import dataclass
+from datetime import datetime
 from math import atan2, cos, log, pi, radians, sin, sqrt, tan
 from typing import Any, Final
 
@@ -90,3 +91,7 @@ def epsg4325_to_epsg3857(coord: Coordinate) -> tuple[float, float]:
     x = EARTH_RADIUS_METERS * radians(coord.lon)
     y = EARTH_RADIUS_METERS * log(tan(pi / 4.0 + radians(lat) / 2.0))
     return x, y
+
+
+def format_dt(dt: datetime) -> str:
+    return dt.isoformat(timespec="seconds").replace("+00:00", "Z")
