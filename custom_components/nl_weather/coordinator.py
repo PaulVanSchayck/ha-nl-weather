@@ -3,6 +3,7 @@ import asyncio
 from dataclasses import dataclass
 import logging
 from datetime import datetime, timezone
+from random import randint
 from math import floor
 from typing import Any
 
@@ -229,7 +230,8 @@ class NLWeatherAutoEDRCoordinator(NLWeatherEDRCoordinator):
 
         _LOGGER.debug(f"Fetch EDR coverage for datetime: {filename_datetime}")
         for _ in range(3):
-            await asyncio.sleep(15)
+            # Allowing for some time for the data to be available in EDR, plus some jitter time
+            await asyncio.sleep(15 + randint(0, 10))
             try:
                 coverages = await self._edr.get_cube_coverages(
                     filename_datetime, PARAMETER_ATTRIBUTE_MAP.values()
@@ -289,7 +291,8 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
 
         _LOGGER.debug(f"Fetch EDR coverage for datetime: {filename_datetime}")
         for _ in range(3):
-            await asyncio.sleep(15)
+            # Allowing for some time for the data to be available in EDR, plus some jitter time
+            await asyncio.sleep(15 + randint(0, 10))
             try:
                 coverage = await self._edr.get_location_coverage(
                     self._station, filename_datetime, PARAMETER_ATTRIBUTE_MAP.values()

@@ -7,6 +7,7 @@ import io
 import os
 from datetime import datetime, timedelta, timezone
 import logging
+from random import randint
 from PIL import Image, ImageDraw
 from PIL.ImageFile import ImageFile
 
@@ -195,6 +196,8 @@ class PrecipitationRadarCam(Camera):
             except Exception as e:
                 _LOGGER.exception("Error processing radar image: %s", e)
                 # Stop processing. Probably fatal
+                for task in pending_tasks.keys():
+                    task.cancel()
                 break
 
             draw = ImageDraw.Draw(img)
@@ -307,8 +310,8 @@ class PrecipitationRadarCam(Camera):
                 self._condition.notify_all()
 
     async def _set_latest(self, event):
-        # Allowing for some time for the image to be available in WMS
-        await asyncio.sleep(15)
+        # Allowing for some time for the image to be available in WMS, plus some jitter time to allow to hit the cache more often
+        await asyncio.sleep(15 + randint(0, 10))
         self._last_modified = datetime.strptime(
             event["data"]["filename"], "RAD_NL25_RAC_FM_%Y%m%d%H%M.h5"
         ).replace(tzinfo=timezone.utc)
