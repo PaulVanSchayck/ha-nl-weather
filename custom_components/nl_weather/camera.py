@@ -20,7 +20,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from .coordinator import NLWeatherConfigEntry
-from .KNMI.helpers import epsg4325_to_epsg3857
+from .KNMI.helpers import Coordinate, epsg4325_to_epsg3857
 from .const import (
     CONF_MARK_LOCATIONS,
     CONF_RADAR_STYLE,
@@ -92,20 +92,17 @@ class PrecipitationRadarCam(Camera):
         self._mark_locations = config_entry.options.get(CONF_MARK_LOCATIONS, True)
 
         # TODO: Deal with adding/removing location
-        self._locations = []
+        self._locations: list[Coordinate] = []
         for s in config_entry.subentries.values():
             self._locations.append(
-                {
-                    "lat": s.data[CONF_LATITUDE],
-                    "lon": s.data[CONF_LONGITUDE],
-                }
+                Coordinate(s.data[CONF_LATITUDE], s.data[CONF_LONGITUDE])
             )
 
     def _add_locations_markers(self, img):
         draw = ImageDraw.Draw(img)
         for location in self._locations:
             # Convert from lat lon in degrees to x y in meters
-            x, y = epsg4325_to_epsg3857(location["lon"], location["lat"])
+            x, y = epsg4325_to_epsg3857(location)
             # Calculate position on image.
             y_img = (
                 img.size[0]

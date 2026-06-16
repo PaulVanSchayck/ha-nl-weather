@@ -4,19 +4,18 @@ from datetime import datetime, timedelta, timezone
 
 import aiohttp
 
+from .helpers import format_dt
+
 BASE_URL = "https://api.dataplatform.knmi.nl/edr/v1/collections/10-minute-in-situ-meteorological-observations"
 BBOX_NL = "-68.5,12.0,7.4,55.7"
 
-_LOGGER = logging.getLogger(__name__)
 
-
-def _format_dt(dt):
-    return dt.isoformat(timespec="seconds").replace("+00:00", "Z")
-
-
-def _past_half_hour(dt):
+def past_half_hour(dt: datetime) -> str:
     past = dt - timedelta(minutes=30)
-    return f"{_format_dt(past)}/{_format_dt(dt)}"
+    return f"{format_dt(past)}/{format_dt(dt)}"
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class EDR:
@@ -53,7 +52,7 @@ class EDR:
 
     async def locations(self):
         # Get current locations
-        dt = _format_dt(datetime.now(timezone.utc))
+        dt = format_dt(datetime.now(timezone.utc))
         params = {"datetime": dt, "bbox": BBOX_NL}
         return await self.get("/locations", params)
 
@@ -65,7 +64,7 @@ class EDR:
 
     async def get_cube_coverages(self, dt: datetime, parameters):
         params = {
-            "datetime": _past_half_hour(dt),
+            "datetime": past_half_hour(dt),
             "parameter-name": ",".join(parameters),
             "bbox": BBOX_NL,
         }
@@ -76,7 +75,7 @@ class EDR:
 
     async def get_location_coverage(self, location, dt: datetime, parameters):
         params = {
-            "datetime": _past_half_hour(dt),
+            "datetime": past_half_hour(dt),
             "parameter-name": ",".join(parameters),
         }
         coverage_collection = await self.location(location, params)
