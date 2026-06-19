@@ -42,17 +42,21 @@ class App:
         return await self.get("precipitation/graph", params)
 
 
-class NotFoundError(Exception):
+class AppException(Exception):
+    """Base App Exception"""
+
+
+class NotFoundError(AppException):
     """Exception class for no result found"""
 
 
-class TokenInvalid(Exception):
+class TokenInvalid(AppException):
     """Exception class when token is not accepted"""
 
 
-class ServerError(Exception):
+class ServerError(AppException):
     """Exception class for server error"""
 
 
-class InvalidRequest(Exception):
+class InvalidRequest(AppException):
     """Exception class for invalid request"""

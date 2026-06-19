@@ -16,7 +16,7 @@ from homeassistant.util import utcnow
 
 from .const import APP_API_SCAN_INTERVAL, CONF_STATION, PARAMETER_ATTRIBUTE_MAP
 from .KNMI.edr import EDR, NotFoundError, ServerError
-from .KNMI.app import App
+from .KNMI.app import App, AppException
 from .KNMI.notification_service import NotificationService
 from .KNMI.wms import WMS
 from .KNMI.grid_definitions import GridDefinitions, GridManager
@@ -115,7 +115,7 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._radar_cell, format_dt(latest_5_minutes)
             )
             summary["minute"] = self._get_precipitation_nowcast(precipitation_graph)
-        except ServerError as err:
+        except AppException as err:
             # TODO: Improve error handling
             raise UpdateFailed(f"Error while retrieving data: {err}") from err
 
