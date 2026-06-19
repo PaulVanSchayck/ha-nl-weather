@@ -287,14 +287,16 @@ class PrecipitationRadarCam(Camera):
 
         # get lock, check if loading, await notification if loading
         async with self._condition:
-            # cannot be tested - mocked http response returns immediately
-            if self._loading:
+            # Check in loop. wait() method may return spuriously
+            while self._loading:
                 _LOGGER.debug("already loading - waiting for notification")
                 await self._condition.wait()
-                return self._last_image
 
-            # Set loading status **while holding lock**, makes other tasks wait
-            self._loading = True
+            if not self.__needs_refresh():
+                return self._last_image
+            else:
+                # Set loading status **while holding lock**, makes other tasks wait
+                self._loading = True
 
         try:
             was_updated = await self.__retrieve_radar_image(self._last_modified)
