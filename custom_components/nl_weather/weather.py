@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 import logging
 from typing import cast
 
@@ -333,8 +334,17 @@ class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEn
             return {"forecast": []}
 
         now = utcnow()
-        return {
-            "forecast": [
-                p for p in self._nowcast_coordinator.data if p["datetime"] >= now
-            ]
-        }
+        result = []
+        # Fill the 5 minute values with repeating values every minute
+        for item in self._nowcast_coordinator.data:
+            for offset in range(5):
+                t = item["datetime"] + timedelta(minutes=offset)
+                if t >= now:
+                    result.append(
+                        {
+                            "datetime": t,
+                            "precipitation": item.get("precipitation", 0),
+                        }
+                    )
+
+        return {"forecast": result}
