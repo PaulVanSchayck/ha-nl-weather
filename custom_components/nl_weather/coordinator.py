@@ -14,7 +14,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import utcnow
 
-from .const import APP_API_SCAN_INTERVAL, CONF_STATION, PARAMETER_ATTRIBUTE_MAP
+from .const import (
+    APP_FORECAST_API_SCAN_INTERVAL,
+    CONF_STATION,
+    PARAMETER_ATTRIBUTE_MAP,
+    APP_NOWCAST_API_SCAN_INTERVAL,
+)
 from .KNMI.edr import EDR, NotFoundError, ServerError
 from .KNMI.app import App, AppException
 from .KNMI.notification_service import NotificationService
@@ -38,6 +43,7 @@ class RuntimeData:
     app: App
     edr: EDR
     app_coordinators: dict[str, NLWeatherUpdateCoordinator]
+    nowcast_coordinators: dict[str, NLWeatherNowcastCoordinator]
     edr_coordinators: dict[str, NLWeatherEDRCoordinator]
 
 
@@ -59,7 +65,7 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             config_entry=entry,
             name=f"NL Weather KNMI App API data coordinator for {entry.title} ({subentry.data[CONF_NAME]})",
             always_update=False,
-            update_interval=APP_API_SCAN_INTERVAL,
+            update_interval=APP_FORECAST_API_SCAN_INTERVAL,
         )
         self._api = entry.runtime_data.app
         self._location = Coordinate(
@@ -74,17 +80,6 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._forecast_cell = grid_manager.cell(
             GridDefinitions.FORECAST, self._location
         )
-        self._radar_cell = grid_manager.cell(GridDefinitions.RADAR, self._location)
-
-    def _get_precipitation_nowcast(self, precipitation_graph):
-        """Get minute weather data from the forecast."""
-        return [
-            {
-                "datetime": datetime.fromisoformat(time),
-                "precipitation": precipitation_graph["precipitation"]["amounts"][idx],
-            }
-            for idx, time in enumerate(precipitation_graph["precipitation"]["times"])
-        ]
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Obtain the latest data from KNMI App API."""
@@ -104,17 +99,6 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     day_detail["uvIndex"]["value"] if "uvIndex" in day_detail else None
                 )
                 daily_forecast["wind"] = day_detail["wind"]
-
-            # Fetch precipitation nowcast graph
-            now = utcnow()
-            latest_5_minutes = now.replace(
-                minute=floor(now.minute / 5) * 5, second=0, microsecond=0
-            )
-            # TODO: Do we like a different update frequency for this data?
-            precipitation_graph = await self._api.precipitation_graph(
-                self._radar_cell, format_dt(latest_5_minutes)
-            )
-            summary["minute"] = self._get_precipitation_nowcast(precipitation_graph)
         except AppException as err:
             # TODO: Improve error handling
             raise UpdateFailed(f"Error while retrieving data: {err}") from err
@@ -128,6 +112,58 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         ]
 
         return summary
+
+
+class NLWeatherNowcastCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
+    """Coordinator for NL Weather precipitation nowcast data."""
+
+    def __init__(
+        self, hass: HomeAssistant, entry: NLWeatherConfigEntry, subentry: ConfigSubentry
+    ) -> None:
+        super().__init__(
+            hass,
+            _LOGGER,
+            config_entry=entry,
+            name=f"NL Weather KNMI App API precipitation nowcast coordinator for {entry.title} ({subentry.data[CONF_NAME]})",
+            always_update=False,
+            update_interval=APP_NOWCAST_API_SCAN_INTERVAL,
+        )
+        self._api = entry.runtime_data.app
+        self._location = Coordinate(
+            subentry.data[CONF_LATITUDE],
+            subentry.data[CONF_LONGITUDE],
+        )
+        self._region = subentry.data[CONF_REGION]
+
+    async def _async_setup(self) -> None:
+        grid_manager = GridManager.default()
+        self._radar_cell = grid_manager.cell(GridDefinitions.RADAR, self._location)
+
+    def _get_precipitation_nowcast(self, precipitation_graph):
+        """Get 5 minute weather data from the forecast."""
+        return [
+            {
+                "datetime": datetime.fromisoformat(time),
+                "precipitation": precipitation_graph["precipitation"]["amounts"][idx],
+            }
+            for idx, time in enumerate(precipitation_graph["precipitation"]["times"])
+        ]
+
+    async def _async_update_data(self) -> list[dict[str, Any]]:
+        now = utcnow()
+        latest_5_minutes = now.replace(
+            minute=floor(now.minute / 5) * 5, second=0, microsecond=0
+        )
+        try:
+            precipitation_graph = await self._api.precipitation_graph(
+                self._radar_cell, format_dt(latest_5_minutes)
+            )
+            return self._get_precipitation_nowcast(precipitation_graph)
+        except AppException as err:
+            # Nowcast is non-critical for the forecast entity
+            raise UpdateFailed(
+                f"Error while retrieving precipitation nowcast: {err}"
+            ) from err
 
 
 class NLWeatherEDRCoordinator(DataUpdateCoordinator):

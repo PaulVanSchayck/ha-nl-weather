@@ -23,6 +23,7 @@ from .coordinator import (
     NLWeatherConfigEntry,
     NLWeatherAutoEDRCoordinator,
     NLWeatherManualEDRCoordinator,
+    NLWeatherNowcastCoordinator,
     NLWeatherUpdateCoordinator,
     RuntimeData,
 )
@@ -51,12 +52,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: NLWeatherConfigEntry) ->
         app=App(session),
         edr=edr,
         app_coordinators={},
+        nowcast_coordinators={},
         edr_coordinators={},
     )
 
     for subentry_id, subentry in entry.subentries.items():
         entry.runtime_data.app_coordinators[subentry_id] = NLWeatherUpdateCoordinator(
             hass, entry, subentry
+        )
+        entry.runtime_data.nowcast_coordinators[subentry_id] = (
+            NLWeatherNowcastCoordinator(hass, entry, subentry)
         )
         if subentry.data[CONF_MODE] == StationMode.AUTO:
             entry.runtime_data.edr_coordinators[subentry_id] = (
@@ -75,6 +80,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: NLWeatherConfigEntry) ->
         *[
             c.async_config_entry_first_refresh()
             for c in entry.runtime_data.edr_coordinators.values()
+        ],
+        *[
+            c.async_config_entry_first_refresh()
+            for c in entry.runtime_data.nowcast_coordinators.values()
         ],
     )
 
