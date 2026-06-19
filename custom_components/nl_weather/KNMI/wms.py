@@ -4,7 +4,7 @@ import io
 import logging
 import xml.etree.ElementTree as ET
 
-from custom_components.nl_weather.KNMI.helpers import format_dt
+from .helpers import format_dt
 
 BASE_URL = "https://api.dataplatform.knmi.nl/wms/adaguc-server"
 BASE_PARAMS = {
