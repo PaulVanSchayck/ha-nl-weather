@@ -81,11 +81,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: NLWeatherConfigEntry) ->
             c.async_config_entry_first_refresh()
             for c in entry.runtime_data.edr_coordinators.values()
         ],
-        *[
-            c.async_config_entry_first_refresh()
-            for c in entry.runtime_data.nowcast_coordinators.values()
-        ],
     )
+
+    # Setup nowcast coordinators in a way where they are allowed to fail
+    for c in entry.runtime_data.nowcast_coordinators.values():
+        await c._async_setup()
+        hass.async_create_task(c.async_refresh())
 
     await hass.config_entries.async_forward_entry_setups(entry, _PLATFORMS)
 
