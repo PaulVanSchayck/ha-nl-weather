@@ -94,7 +94,7 @@ class NLWeatherPrecipitationNowcastSensor(
     @property
     def extra_state_attributes(self):
         if self.coordinator.data is None:
-            return {}
+            return {"forecast": []}
         return {"forecast": self.coordinator.data}
 
     @property
