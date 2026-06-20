@@ -4,6 +4,8 @@ import io
 import logging
 import xml.etree.ElementTree as ET
 
+from .helpers import format_dt
+
 BASE_URL = "https://api.dataplatform.knmi.nl/wms/adaguc-server"
 BASE_PARAMS = {
     "SERVICE": "WMS",
@@ -40,8 +42,8 @@ class WMS:
 
     async def get(self, params):
         headers = {"Authorization": self._token}
+        await self.wait_for_rate()
         async with self._semaphore:
-            await self.wait_for_rate()
             async with self._session.get(
                 f"{BASE_URL}", headers=headers, params=params
             ) as resp:
@@ -81,7 +83,9 @@ class WMS:
 
     async def radar_real_time_image(self, time, size, bbox, style):
         params = BASE_PARAMS.copy()
-        params["TIME"] = time.isoformat()
+        # The zulu "Z" format (instead of +00:00) is needed to enable long-term caching.
+        # https://github.com/KNMI/adaguc-server/issues/719
+        params["TIME"] = format_dt(time)
         params["DATASET"] = "nl_rdr_data_rtcor_5m"
         params["LAYERS"] = "precipitation_real_time"
         params["STYLES"] = style
@@ -92,8 +96,10 @@ class WMS:
 
     async def radar_forecast_image(self, ref_time, time, size, bbox, style):
         params = BASE_PARAMS.copy()
-        params["DIM_REFERENCE_TIME"] = ref_time.isoformat()
-        params["TIME"] = time.isoformat()
+        # The zulu "Z" format (instead of +00:00) is needed to enable long-term caching.
+        # https://github.com/KNMI/adaguc-server/issues/719
+        params["DIM_REFERENCE_TIME"] = format_dt(ref_time)
+        params["TIME"] = format_dt(time)
         params["DATASET"] = "radar_forecast_2.0"
         params["LAYERS"] = "precipitation_nowcast"
         params["STYLES"] = style

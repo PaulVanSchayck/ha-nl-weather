@@ -140,7 +140,8 @@ ALERT_REGIONS = {
     "15": "Zuid-Holland",
 }
 
-APP_API_SCAN_INTERVAL = timedelta(minutes=15)
+APP_FORECAST_API_SCAN_INTERVAL = timedelta(minutes=15)
+APP_NOWCAST_API_SCAN_INTERVAL = timedelta(minutes=5)
 
 # Based on https://gitlab.com/KNMI-OSS/KNMI-App/knmi-app-api/-/blob/main/app/helpers/weather.ts
 # And https://gitlab.com/KNMI-OSS/KNMI-App/knmi-app-android/-/blob/main/app/src/main/java/nl/knmi/weer/util/WeatherTypeExtension.kt

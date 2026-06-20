@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 import logging
 from typing import cast
 
@@ -44,6 +45,7 @@ from homeassistant.helpers import entity_platform
 from .coordinator import (
     NLWeatherConfigEntry,
     NLWeatherUpdateCoordinator,
+    NLWeatherNowcastCoordinator,
     NLWeatherEDRCoordinator,
 )
 from .const import (
@@ -79,6 +81,7 @@ async def async_setup_entry(
         entities = [
             NLWeatherForecast(
                 config_entry.runtime_data.app_coordinators[subentry_id],
+                config_entry.runtime_data.nowcast_coordinators[subentry_id],
                 config_entry,
                 subentry,
             ),
@@ -226,10 +229,15 @@ class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEn
     _daily_forecast: list[Forecast] = []
 
     def __init__(
-        self, coordinator, config_entry: NLWeatherConfigEntry, subentry: ConfigSubentry
+        self,
+        coordinator: NLWeatherUpdateCoordinator,
+        nowcast_coordinator: NLWeatherNowcastCoordinator | None,
+        config_entry: NLWeatherConfigEntry,
+        subentry: ConfigSubentry,
     ) -> None:
         super().__init__(coordinator)
 
+        self._nowcast_coordinator = nowcast_coordinator
         self._location = {
             "lat": subentry.data[CONF_LATITUDE],
             "lon": subentry.data[CONF_LONGITUDE],
@@ -322,10 +330,21 @@ class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEn
 
     async def async_get_minute_forecast(self) -> dict[str, list[dict]] | dict:
         """Return minute forecast"""
-        # Filter from now, as this is what the other nowcast integrations (OpenWeatherMaps and DWD-nowcast) seem to do
+        if self._nowcast_coordinator is None or self._nowcast_coordinator.data is None:
+            return {"forecast": []}
+
         now = utcnow()
-        return {
-            "forecast": [
-                p for p in self.coordinator.data["minute"] if p["datetime"] >= now
-            ]
-        }
+        result = []
+        # Fill the 5 minute values with repeating values every minute
+        for item in self._nowcast_coordinator.data:
+            for offset in range(5):
+                t = item["datetime"] + timedelta(minutes=offset)
+                if t >= now:
+                    result.append(
+                        {
+                            "datetime": t,
+                            "precipitation": item.get("precipitation", 0),
+                        }
+                    )
+
+        return {"forecast": result}
