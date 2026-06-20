@@ -173,12 +173,14 @@ class PrecipitationRadarCam(Camera):
             )
 
         pending_tasks: dict[asyncio.Task[tuple[datetime, io.BytesIO]], datetime] = {}
+        # Fetch images from previous hour
         time = ref_time - timedelta(minutes=60)
         while time < ref_time:
             task = asyncio.create_task(fetch_realtime_with_time(time))
             pending_tasks[task] = time
             time += timedelta(minutes=10)
 
+        # Fetch prediction for next two hour
         time = ref_time
         while time <= ref_time + timedelta(minutes=120):
             task = asyncio.create_task(fetch_forecast_with_time(ref_time, time))
