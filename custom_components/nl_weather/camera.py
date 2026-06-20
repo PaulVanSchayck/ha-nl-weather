@@ -144,7 +144,17 @@ class PrecipitationRadarCam(Camera):
 
     async def __retrieve_radar_image(self, ref_time) -> bool:
         """Retrieve new radar image and return whether this succeeded."""
+        time_to_image = await self._fetch_radar_frames(ref_time)
 
+        if not time_to_image:
+            _LOGGER.warning("No radar images were successfully retrieved")
+            return self._error_image()
+
+        _LOGGER.debug("Done retrieving radar images, now converting to gif")
+        self._assemble_radar_gif(time_to_image)
+        return True
+
+    async def _fetch_radar_frames(self, ref_time) -> dict[datetime, Image.Image]:
         async def fetch_forecast_with_time(r, t):
             return t, await self._wms.radar_forecast_image(
                 r,
@@ -162,84 +172,88 @@ class PrecipitationRadarCam(Camera):
                 self._radar_style.wms_style,
             )
 
-        # Create all fetch tasks
-        pending_tasks = {}
-        # Store processed images by time for ordered assembly
-        time_to_image = {}
-
-        # Fetch images from previous hour
+        pending_tasks: dict[asyncio.Task[tuple[datetime, io.BytesIO]], datetime] = {}
         time = ref_time - timedelta(minutes=60)
         while time < ref_time:
             task = asyncio.create_task(fetch_realtime_with_time(time))
             pending_tasks[task] = time
             time += timedelta(minutes=10)
+
         time = ref_time
-        # Fetch prediction for next two hour
         while time <= ref_time + timedelta(minutes=120):
             task = asyncio.create_task(fetch_forecast_with_time(ref_time, time))
             pending_tasks[task] = time
             time += timedelta(minutes=10)
 
+        time_to_image: dict[datetime, Image.Image] = {}
+
         _LOGGER.debug(f"Fetching {len(pending_tasks)} radar images")
 
-        # Process images as they complete
-        for completed_task in asyncio.as_completed(pending_tasks.keys()):
-            try:
-                img_time, buf = await completed_task
-                img = Image.open(buf, formats=["PNG"]).convert("RGBA")
-                # Release BytesIO buffer immediately after loading
-                del buf
-            except (WMSException, asyncio.TimeoutError) as e:
-                _LOGGER.warning("Error processing radar image: %s", e)
-                # Continue processing remaining images
-                continue
-            except Exception as e:
-                _LOGGER.exception("Error processing radar image: %s", e)
-                # Stop processing. Probably fatal
-                for task in pending_tasks.keys():
-                    task.cancel()
-                break
+        try:
+            # We seem to have 10 seconds to assemble the image. Wait for 7 seconds and allow for some time to assemble the gif
+            async with asyncio.timeout(7):
+                for completed_task in asyncio.as_completed(pending_tasks.keys()):
+                    try:
+                        img_time, buf = await completed_task
+                        time_to_image[img_time] = self._process_radar_frame(
+                            buf, img_time, ref_time
+                        )
+                    except (WMSException, asyncio.TimeoutError) as e:
+                        _LOGGER.warning("Error processing radar image: %s", e)
+                        continue
+                    except Exception as e:
+                        _LOGGER.exception("Error processing radar image: %s", e)
+                        for task in pending_tasks.keys():
+                            task.cancel()
+                        break
+        except asyncio.TimeoutError:
+            _LOGGER.warning(
+                f"Retrieving radar images timeouted after 7 seconds and {len(time_to_image)} radar frames"
+            )
 
+        _LOGGER.debug(f"Retrieved and processed {len(time_to_image)} radar frames")
+        return time_to_image
+
+    def _process_radar_frame(
+        self, buf: io.BytesIO, img_time: datetime, ref_time: datetime
+    ) -> Image.Image:
+        img = Image.open(buf, formats=["PNG"]).convert("RGBA")
+        del buf
+
+        draw = ImageDraw.Draw(img)
+        draw.text(
+            (28, 28),
+            dt_util.as_local(img_time).strftime("%a %H:%M"),
+            fill=self._radar_style.time_past_color
+            if img_time <= ref_time
+            else self._radar_style.time_future_color,
+            font_size=45,
+            stroke_width=0.8,
+        )
+
+        composite = Image.composite(img, self._background_image, img)
+        img.close()
+        return composite
+
+    def _error_image(self) -> bool:
+        with io.BytesIO() as output:
+            img = self._background_image.copy()
             draw = ImageDraw.Draw(img)
             draw.text(
                 (28, 28),
-                dt_util.as_local(img_time).strftime("%a %H:%M"),
-                fill=self._radar_style.time_past_color
-                if img_time <= ref_time
-                else self._radar_style.time_future_color,
-                font_size=45,
+                "No radar images were successfully retrieved (check log)",
+                fill="red",
+                font_size=40,
                 stroke_width=0.8,
             )
+            img.save(output, format="GIF")
+            self._last_image = output.getvalue()
 
-            # Composite and release intermediate image
-            composite = Image.composite(img, self._background_image, img)
-            img.close()
-            time_to_image[img_time] = composite
+        return True
 
-        _LOGGER.debug(f"Retrieved and processed {len(time_to_image)} radar images")
-
-        if not time_to_image:
-            _LOGGER.warning("No radar images were successfully retrieved")
-            with io.BytesIO() as output:
-                img = self._background_image.copy()
-                draw = ImageDraw.Draw(img)
-                draw.text(
-                    (28, 28),
-                    "No radar images were successfully retrieved (check log)",
-                    fill="red",
-                    font_size=40,
-                    stroke_width=0.8,
-                )
-                img.save(output, format="GIF")
-                self._last_image = output.getvalue()
-            return True
-
-        # Assemble GIF from images in chronological order
-        # Sort by time to maintain correct animation order
+    def _assemble_radar_gif(self, time_to_image: dict[datetime, Image.Image]) -> None:
         sorted_times = sorted(time_to_image.keys())
         images = [time_to_image[t] for t in sorted_times]
-
-        _LOGGER.debug("Done retrieving radar images, now converting to gif")
 
         with io.BytesIO() as output:
             images[0].save(
@@ -255,8 +269,6 @@ class PrecipitationRadarCam(Camera):
             self._last_image = output.getvalue()
 
         _LOGGER.debug("Stored image")
-
-        return True
 
     async def __latest_image_datetime(self):
         # Get the latest available image from a GetCapabilities call
