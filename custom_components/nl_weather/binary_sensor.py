@@ -9,7 +9,11 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import Alert
 from . import DOMAIN
-from .coordinator import NLWeatherUpdateCoordinator, NLWeatherConfigEntry
+from .coordinator import (
+    NLWeatherConfigEntry,
+    NLWeatherNowcastCoordinator,
+    NLWeatherUpdateCoordinator,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.util import utcnow
 
@@ -20,12 +24,15 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     for subentry_id, subentry in config_entry.subentries.items():
-        coordinator = config_entry.runtime_data.app_coordinators[subentry_id]
+        app_coordinator = config_entry.runtime_data.app_coordinators[subentry_id]
+        nowcast_coordinator = config_entry.runtime_data.nowcast_coordinators[
+            subentry_id
+        ]
         async_add_entities(
             [
-                NLWeatherAlertActiveSensor(coordinator, config_entry, subentry),
+                NLWeatherAlertActiveSensor(app_coordinator, config_entry, subentry),
                 NLWeatherPrecipitationNowcastSensor(
-                    coordinator, config_entry, subentry
+                    nowcast_coordinator, config_entry, subentry
                 ),
             ],
             config_subentry_id=subentry_id,
@@ -61,10 +68,13 @@ class NLWeatherAlertActiveSensor(
 
 
 class NLWeatherPrecipitationNowcastSensor(
-    CoordinatorEntity[NLWeatherUpdateCoordinator], BinarySensorEntity
+    CoordinatorEntity[NLWeatherNowcastCoordinator], BinarySensorEntity
 ):
     def __init__(
-        self, coordinator, config_entry: NLWeatherConfigEntry, subentry: ConfigSubentry
+        self,
+        coordinator: NLWeatherNowcastCoordinator,
+        config_entry: NLWeatherConfigEntry,
+        subentry: ConfigSubentry,
     ) -> None:
         super().__init__(coordinator)
 
@@ -83,12 +93,17 @@ class NLWeatherPrecipitationNowcastSensor(
 
     @property
     def extra_state_attributes(self):
-        return {"forecast": self.coordinator.data["minute"]}
+        if self.coordinator.data is None:
+            return {"forecast": []}
+        return {"forecast": self.coordinator.data}
 
     @property
     def is_on(self):
+        if self.coordinator.data is None:
+            return False
+
         now = utcnow()
         return any(
             p["datetime"] > now and p["precipitation"] > 0
-            for p in self.coordinator.data["minute"]
+            for p in self.coordinator.data
         )
