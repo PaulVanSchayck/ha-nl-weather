@@ -13,7 +13,7 @@ _Using default cards and radar in bright color theme_
 ![Screenshot of NL Weather with dark mode radar](images/nl-weather-dark.png "NL Weather integration")
 
 _In this screenshot the custom card [Weather Forecast Extended](https://github.com/Thyraz/weather-forecast-extended) 
-is used to display the forecast, warnings and observations. For the radar image the “Picture with entity” card is used._ 
+is used to display the forecast and nowcast. For the radar image the “Picture with entity” card is used._ 
 
 ## Features
 
@@ -94,14 +94,16 @@ The integration creates the following entities for each configured location:
 
 - `weather.weer_{location}_observations` for current weather observations
 - `weather.weer_{location}_forecast` for the weather forecast
-  - This entity also supports the service call `get_minute_forecast` to get the precipitation nowcast
+  - This entity also supports the service call `get_minute_forecast` to get the precipitation nowcast.
 
 ### Sensor entities
+
+![Screenshot of precipitation nowcast](images/sensors.png "Precipitation Nowcast")
 
 - Weather alert text and alert level
 - Forecast temperature sensors for today's and tomorrow's highs and lows
 - Precipitation forecast binary sensor 
-  - Nowcast graph data stored as a sensor attribute
+  - Nowcast graph data stored as a sensor attribute `forecast` (in mm/h)
 - Observations
   - Temperature (air at 1.5 m and 10 cm and soil at -10 cm)
   - Relative humidity
@@ -136,14 +138,22 @@ The data for the graph is available in two ways:
 
 1. As service call `get_minute_forecast` to the `weather.weer_{location}_forecast` entity. 
     - This has been pruned to only include data from now onwards.
+    - At a minute interval
 2. As `forecast` attribute to the `sensor.weer_{location}_precipitation_expected` sensor. 
     - Use the HA Developer Tools to inspect the sensor
+    - This contains also data from the past
+    - At a 5 minute interval, as the API provides.
 
-There are two good ways to render a graph from this. The first one is using [Weather Forecast Extended](https://github.com/Thyraz/weather-forecast-extended), 
-which makes use of the `get_minute_forecast` service. Refer to the configuration of that card, how to setup the nowcast entities. The second one is making use of [ApexCharts Card](https://github.com/RomRider/apexcharts-card) and render the data from the sensor. This is an example configuration:
+There are two good ways to render a graph from this. 
+
+1. Using [Weather Forecast Extended](https://github.com/Thyraz/weather-forecast-extended), 
+which makes use of the `get_minute_forecast` service. Refer to the configuration of that card, how to setup the nowcast entities. 
+2. Making use of [ApexCharts Card](https://github.com/RomRider/apexcharts-card) and render the data from the sensor. This is an example configuration:
 
 ```yaml
 type: custom:apexcharts-card
+experimental:
+  color_threshold: true
 graph_span: 3h
 span:
   start: hour
@@ -155,7 +165,7 @@ now:
   label: Now
 series:
   - entity: binary_sensor.weer_thuis_neerslag_verwacht
-    unit: mm
+    unit: mm/h
     type: area
     opacity: 0.3
     stroke_width: 1
@@ -165,9 +175,9 @@ series:
         color: lightblue
       - value: 1
         color: blue
-      - value: 10
+      - value: 3
         color: orange
-      - value: 25
+      - value: 7
         color: red
     data_generator: |
       const data = entity.attributes.forecast || [];
@@ -175,6 +185,31 @@ series:
         new Date(p.datetime).getTime(),
         p.precipitation ?? 0
       ]);
+```
+To make something like this:
+
+![Screenshot of precipitation nowcast](images/nowcast.png "Precipitation Nowcast")
+
+### Creating a precipitation expected sensor with a custom threshold
+
+The default `sensor.weer_{location}_precipitation_expected` will trigger at any precipitation (e.g 0.1 mm/h). If you like a higher threshold, you can add this templated binary sensor in your `configuration.yaml`:
+
+```yaml
+template:
+  - binary_sensor:
+      - name: "Precipitation Expected (2 mm/h threshold)"
+        unique_id: weer_home_precipitation_expected_threshold
+        state: >
+          {% set threshold = 2 %}
+          {% set now = now() %}
+          {% set nowcast = state_attr('binary_sensor.weer_home_precipitation_expected','forecast') or [] %}
+          {% set ns = namespace(rain=false) %}
+          {% for p in nowcast %}
+            {% if p.datetime > now and (p.precipitation | default(0)) > threshold %}
+              {% set ns.rain = true %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.rain }}
 ```
 
 ## Contributing
