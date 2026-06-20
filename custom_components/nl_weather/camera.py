@@ -209,8 +209,10 @@ class PrecipitationRadarCam(Camera):
                             task.cancel()
                         break
         except asyncio.TimeoutError:
+            for task in pending_tasks.keys():
+                task.cancel()
             _LOGGER.warning(
-                f"Retrieving radar images timeouted after 7 seconds and {len(time_to_image)} radar frames"
+                f"Retrieving radar images timed out after 7 seconds and {len(time_to_image)} radar frames"
             )
 
         _LOGGER.debug(f"Retrieved and processed {len(time_to_image)} radar frames")
@@ -269,6 +271,9 @@ class PrecipitationRadarCam(Camera):
                 disposal=2,
             )
             self._last_image = output.getvalue()
+
+        for img in images:
+            img.close()
 
         _LOGGER.debug("Stored image")
 
