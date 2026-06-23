@@ -112,6 +112,12 @@
       },
       "forecast_tomorrow_low": {
         "name": "Min temperatuur morgen"
+      },
+      "heat_force_index_now": {
+        "name": "Hitte kracht index nu"
+      },
+      "heat_force_index_today": {
+        "name": "Hitte kracht index vandaag"
       }
     },
     "binary_sensor": {

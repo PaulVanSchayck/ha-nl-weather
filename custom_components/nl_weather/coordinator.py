@@ -99,6 +99,9 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     day_detail["uvIndex"]["value"] if "uvIndex" in day_detail else None
                 )
                 daily_forecast["wind"] = day_detail["wind"]
+                daily_forecast["heatIndex"] = (
+                    day_detail["heatIndex"] if "heatIndex" in day_detail else None
+                )
         except AppException as err:
             # TODO: Improve error handling
             raise UpdateFailed(f"Error while retrieving data: {err}") from err

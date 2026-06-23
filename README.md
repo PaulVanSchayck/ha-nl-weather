@@ -104,6 +104,10 @@ The integration creates the following entities for each configured location:
 - Forecast temperature sensors for today's and tomorrow's highs and lows
 - Precipitation forecast binary sensor 
   - Nowcast graph data stored as a sensor attribute `forecast` (in mm/h)
+- Heat force index (hitte kracht) for now and today
+  - Index of the Wet Bulb Globe Temperature.
+  - See https://www.knmi.nl/kennis-en-datacentrum/uitleg/hittekracht
+  - These are forecasted values and not based on measurements
 - Observations
   - Temperature (air at 1.5 m and 10 cm and soil at -10 cm)
   - Relative humidity

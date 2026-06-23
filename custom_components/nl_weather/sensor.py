@@ -65,9 +65,8 @@ class ObservationSensorDescription(SensorEntityDescription):
 
 
 @dataclass(frozen=True)
-class ForecastTemperatureDescription(SensorEntityDescription):
-    day_index: int | None = None
-    temp_key: str | None = None
+class ForecastSensorDescription(SensorEntityDescription):
+    value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
 
 
 def _get_alert_description(data: dict[str, Any]) -> str | None:
@@ -108,6 +107,23 @@ def _get_wind_direction_cardinal(data: dict[str, Any]) -> str | None:
         return None
     index = int((float(degrees) + 11.25) / 22.5) % 16
     return VALID_CARDINAL_DIRECTIONS[index]
+
+
+def _get_forecast_temperature(
+    day_index: int, temp_key: str
+) -> Callable[[dict[str, Any]], Any]:
+    """Return a value_fn that extracts a forecast temperature.
+
+    The returned callable accepts the full coordinator data dict.
+    """
+
+    def _fn(data: dict[str, Any]) -> Any:
+        try:
+            return data["daily"]["forecast"][day_index]["temperature"][temp_key]
+        except (KeyError, IndexError, TypeError):
+            return None
+
+    return _fn
 
 
 ALERT_SENSOR_DESCRIPTIONS: list[AlertSensorDescription] = [
@@ -297,38 +313,48 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
 ]
 
 
-FORECAST_TEMPERATURE_DESCRIPTIONS: list[ForecastTemperatureDescription] = [
-    ForecastTemperatureDescription(
+FORECAST_SENSOR_DESCRIPTIONS: list[ForecastSensorDescription] = [
+    ForecastSensorDescription(
         key="forecast_today_high",
         translation_key="forecast_today_high",
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
-        day_index=0,
-        temp_key="max",
+        value_fn=_get_forecast_temperature(0, "max"),
     ),
-    ForecastTemperatureDescription(
+    ForecastSensorDescription(
         key="forecast_today_low",
         translation_key="forecast_today_low",
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
-        day_index=0,
-        temp_key="min",
+        value_fn=_get_forecast_temperature(0, "min"),
     ),
-    ForecastTemperatureDescription(
+    ForecastSensorDescription(
         key="forecast_tomorrow_high",
         translation_key="forecast_tomorrow_high",
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
-        day_index=1,
-        temp_key="max",
+        value_fn=_get_forecast_temperature(1, "max"),
     ),
-    ForecastTemperatureDescription(
+    ForecastSensorDescription(
         key="forecast_tomorrow_low",
         translation_key="forecast_tomorrow_low",
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
-        day_index=1,
-        temp_key="min",
+        value_fn=_get_forecast_temperature(1, "min"),
+    ),
+    ForecastSensorDescription(
+        key="heat_force_index_now",
+        translation_key="heat_force_index_now",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:sun-thermometer",
+        value_fn=lambda data: data["hourly"]["forecast"][0].get("heatIndex", None),
+    ),
+    ForecastSensorDescription(
+        key="heat_force_index_today",
+        translation_key="heat_force_index_today",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:sun-thermometer-outline",
+        value_fn=lambda data: data["daily"]["forecast"][0].get("heatIndex", None),
     ),
 ]
 
@@ -349,10 +375,8 @@ async def async_setup_entry(
                 for desc in ALERT_SENSOR_DESCRIPTIONS
             ],
             *[
-                NLForecastTemperatureSensor(
-                    app_coordinator, config_entry, subentry, desc
-                )
-                for desc in FORECAST_TEMPERATURE_DESCRIPTIONS
+                NLForecastSensor(app_coordinator, config_entry, subentry, desc)
+                for desc in FORECAST_SENSOR_DESCRIPTIONS
             ],
             *[
                 NLObservationSensor(edr_coordinator, config_entry, subentry, desc)
@@ -416,15 +440,13 @@ class NLObservationSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEnti
         return self._value_fn(self.coordinator.data)
 
 
-class NLForecastTemperatureSensor(
-    CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity
-):
+class NLForecastSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity):
     def __init__(
         self,
         coordinator: NLWeatherUpdateCoordinator,
         config_entry: NLWeatherConfigEntry,
         subentry: ConfigSubentry,
-        desc: ForecastTemperatureDescription,
+        desc: ForecastSensorDescription,
     ) -> None:
         super().__init__(coordinator)
 
@@ -436,11 +458,10 @@ class NLForecastTemperatureSensor(
             identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
         )
         self._attr_has_entity_name = True
-        self._day_index = desc.day_index
-        self._temp_key = desc.temp_key
+        self._value_fn = desc.value_fn
 
     @property
     def native_value(self):
-        return self.coordinator.data["daily"]["forecast"][self._day_index][
-            "temperature"
-        ][self._temp_key]
+        if self.coordinator.data is None:
+            return None
+        return self._value_fn(self.coordinator.data)
