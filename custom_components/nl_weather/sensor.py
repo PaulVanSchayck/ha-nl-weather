@@ -74,12 +74,12 @@ def _get_alert_description(data: dict[str, Any]) -> str | None:
     alerts = data.get("alerts", [])
     if not alerts:
         return "none"
-    # TODO: Not dealing with multiple alerts yet
-    return alerts[0].get("description")
+    # Join multiple warnings together
+    return ". ".join([a.get("description") for a in alerts])
 
 
 def _get_alert_level(data: dict[str, Any]) -> Alert:
-    # TODO: Not dealing with multiple alerts yet
+    # TODO: Is the first alert always the highest?
     try:
         return Alert(data["hourly"]["forecast"][0]["alertLevel"])
     except (KeyError, IndexError, TypeError, ValueError):
