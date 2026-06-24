@@ -300,6 +300,7 @@ class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEn
                     "native_wind_speed": h["wind"]["speed"],
                     "native_wind_gust_speed": h["wind"]["gusts"],
                     "wind_bearing": h["wind"]["degree"],
+                    "heat_force_index": h["heatIndex"],
                 },
             )
             for h in self.coordinator.data["hourly"]["forecast"]
@@ -323,6 +324,7 @@ class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEn
                     "native_wind_gust_speed": d["wind"]["gusts"],
                     "wind_bearing": d["wind"]["degree"],
                     "uv_index": d["uv_index"],
+                    "heat_force_index": d["heatIndex"],
                 },
             )
             for d in self.coordinator.data["daily"]["forecast"]
