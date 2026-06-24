@@ -343,8 +343,8 @@ FORECAST_SENSOR_DESCRIPTIONS: list[ForecastSensorDescription] = [
         value_fn=_get_forecast_temperature(1, "min"),
     ),
     ForecastSensorDescription(
-        key="heat_force_index_now",
-        translation_key="heat_force_index_now",
+        key="heat_force_index",
+        translation_key="heat_force_index",
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:sun-thermometer",
         value_fn=lambda data: data["hourly"]["forecast"][0].get("heatIndex", None),

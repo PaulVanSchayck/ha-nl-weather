@@ -113,11 +113,11 @@
       "forecast_tomorrow_low": {
         "name": "Min temperature tomorrow"
       },
-      "heat_force_index_now": {
-        "name": "Heat force index now"
+      "heat_force_index": {
+        "name": "Heat force"
       },
       "heat_force_index_today": {
-        "name": "Heat force index today"
+        "name": "Max heat force today"
       }
     },
     "binary_sensor": {
