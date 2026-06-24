@@ -8,7 +8,7 @@ directly fetched from KNMI (the Royal Netherlands Meteorological Institute).
 
 ![Screenshot of NL Weather](images/nl-weather.png "NL Weather integration")
 
-_Using default cards and radar in bright color theme_
+_Using default cards and radar in bright color theme. Nowcast graph plotted using ApexCharts_
 
 ![Screenshot of NL Weather with dark mode radar](images/nl-weather-dark.png "NL Weather integration")
 
@@ -104,7 +104,7 @@ The integration creates the following entities for each configured location:
 - Forecast temperature sensors for today's and tomorrow's highs and lows
 - Precipitation forecast binary sensor 
   - Nowcast graph data stored as a sensor attribute `forecast` (in mm/h)
-- Heat force index (hitte kracht) for now and today
+- Heat force index (hittekracht) for now and today
   - Index of the Wet Bulb Globe Temperature.
   - See https://www.knmi.nl/kennis-en-datacentrum/uitleg/hittekracht
   - These are forecasted values and not based on measurements
