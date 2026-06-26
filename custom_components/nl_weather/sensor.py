@@ -69,12 +69,32 @@ class ForecastSensorDescription(SensorEntityDescription):
     value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
 
 
-def _get_alert_description(data: dict[str, Any]) -> str | None:
+def _get_alert_descriptions(data: dict[str, Any]) -> list[str]:
     alerts = data.get("alerts", [])
+    return [
+        description.strip()
+        for alert in alerts
+        if isinstance((description := alert.get("description")), str)
+        and description.strip()
+    ]
+
+
+def _get_alert_description(data: dict[str, Any]) -> str | None:
+    alerts = _get_alert_descriptions(data)
     if not alerts:
         return "none"
-    # Join multiple warnings together
-    return ". ".join([a.get("description") for a in alerts])
+    if len(alerts) == 1:
+        return "1 alert"
+    return f"{len(alerts)} alerts"
+
+
+def _get_alert_attributes(data: dict[str, Any]) -> dict[str, Any]:
+    alerts = _get_alert_descriptions(data)
+    return {
+        "alert_count": len(alerts),
+        "alerts": alerts,
+        "description": ". ".join(alerts),
+    }
 
 
 def _get_alert_level(data: dict[str, Any]) -> Alert:
@@ -410,6 +430,12 @@ class NLAlertSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity)
     @property
     def native_value(self):
         return self._value_fn(self.coordinator.data)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        if self.entity_description.key != "alert" or self.coordinator.data is None:
+            return None
+        return _get_alert_attributes(self.coordinator.data)
 
 
 class NLObservationSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEntity):
