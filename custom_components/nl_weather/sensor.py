@@ -74,7 +74,8 @@ def _get_alert_description(data: dict[str, Any]) -> str | None:
     if not alerts:
         return "none"
     # Join multiple warnings together
-    return ". ".join([a.get("description") for a in alerts])
+    all = ". ".join([a.get("description") for a in alerts])
+    return all[:250] + "..." if len(all) > 255 else all
 
 
 def _get_alert_level(data: dict[str, Any]) -> Alert:
