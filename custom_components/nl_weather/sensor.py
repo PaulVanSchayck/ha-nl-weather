@@ -69,31 +69,61 @@ class ForecastSensorDescription(SensorEntityDescription):
     value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
 
 
-def _get_alert_descriptions(data: dict[str, Any]) -> list[str]:
+def _get_alert_code(alert: dict[str, Any], description: str, fallback: Alert) -> str:
+    for key in ("code", "level", "alertLevel", "alert_level"):
+        code = alert.get(key)
+        if isinstance(code, str):
+            try:
+                return Alert(code.lower()).value
+            except ValueError:
+                pass
+
+    description = description.lower()
+    if "code rood" in description:
+        return Alert.RED.value
+    if "code oranje" in description:
+        return Alert.ORANGE.value
+    if "code geel" in description:
+        return Alert.YELLOW.value
+
+    return fallback.value
+
+
+def _get_alerts(data: dict[str, Any]) -> list[dict[str, str]]:
+    fallback_code = _get_alert_level(data)
     alerts = data.get("alerts", [])
     return [
-        description.strip()
+        {
+            "code": _get_alert_code(alert, description, fallback_code),
+            "description": description.strip(),
+        }
         for alert in alerts
-        if isinstance((description := alert.get("description")), str)
+        if isinstance(alert, dict)
+        and isinstance((description := alert.get("description")), str)
         and description.strip()
     ]
 
 
 def _get_alert_description(data: dict[str, Any]) -> str | None:
-    alerts = _get_alert_descriptions(data)
+    alerts = _get_alerts(data)
     if not alerts:
         return "none"
-    if len(alerts) == 1:
-        return "1 alert"
-    return f"{len(alerts)} alerts"
+    return alerts[0]["description"]
+
+
+def _get_alert_count(data: dict[str, Any]) -> int:
+    return len(_get_alerts(data))
 
 
 def _get_alert_attributes(data: dict[str, Any]) -> dict[str, Any]:
-    alerts = _get_alert_descriptions(data)
+    alerts = _get_alerts(data)
+    descriptions = [alert["description"] for alert in alerts]
     return {
         "alert_count": len(alerts),
         "alerts": alerts,
-        "description": ". ".join(alerts),
+        "description": ". ".join(
+            description.removesuffix(".") for description in descriptions
+        ),
     }
 
 
@@ -152,6 +182,13 @@ ALERT_SENSOR_DESCRIPTIONS: list[AlertSensorDescription] = [
         translation_key="weather_alert",
         icon="mdi:weather-cloudy-alert",
         value_fn=_get_alert_description,
+    ),
+    AlertSensorDescription(
+        key="alert_count",
+        translation_key="weather_alert_count",
+        icon="mdi:counter",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=_get_alert_count,
     ),
     AlertSensorDescription(
         key="alert_level",
@@ -429,6 +466,8 @@ class NLAlertSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity)
 
     @property
     def native_value(self):
+        if self.coordinator.data is None:
+            return None
         return self._value_fn(self.coordinator.data)
 
     @property
