@@ -5,7 +5,7 @@
         "name": "Neerslagradar"
       }
     },
-    "weather":{
+    "weather": {
       "observations": {
         "name": "Waarnemingen"
       },
@@ -118,6 +118,21 @@
       },
       "heat_force_index_today": {
         "name": "Max hittekracht vandaag"
+      },
+      "weather_alert_2": {
+        "name": "Waarschuwingen 2",
+        "state": {
+          "none": "Geen"
+        }
+      },
+      "weather_alert_level_2": {
+        "name": "Waarschuwingscode 2",
+        "state": {
+          "orange": "Oranje",
+          "yellow": "Geel",
+          "red": "Rood",
+          "none": "Groen"
+        }
       }
     },
     "binary_sensor": {
@@ -180,10 +195,8 @@
       "initiate_flow": {
         "user": "Nieuwe locatie"
       },
-      "error": {
-      },
-      "abort": {
-      }
+      "error": {},
+      "abort": {}
     }
   },
   "options": {
