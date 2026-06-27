@@ -57,6 +57,7 @@ from .coordinator import (
 @dataclass(frozen=True)
 class AlertSensorDescription(SensorEntityDescription):
     value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
+    alert_index: int = 0
 
 
 @dataclass(frozen=True)
@@ -69,21 +70,75 @@ class ForecastSensorDescription(SensorEntityDescription):
     value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
 
 
-def _get_alert_description(data: dict[str, Any]) -> str | None:
+ALERT_LEVEL_SEVERITY = {
+    Alert.NONE: 0,
+    Alert.YELLOW: 1,
+    Alert.ORANGE: 2,
+    Alert.RED: 3,
+}
+
+
+def _alert_level(alert: dict[str, Any]) -> Alert:
+    for key in ("level", "alertLevel", "severity", "color", "code"):
+        try:
+            return Alert(str(alert[key]).lower())
+        except (KeyError, TypeError, ValueError):
+            continue
+    return Alert.NONE
+
+
+def _alert_category(alert: dict[str, Any]) -> str:
+    for key in ("category", "type", "warningType", "event", "phenomenon"):
+        value = alert.get(key)
+        if value:
+            return str(value).lower()
+
+    # Fall back to the KNMI text so stacked colour levels with identical text still collapse.
+    return str(alert.get("description") or alert.get("title") or id(alert)).lower()
+
+
+def _active_alerts_by_category(data: dict[str, Any]) -> list[dict[str, Any]]:
     alerts = data.get("alerts", [])
-    if not alerts:
+    if not isinstance(alerts, list):
+        return []
+
+    selected: dict[str, dict[str, Any]] = {}
+    for alert in alerts:
+        if not isinstance(alert, dict):
+            continue
+
+        level = _alert_level(alert)
+        if level == Alert.NONE:
+            continue
+
+        category = _alert_category(alert)
+        current = selected.get(category)
+        if (
+            current is None
+            or ALERT_LEVEL_SEVERITY[level] > ALERT_LEVEL_SEVERITY[_alert_level(current)]
+        ):
+            selected[category] = alert
+
+    return sorted(
+        selected.values(),
+        key=lambda alert: ALERT_LEVEL_SEVERITY[_alert_level(alert)],
+        reverse=True,
+    )
+
+
+def _get_alert_description(data: dict[str, Any], index: int = 0) -> str | None:
+    alerts = _active_alerts_by_category(data)
+    if len(alerts) <= index:
         return "none"
-    # Join multiple warnings together
-    all = ". ".join([a.get("description") for a in alerts])
-    return all[:250] + "..." if len(all) > 255 else all
+
+    return alerts[index].get("description")
 
 
-def _get_alert_level(data: dict[str, Any]) -> Alert:
-    # TODO: Is the first alert always the highest?
-    try:
-        return Alert(data["hourly"]["forecast"][0]["alertLevel"])
-    except (KeyError, IndexError, TypeError, ValueError):
+def _get_alert_level(data: dict[str, Any], index: int = 0) -> Alert:
+    alerts = _active_alerts_by_category(data)
+    if len(alerts) <= index:
         return Alert.NONE
+    return _alert_level(alerts[index])
 
 
 def _get_observation_param(
@@ -133,6 +188,7 @@ ALERT_SENSOR_DESCRIPTIONS: list[AlertSensorDescription] = [
         translation_key="weather_alert",
         icon="mdi:weather-cloudy-alert",
         value_fn=_get_alert_description,
+        alert_index=0,
     ),
     AlertSensorDescription(
         key="alert_level",
@@ -141,6 +197,23 @@ ALERT_SENSOR_DESCRIPTIONS: list[AlertSensorDescription] = [
         device_class=SensorDeviceClass.ENUM,
         options=[a.value for a in Alert],
         value_fn=_get_alert_level,
+        alert_index=0,
+    ),
+    AlertSensorDescription(
+        key="alert_2",
+        translation_key="weather_alert_2",
+        icon="mdi:weather-cloudy-alert",
+        value_fn=_get_alert_description,
+        alert_index=1,
+    ),
+    AlertSensorDescription(
+        key="alert_level_2",
+        translation_key="weather_alert_level_2",
+        icon="mdi:alert-box",
+        device_class=SensorDeviceClass.ENUM,
+        options=[a.value for a in Alert],
+        value_fn=_get_alert_level,
+        alert_index=1,
     ),
 ]
 
@@ -410,7 +483,11 @@ class NLAlertSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity)
 
     @property
     def native_value(self):
-        return self._value_fn(self.coordinator.data)
+        if self.coordinator.data is None:
+            return None
+        return self._value_fn(
+            self.coordinator.data, self.entity_description.alert_index
+        )
 
 
 class NLObservationSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEntity):

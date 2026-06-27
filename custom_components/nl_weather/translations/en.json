@@ -5,7 +5,7 @@
         "name": "Precipitation Radar"
       }
     },
-    "weather":{
+    "weather": {
       "observations": {
         "name": "Observations"
       },
@@ -118,6 +118,21 @@
       },
       "heat_force_index_today": {
         "name": "Max heat force today"
+      },
+      "weather_alert_2": {
+        "name": "Alerts 2",
+        "state": {
+          "none": "None"
+        }
+      },
+      "weather_alert_level_2": {
+        "name": "Alert level 2",
+        "state": {
+          "orange": "Orange",
+          "yellow": "Yellow",
+          "red": "Red",
+          "none": "Green"
+        }
       }
     },
     "binary_sensor": {
@@ -180,10 +195,8 @@
       "initiate_flow": {
         "user": "Add location"
       },
-      "error": {
-      },
-      "abort": {
-      }
+      "error": {},
+      "abort": {}
     }
   },
   "options": {
