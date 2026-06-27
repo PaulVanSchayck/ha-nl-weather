@@ -6,6 +6,6 @@
   "documentation": "https://github.com/PaulVanSchayck/ha-nl-weather",
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/PaulVanSchayck/ha-nl-weather/issues",
-  "requirements": ["aiomqtt~=2.5.0", "pyproj~=3.7.2"],
+  "requirements": ["aiomqtt~=2.5.0", "pyproj~=3.7.2", "pythermalcomfort~=2.0.0"],
   "version": "0.11.1"
 }

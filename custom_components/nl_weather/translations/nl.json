@@ -77,6 +77,9 @@
       "observations_temperature_soil": {
         "name": "Grondtemperatuur (-10 cm)"
       },
+      "observations_feels_like": {
+        "name": "Gevoelstemperatuur"
+      },
       "observations_wind_direction": {
         "name": "Windrichting (graden)"
       },
@@ -113,6 +116,12 @@
       "forecast_tomorrow_low": {
         "name": "Min temperatuur morgen"
       },
+      "forecast_precipitation_chance_today": {
+        "name": "Neerslagkans vandaag"
+      },
+      "forecast_precipitation_chance_tomorrow": {
+        "name": "Neerslagkans morgen"
+      },
       "heat_force_index": {
         "name": "Hittekracht"
       },
@@ -126,6 +135,9 @@
       },
       "precipitation_nowcast": {
         "name": "Neerslag verwacht"
+      },
+      "sun": {
+        "name": "Zon"
       }
     }
   },

@@ -27,6 +27,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from pythermalcomfort.models import utci as _calc_utci
 
 from . import DOMAIN
 from .const import (
@@ -62,6 +63,9 @@ class AlertSensorDescription(SensorEntityDescription):
 @dataclass(frozen=True)
 class ObservationSensorDescription(SensorEntityDescription):
     value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
+    state_attributes_fn: Callable[[dict[str, Any]], dict[str, Any] | None] | None = field(
+        default=None, repr=False
+    )
 
 
 @dataclass(frozen=True)
@@ -110,6 +114,51 @@ def _get_wind_direction_cardinal(data: dict[str, Any]) -> str | None:
     return VALID_CARDINAL_DIRECTIONS[index]
 
 
+def _wind_speed_to_beaufort(v_ms: float) -> int | None:
+    if v_ms < 0.3:
+        return 0
+    return int(round((v_ms / 0.836) ** (2 / 3)))
+
+
+def _get_wind_speed_attributes(
+    data: dict[str, Any],
+) -> dict[str, Any] | None:
+    wind_ms = _get_observation_param(data, ATTR_WEATHER_WIND_SPEED)
+    if wind_ms is None:
+        return None
+    return {"beaufort": _wind_speed_to_beaufort(wind_ms)}
+
+
+def _estimate_mrt(
+    temp_c: float, solar_wm2: float, cloud_okta: float | None
+) -> float:
+    if solar_wm2 <= 10:
+        return temp_c
+    if cloud_okta is not None:
+        if cloud_okta == 9:
+            cloud_pct = 100.0
+        else:
+            cloud_pct = cloud_okta / 8.0 * 100.0
+        cloud_frac = max(0.0, min(1.0, cloud_pct / 100.0))
+    else:
+        cloud_frac = 0.5
+    effective_solar = solar_wm2 * (1.0 - 0.5 * cloud_frac)
+    return temp_c + effective_solar * 0.02
+
+
+def _get_feels_like(data: dict[str, Any]) -> float | None:
+    temp = _get_observation_param(data, ATTR_WEATHER_TEMPERATURE)
+    wind_ms = _get_observation_param(data, ATTR_WEATHER_WIND_SPEED)
+    humidity = _get_observation_param(data, ATTR_WEATHER_HUMIDITY)
+    solar = _get_observation_param(data, ATTR_WEATHER_SOLAR_RADIATION)
+    cloud = _get_observation_param(data, ATTR_WEATHER_CLOUD_COVERAGE)
+    if None in (temp, wind_ms, humidity):
+        return None
+    mrt = _estimate_mrt(temp, solar or 0, cloud)
+    v = max(wind_ms, 0.5)
+    return round(float(_calc_utci(tdb=temp, tr=mrt, v=v, rh=humidity)), 1)
+
+
 def _get_forecast_temperature(
     day_index: int, temp_key: str
 ) -> Callable[[dict[str, Any]], Any]:
@@ -121,6 +170,21 @@ def _get_forecast_temperature(
     def _fn(data: dict[str, Any]) -> Any:
         try:
             return data["daily"]["forecast"][day_index]["temperature"][temp_key]
+        except (KeyError, IndexError, TypeError):
+            return None
+
+    return _fn
+
+
+def _get_forecast_precipitation_chance(
+    day_index: int,
+) -> Callable[[dict[str, Any]], Any]:
+    def _fn(data: dict[str, Any]) -> Any:
+        try:
+            chance = data["daily"]["forecast"][day_index]["precipitation"]["chance"]
+            if chance is None:
+                return None
+            return round(chance * 100)
         except (KeyError, IndexError, TypeError):
             return None
 
@@ -190,6 +254,7 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         native_unit_of_measurement=UnitOfSpeed.METERS_PER_SECOND,
         suggested_display_precision=1,
         value_fn=lambda data: _get_observation_param(data, ATTR_WEATHER_WIND_SPEED),
+        state_attributes_fn=_get_wind_speed_attributes,
     ),
     ObservationSensorDescription(
         key="wind_gust",
@@ -311,6 +376,15 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: data.get("datetime"),
     ),
+    ObservationSensorDescription(
+        key="feels_like",
+        translation_key="observations_feels_like",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        suggested_display_precision=1,
+        value_fn=_get_feels_like,
+    ),
 ]
 
 
@@ -342,6 +416,22 @@ FORECAST_SENSOR_DESCRIPTIONS: list[ForecastSensorDescription] = [
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         value_fn=_get_forecast_temperature(1, "min"),
+    ),
+    ForecastSensorDescription(
+        key="precipitation_chance_today",
+        translation_key="forecast_precipitation_chance_today",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=PERCENTAGE,
+        icon="mdi:weather-rainy",
+        value_fn=_get_forecast_precipitation_chance(0),
+    ),
+    ForecastSensorDescription(
+        key="precipitation_chance_tomorrow",
+        translation_key="forecast_precipitation_chance_tomorrow",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=PERCENTAGE,
+        icon="mdi:weather-rainy",
+        value_fn=_get_forecast_precipitation_chance(1),
     ),
     ForecastSensorDescription(
         key="heat_force_index",
@@ -433,12 +523,19 @@ class NLObservationSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEnti
         self._attr_has_entity_name = True
         self._subentry_id = subentry.subentry_id
         self._value_fn = desc.value_fn
+        self._state_attributes_fn = desc.state_attributes_fn
 
     @property
     def native_value(self):
         if self.coordinator.data is None:
             return None
         return self._value_fn(self.coordinator.data)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        if self.coordinator.data is None or self._state_attributes_fn is None:
+            return None
+        return self._state_attributes_fn(self.coordinator.data)
 
 
 class NLForecastSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity):
