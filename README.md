@@ -137,13 +137,13 @@ This allows you to use the data in automations, dashboards, and scripts just lik
 
 ### Rendering the precipitation nowcast graph
 
-Home Assistant lacks a way to directly render the precipitation nowcast graph. 
+Home Assistant lacks a way to directly render the precipitation nowcast graph.
 The data for the graph is available in two ways:
 
-1. As service call `get_minute_forecast` to the `weather.weer_{location}_forecast` entity. 
+1. As service call `get_minute_forecast` to the `weather.weer_{location}_forecast` entity.
     - This has been pruned to only include data from now onwards.
     - At a minute interval
-2. As `forecast` attribute to the `sensor.weer_{location}_precipitation_expected` sensor. 
+2. As `forecast` attribute to the `sensor.weer_{location}_precipitation_forecasted` sensor.
     - Use the HA Developer Tools to inspect the sensor
     - This contains also data from the past
     - At a 5 minute interval, as the API provides.
@@ -168,7 +168,7 @@ now:
   show: true
   label: Now
 series:
-  - entity: binary_sensor.weer_thuis_neerslag_verwacht
+  - entity: binary_sensor.weer_home_precipitation_forecasted
     unit: mm/h
     type: area
     opacity: 0.3
@@ -194,19 +194,19 @@ To make something like this:
 
 ![Screenshot of precipitation nowcast](images/nowcast.png "Precipitation Nowcast")
 
-### Creating a precipitation expected sensor with a custom threshold
+### Creating a precipitation forecasted sensor with a custom threshold
 
-The default `sensor.weer_{location}_precipitation_expected` will trigger at any precipitation (e.g 0.1 mm/h). If you like a higher threshold, you can add this templated binary sensor in your `configuration.yaml`:
+The default `sensor.weer_{location}_precipitation_forecasted` will trigger at any precipitation (e.g 0.1 mm/h). If you like a higher threshold, you can add this templated binary sensor in your `configuration.yaml`:
 
 ```yaml
 template:
   - binary_sensor:
-      - name: "Precipitation Expected (2 mm/h threshold)"
-        unique_id: weer_home_precipitation_expected_threshold
+      - name: "Precipitation forecasted (2 mm/h threshold)"
+        unique_id: weer_home_precipitation_forecasted_threshold
         state: >
           {% set threshold = 2 %}
           {% set now = now() %}
-          {% set nowcast = state_attr('binary_sensor.weer_home_precipitation_expected','forecast') or [] %}
+          {% set nowcast = state_attr('binary_sensor.weer_home_precipitation_forecasted','forecast') or [] %}
           {% set ns = namespace(rain=false) %}
           {% for p in nowcast %}
             {% if p.datetime > now and (p.precipitation | default(0)) > threshold %}
@@ -238,4 +238,3 @@ For further help or discussion you can use
 ---
 
 Thank you for using **NL Weather**! If you like it, please consider starring the repo ⭐  
-
