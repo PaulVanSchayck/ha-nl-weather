@@ -146,7 +146,7 @@ def _estimate_mrt(
     return temp_c + effective_solar * 0.02
 
 
-def _get_feels_like(data: dict[str, Any]) -> float | None:
+def _compute_utci(data: dict[str, Any]) -> Any | None:
     temp = _get_observation_param(data, ATTR_WEATHER_TEMPERATURE)
     wind_ms = _get_observation_param(data, ATTR_WEATHER_WIND_SPEED)
     humidity = _get_observation_param(data, ATTR_WEATHER_HUMIDITY)
@@ -156,7 +156,26 @@ def _get_feels_like(data: dict[str, Any]) -> float | None:
         return None
     mrt = _estimate_mrt(temp, solar or 0, cloud)
     v = max(wind_ms, 0.5)
-    return round(float(_calc_utci(tdb=temp, tr=mrt, v=v, rh=humidity)), 1)
+    return _calc_utci(tdb=temp, tr=mrt, v=v, rh=humidity)
+
+
+def _get_feels_like(data: dict[str, Any]) -> float | None:
+    result = _compute_utci(data)
+    if result is None:
+        return None
+    return round(float(result.utci), 1)
+
+
+def _get_feels_like_attributes(
+    data: dict[str, Any],
+) -> dict[str, Any] | None:
+    result = _compute_utci(data)
+    if result is None:
+        return None
+    return {
+        "utci": round(float(result.utci), 1),
+        "stress_category": result.stress_category.replace(" ", "_"),
+    }
 
 
 def _get_forecast_temperature(
@@ -384,6 +403,7 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         suggested_display_precision=1,
         value_fn=_get_feels_like,
+        state_attributes_fn=_get_feels_like_attributes,
     ),
 ]
 

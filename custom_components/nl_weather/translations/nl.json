@@ -78,7 +78,19 @@
         "name": "Grondtemperatuur (-10 cm)"
       },
       "observations_feels_like": {
-        "name": "Gevoelstemperatuur"
+        "name": "Gevoelstemperatuur",
+        "state": {
+          "extreme_cold_stress": "Extreme koudestress",
+          "very_strong_cold_stress": "Zeer sterke koudestress",
+          "strong_cold_stress": "Sterke koudestress",
+          "moderate_cold_stress": "Matige koudestress",
+          "slight_cold_stress": "Lichte koudestress",
+          "no_thermal_stress": "Geen thermische stress",
+          "moderate_heat_stress": "Matige hittestress",
+          "strong_heat_stress": "Sterke hittestress",
+          "very_strong_heat_stress": "Zeer sterke hittestress",
+          "extreme_heat_stress": "Extreme hittestress"
+        }
       },
       "observations_wind_direction": {
         "name": "Windrichting (graden)"
