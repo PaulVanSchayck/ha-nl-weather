@@ -27,8 +27,6 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from pythermalcomfort.models import utci as _calc_utci
-
 from . import DOMAIN
 from .const import (
     Alert,
@@ -129,52 +127,34 @@ def _get_wind_speed_attributes(
     return {"beaufort": _wind_speed_to_beaufort(wind_ms)}
 
 
-def _estimate_mrt(
-    temp_c: float, solar_wm2: float, cloud_okta: float | None
-) -> float:
-    if solar_wm2 <= 10:
-        return temp_c
-    if cloud_okta is not None:
-        if cloud_okta == 9:
-            cloud_pct = 100.0
-        else:
-            cloud_pct = cloud_okta / 8.0 * 100.0
-        cloud_frac = max(0.0, min(1.0, cloud_pct / 100.0))
-    else:
-        cloud_frac = 0.5
-    effective_solar = solar_wm2 * (1.0 - 0.5 * cloud_frac)
-    return temp_c + effective_solar * 0.02
-
-
-def _compute_utci(data: dict[str, Any]) -> Any | None:
-    temp = _get_observation_param(data, ATTR_WEATHER_TEMPERATURE)
-    wind_ms = _get_observation_param(data, ATTR_WEATHER_WIND_SPEED)
-    humidity = _get_observation_param(data, ATTR_WEATHER_HUMIDITY)
-    solar = _get_observation_param(data, ATTR_WEATHER_SOLAR_RADIATION)
-    cloud = _get_observation_param(data, ATTR_WEATHER_CLOUD_COVERAGE)
-    if None in (temp, wind_ms, humidity):
-        return None
-    mrt = _estimate_mrt(temp, solar or 0, cloud)
-    v = max(wind_ms, 0.5)
-    return _calc_utci(tdb=temp, tr=mrt, v=v, rh=humidity)
+def _calc_steadman_at(temp_c: float, wind_ms: float, rh: float) -> float:
+    e_sat = 6.112 * __import__("math").exp(17.62 * temp_c / (243.12 + temp_c))
+    e = e_sat * (rh / 100.0)
+    return temp_c + 0.33 * e - 0.70 * wind_ms - 4.0
 
 
 def _get_feels_like(data: dict[str, Any]) -> float | None:
-    result = _compute_utci(data)
-    if result is None:
+    temp = _get_observation_param(data, ATTR_WEATHER_TEMPERATURE)
+    wind_ms = _get_observation_param(data, ATTR_WEATHER_WIND_SPEED)
+    humidity = _get_observation_param(data, ATTR_WEATHER_HUMIDITY)
+    if None in (temp, wind_ms, humidity):
         return None
-    return round(float(result.utci), 1)
+    v = max(wind_ms, 0.5)
+    return round(_calc_steadman_at(temp, v, humidity), 1)
 
 
 def _get_feels_like_attributes(
     data: dict[str, Any],
 ) -> dict[str, Any] | None:
-    result = _compute_utci(data)
-    if result is None:
+    temp = _get_observation_param(data, ATTR_WEATHER_TEMPERATURE)
+    wind_ms = _get_observation_param(data, ATTR_WEATHER_WIND_SPEED)
+    humidity = _get_observation_param(data, ATTR_WEATHER_HUMIDITY)
+    if None in (temp, wind_ms, humidity):
         return None
+    v = max(wind_ms, 0.5)
+    at = _calc_steadman_at(temp, v, humidity)
     return {
-        "utci": round(float(result.utci), 1),
-        "stress_category": result.stress_category.replace(" ", "_"),
+        "apparent_temperature": round(at, 1),
     }
 
 
