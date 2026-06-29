@@ -148,7 +148,7 @@ The data for the graph is available in two ways:
     - This contains also data from the past
     - At a 5 minute interval, as the API provides.
 
-There are two good ways to render a graph from this. 
+There are a few good ways to render a graph from this.
 
 1. Using [Weather Forecast Extended](https://github.com/Thyraz/weather-forecast-extended), 
 which makes use of the `get_minute_forecast` service. Refer to the configuration of that card, how to setup the nowcast entities. 
@@ -190,9 +190,45 @@ series:
         p.precipitation ?? 0
       ]);
 ```
+
 To make something like this:
 
 ![Screenshot of precipitation nowcast](images/nowcast.png "Precipitation Nowcast")
+
+3. Making use of [Plotly Graph Card](https://github.com/dbuezas/lovelace-plotly-graph-card) and render the data from the sensor. This is an example configuration:
+
+```yaml
+type: custom:plotly-graph
+title: Precipitation nowcast
+fn: |
+  $fn ({ hass, vars }) => {
+    const forecast = hass.states['binary_sensor.weer_home_precipitation_forecasted']?.attributes?.forecast || [];
+
+    vars.x = forecast.map(p => new Date(p.datetime).getTime());
+    vars.y = forecast.map(p => p.precipitation ?? 0);
+  }
+layout:
+  yaxis:
+    title:
+      text: mm/h
+    rangemode: tozero
+  xaxis:
+    tickformat: "%H:%M"
+config:
+  displayModeBar: false
+entities:
+  - entity: ""
+    name: Precipitation
+    x: $ex vars.x
+    "y": $ex vars.y
+    type: scatter
+    mode: lines
+    fill: tozeroy
+```
+
+To make something like this:
+
+![Screenshot of precipitation nowcast using Plotly Graph Card](images/nowcast-plotly.png "Precipitation Nowcast using Plotly Graph Card")
 
 ### Creating a precipitation forecasted sensor with a custom threshold
 
