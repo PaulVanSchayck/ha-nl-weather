@@ -135,9 +135,10 @@ This markdown card renders every active alert as a separate Home Assistant alert
 type: markdown
 content: |
   {% set alerts = state_attr('sensor.weer_home_alerts', 'alerts') or [] %}
+  {% set titles = {'red': 'Code rood', 'orange': 'Code oranje', 'yellow': 'Code geel'} %}
   {% for alert in alerts %}
   {% set level = 'error' if alert.code == 'red' else 'warning' if alert.code in ['orange', 'yellow'] else 'info' %}
-  <ha-alert alert-type="{{ level }}" title="Code {{ alert.code }}">
+  <ha-alert alert-type="{{ level }}" title="{{ titles.get(alert.code, 'Weather alert') }}">
     {{ alert.description }}
   </ha-alert>
   {% else %}
