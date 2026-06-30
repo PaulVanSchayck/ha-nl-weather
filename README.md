@@ -136,14 +136,24 @@ type: markdown
 content: |
   {% set alerts = state_attr('sensor.weer_home_alerts', 'alerts') or [] %}
   {% set titles = {'red': 'Code rood', 'orange': 'Code oranje', 'yellow': 'Code geel'} %}
+  {% if alerts %}
   {% for alert in alerts %}
-  {% set level = 'error' if alert.code == 'red' else 'warning' if alert.code in ['orange', 'yellow'] else 'info' %}
-  <ha-alert alert-type="{{ level }}" title="{{ titles.get(alert.code, 'Weather alert') }}">
-    {{ alert.description }}
+  {% set code = alert.code | lower %}
+  {% set title = titles.get(code, 'Weerwaarschuwing') %}
+  {% set level = 'error' if code == 'red' else 'warning' if code in ['orange', 'yellow'] else 'info' %}
+  {% set item = alert.description | trim %}
+  {% set prefix = title | lower ~ ' voor ' %}
+  {% set prefix_length = prefix | length %}
+  {% set detail = item[prefix_length:] | trim if (item | lower).startswith(prefix) else item %}
+  <ha-alert alert-type="{{ level }}" title="{{ title }}">
+    {{ detail[:1] | upper }}{{ detail[1:] }}{{ '.' if not detail.endswith('.') else '' }}
   </ha-alert>
-  {% else %}
-  No active weather alerts.
   {% endfor %}
+  {% else %}
+  <ha-alert alert-type="info" title="Weerwaarschuwing">
+    Geen actieve weerwaarschuwingen.
+  </ha-alert>
+  {% endif %}
 ```
 
 ![Screenshot of weather alerts rendered in a markdown card](images/weather-alerts-markdown.png "Weather alerts in a markdown card")
