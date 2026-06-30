@@ -20,6 +20,9 @@
           "none": "None"
         }
       },
+      "weather_alert_count": {
+        "name": "Alert count"
+      },
       "weather_alert_level": {
         "name": "Alert level",
         "state": {

@@ -57,6 +57,9 @@ from .coordinator import (
 @dataclass(frozen=True)
 class AlertSensorDescription(SensorEntityDescription):
     value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
+    extra_state_attributes_fn: Callable[[dict[str, Any]], dict[str, Any]] | None = (
+        field(default=None, repr=False)
+    )
 
 
 @dataclass(frozen=True)
@@ -69,13 +72,41 @@ class ForecastSensorDescription(SensorEntityDescription):
     value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
 
 
-def _get_alert_description(data: dict[str, Any]) -> str | None:
+def _get_alerts(data: dict[str, Any]) -> list[dict[str, str]]:
     alerts = data.get("alerts", [])
+    return [
+        {
+            "code": Alert(alert["level"]).value,
+            "description": description.strip(),
+        }
+        for alert in alerts
+        if isinstance(alert, dict)
+        and isinstance((description := alert.get("description")), str)
+        and description.strip()
+    ]
+
+
+def _get_alert_description(data: dict[str, Any]) -> str | None:
+    alerts = _get_alerts(data)
     if not alerts:
         return "none"
-    # Join multiple warnings together
-    all = ". ".join([a.get("description") for a in alerts])
-    return all[:250] + "..." if len(all) > 255 else all
+    return alerts[0]["description"]
+
+
+def _get_alert_count(data: dict[str, Any]) -> int:
+    return len(_get_alerts(data))
+
+
+def _get_alert_attributes(data: dict[str, Any]) -> dict[str, Any]:
+    alerts = _get_alerts(data)
+    descriptions = [alert["description"] for alert in alerts]
+    return {
+        "alert_count": len(alerts),
+        "alerts": alerts,
+        "description": ". ".join(
+            description.removesuffix(".") for description in descriptions
+        ),
+    }
 
 
 def _get_alert_level(data: dict[str, Any]) -> Alert:
@@ -133,6 +164,14 @@ ALERT_SENSOR_DESCRIPTIONS: list[AlertSensorDescription] = [
         translation_key="weather_alert",
         icon="mdi:weather-cloudy-alert",
         value_fn=_get_alert_description,
+        extra_state_attributes_fn=_get_alert_attributes,
+    ),
+    AlertSensorDescription(
+        key="alert_count",
+        translation_key="weather_alert_count",
+        icon="mdi:counter",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=_get_alert_count,
     ),
     AlertSensorDescription(
         key="alert_level",
@@ -410,7 +449,18 @@ class NLAlertSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity)
 
     @property
     def native_value(self):
+        if self.coordinator.data is None:
+            return None
         return self._value_fn(self.coordinator.data)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        if (
+            self.entity_description.extra_state_attributes_fn is None
+            or self.coordinator.data is None
+        ):
+            return None
+        return self.entity_description.extra_state_attributes_fn(self.coordinator.data)
 
 
 class NLObservationSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEntity):

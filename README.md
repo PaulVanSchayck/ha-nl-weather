@@ -125,6 +125,39 @@ The integration creates the following entities for each configured location:
 
 Available observation sensors depend on the selected weather station. Airport stations usually provide the most complete set of measurements. More information about observations can be found in [KNMI documentation](https://english.knmidata.nl/open-data/10-minute-in-situ-meteorological-observations).
 
+### Rendering weather alerts
+
+The weather alert sensor exposes the first active alert as its state. All active alerts are also available in the `alerts` attribute as dictionaries with `code` and `description`.
+
+This markdown card renders every active alert as a separate Home Assistant alert block:
+
+```yaml
+type: markdown
+content: |
+  {% set alerts = state_attr('sensor.weer_home_alerts', 'alerts') or [] %}
+  {% set titles = {'red': 'Code rood', 'orange': 'Code oranje', 'yellow': 'Code geel'} %}
+  {% if alerts %}
+  {% for alert in alerts %}
+  {% set code = alert.code | lower %}
+  {% set title = titles.get(code, 'Weerwaarschuwing') %}
+  {% set level = 'error' if code == 'red' else 'warning' if code in ['orange', 'yellow'] else 'info' %}
+  {% set item = alert.description | trim %}
+  {% set prefix = title | lower ~ ' voor ' %}
+  {% set prefix_length = prefix | length %}
+  {% set detail = item[prefix_length:] | trim if (item | lower).startswith(prefix) else item %}
+  <ha-alert alert-type="{{ level }}" title="{{ title }}">
+    {{ detail[:1] | upper }}{{ detail[1:] }}{{ '.' if not detail.endswith('.') else '' }}
+  </ha-alert>
+  {% endfor %}
+  {% else %}
+  <ha-alert alert-type="info" title="Weerwaarschuwing">
+    Geen actieve weerwaarschuwingen.
+  </ha-alert>
+  {% endif %}
+```
+
+![Screenshot of weather alerts rendered in a markdown card](images/weather-alerts-markdown.png "Weather alerts in a markdown card")
+
 ### Which weather station is being used?
 
 When using automatic station selection, observation values can come from multiple nearby stations (per parameter). In that case:
@@ -137,13 +170,13 @@ This allows you to use the data in automations, dashboards, and scripts just lik
 
 ### Rendering the precipitation nowcast graph
 
-Home Assistant lacks a way to directly render the precipitation nowcast graph. 
+Home Assistant lacks a way to directly render the precipitation nowcast graph.
 The data for the graph is available in two ways:
 
-1. As service call `get_minute_forecast` to the `weather.weer_{location}_forecast` entity. 
+1. As service call `get_minute_forecast` to the `weather.weer_{location}_forecast` entity.
     - This has been pruned to only include data from now onwards.
     - At a minute interval
-2. As `forecast` attribute to the `sensor.weer_{location}_precipitation_forecasted` sensor. 
+2. As `forecast` attribute to the `sensor.weer_{location}_precipitation_forecasted` sensor.
     - Use the HA Developer Tools to inspect the sensor
     - This contains also data from the past
     - At a 5 minute interval, as the API provides.
@@ -274,4 +307,3 @@ For further help or discussion you can use
 ---
 
 Thank you for using **NL Weather**! If you like it, please consider starring the repo ⭐  
-

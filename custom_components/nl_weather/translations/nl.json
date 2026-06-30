@@ -20,6 +20,9 @@
           "none": "Geen"
         }
       },
+      "weather_alert_count": {
+        "name": "Aantal waarschuwingen"
+      },
       "weather_alert_level": {
         "name": "Waarschuwingscode",
         "state": {
