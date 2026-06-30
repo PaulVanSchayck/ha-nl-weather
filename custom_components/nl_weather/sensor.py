@@ -57,6 +57,9 @@ from .coordinator import (
 @dataclass(frozen=True)
 class AlertSensorDescription(SensorEntityDescription):
     value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
+    extra_state_attributes_fn: Callable[[dict[str, Any]], dict[str, Any]] | None = (
+        field(default=None, repr=False)
+    )
 
 
 @dataclass(frozen=True)
@@ -69,32 +72,11 @@ class ForecastSensorDescription(SensorEntityDescription):
     value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
 
 
-def _get_alert_code(alert: dict[str, Any], description: str, fallback: Alert) -> str:
-    for key in ("code", "level", "alertLevel", "alert_level"):
-        code = alert.get(key)
-        if isinstance(code, str):
-            try:
-                return Alert(code.lower()).value
-            except ValueError:
-                pass
-
-    description = description.lower()
-    if "code rood" in description:
-        return Alert.RED.value
-    if "code oranje" in description:
-        return Alert.ORANGE.value
-    if "code geel" in description:
-        return Alert.YELLOW.value
-
-    return fallback.value
-
-
 def _get_alerts(data: dict[str, Any]) -> list[dict[str, str]]:
-    fallback_code = _get_alert_level(data)
     alerts = data.get("alerts", [])
     return [
         {
-            "code": _get_alert_code(alert, description, fallback_code),
+            "code": Alert(alert["level"]).value,
             "description": description.strip(),
         }
         for alert in alerts
@@ -182,6 +164,7 @@ ALERT_SENSOR_DESCRIPTIONS: list[AlertSensorDescription] = [
         translation_key="weather_alert",
         icon="mdi:weather-cloudy-alert",
         value_fn=_get_alert_description,
+        extra_state_attributes_fn=_get_alert_attributes,
     ),
     AlertSensorDescription(
         key="alert_count",
@@ -472,9 +455,12 @@ class NLAlertSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        if self.entity_description.key != "alert" or self.coordinator.data is None:
+        if (
+            self.entity_description.extra_state_attributes_fn is None
+            or self.coordinator.data is None
+        ):
             return None
-        return _get_alert_attributes(self.coordinator.data)
+        return self.entity_description.extra_state_attributes_fn(self.coordinator.data)
 
 
 class NLObservationSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEntity):

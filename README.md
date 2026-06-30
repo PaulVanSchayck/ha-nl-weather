@@ -125,6 +125,28 @@ The integration creates the following entities for each configured location:
 
 Available observation sensors depend on the selected weather station. Airport stations usually provide the most complete set of measurements. More information about observations can be found in [KNMI documentation](https://english.knmidata.nl/open-data/10-minute-in-situ-meteorological-observations).
 
+### Rendering weather alerts
+
+The weather alert sensor exposes the first active alert as its state. All active alerts are also available in the `alerts` attribute as dictionaries with `code` and `description`.
+
+This markdown card renders every active alert as a separate Home Assistant alert block:
+
+```yaml
+type: markdown
+content: |
+  {% set alerts = state_attr('sensor.weer_home_alerts', 'alerts') or [] %}
+  {% for alert in alerts %}
+  {% set level = 'error' if alert.code == 'red' else 'warning' if alert.code in ['orange', 'yellow'] else 'info' %}
+  <ha-alert alert-type="{{ level }}" title="Code {{ alert.code }}">
+    {{ alert.description }}
+  </ha-alert>
+  {% else %}
+  No active weather alerts.
+  {% endfor %}
+```
+
+![Screenshot of weather alerts rendered in a markdown card](images/weather-alerts-markdown.png "Weather alerts in a markdown card")
+
 ### Which weather station is being used?
 
 When using automatic station selection, observation values can come from multiple nearby stations (per parameter). In that case:
