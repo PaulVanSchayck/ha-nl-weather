@@ -136,11 +136,12 @@ type: markdown
 content: |
   {% set alerts = state_attr('sensor.weer_home_alerts', 'alerts') or [] %}
   {% set titles = {'red': 'Code rood', 'orange': 'Code oranje', 'yellow': 'Code geel'} %}
+  {% set levels = {'red': 'error', 'orange': 'warning', 'yellow': 'info'} %}
   {% if alerts %}
   {% for alert in alerts %}
   {% set code = alert.code | lower %}
   {% set title = titles.get(code, 'Weerwaarschuwing') %}
-  {% set level = 'error' if code == 'red' else 'warning' if code in ['orange', 'yellow'] else 'info' %}
+  {% set level = levels.get(code) %}
   {% set item = alert.description | trim %}
   {% set prefix = title | lower ~ ' voor ' %}
   {% set prefix_length = prefix | length %}
@@ -150,8 +151,8 @@ content: |
   </ha-alert>
   {% endfor %}
   {% else %}
-  <ha-alert alert-type="info" title="Weerwaarschuwing">
-    Geen actieve weerwaarschuwingen.
+  <ha-alert alert-type="success" title="Waarschuwingen">
+    Geen actieve waarschuwingen.
   </ha-alert>
   {% endif %}
 ```
