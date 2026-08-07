@@ -56,7 +56,7 @@ After adding the integration you'll first need to configure your API keys.
 
 ### Step 1. Connect to KNMI Data Platform APIs
 
-You can get API keys from the [KNMI Developer Portal](https://developer.dataplatform.knmi.nl/). Register an account by sending an e-mail to KNMI (read this [FAQ](https://developer.dataplatform.knmi.nl/faq#signup)).
+You can get API keys from the [KNMI Developer Portal](https://developer.dataplatform.knmi.nl/). Register an account though the [registration form](https://developer.dataplatform.knmi.nl/register) and then go the [API Catalog](https://developer.dataplatform.knmi.nl/apis) to request API keys for the following services:
 
 1. EDR API
 2. Web Map Service (WMS)
