@@ -80,6 +80,21 @@
       "observations_temperature_soil": {
         "name": "Soil temperature (-10 cm)"
       },
+      "observations_feels_like": {
+        "name": "Feels like",
+        "state": {
+          "extreme_cold_stress": "Extreme cold stress",
+          "very_strong_cold_stress": "Very strong cold stress",
+          "strong_cold_stress": "Strong cold stress",
+          "moderate_cold_stress": "Moderate cold stress",
+          "slight_cold_stress": "Slight cold stress",
+          "no_thermal_stress": "No thermal stress",
+          "moderate_heat_stress": "Moderate heat stress",
+          "strong_heat_stress": "Strong heat stress",
+          "very_strong_heat_stress": "Very strong heat stress",
+          "extreme_heat_stress": "Extreme heat stress"
+        }
+      },
       "observations_wind_direction": {
         "name": "Wind direction (degrees)"
       },
@@ -116,6 +131,12 @@
       "forecast_tomorrow_low": {
         "name": "Min temperature tomorrow"
       },
+      "forecast_precipitation_chance_today": {
+        "name": "Precipitation chance today"
+      },
+      "forecast_precipitation_chance_tomorrow": {
+        "name": "Precipitation chance tomorrow"
+      },
       "heat_force_index": {
         "name": "Heat force"
       },
@@ -129,6 +150,9 @@
       },
       "precipitation_nowcast": {
         "name": "Precipitation forecasted"
+      },
+      "sun": {
+        "name": "Sun"
       }
     }
   },
