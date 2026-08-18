@@ -78,17 +78,23 @@ async def async_setup_entry(
     )
 
     for subentry_id, subentry in config_entry.subentries.items():
+        forecast = NLWeatherForecast(
+            config_entry.runtime_data.app_coordinators[subentry_id],
+            config_entry.runtime_data.nowcast_coordinators[subentry_id],
+            config_entry,
+            subentry,
+        )
+        observations = NLWeatherObservations(
+            config_entry.runtime_data.edr_coordinators[subentry_id],
+            config_entry,
+            subentry,
+        )
         entities = [
-            NLWeatherForecast(
-                config_entry.runtime_data.app_coordinators[subentry_id],
-                config_entry.runtime_data.nowcast_coordinators[subentry_id],
-                config_entry,
-                subentry,
-            ),
-            NLWeatherObservations(
-                config_entry.runtime_data.edr_coordinators[subentry_id],
-                config_entry,
-                subentry,
+            forecast,
+            observations,
+            NLWeatherCombined(
+                observations,
+                forecast,
             ),
         ]
         async_add_entities(
@@ -350,3 +356,71 @@ class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEn
                     )
 
         return {"forecast": result}
+
+
+class NLWeatherCombined(WeatherEntity):
+    """Weather entity combining observation and forecast sources."""
+
+    _attr_has_entity_name = True
+    _attr_supported_features = (
+        WeatherEntityFeature.FORECAST_DAILY
+        | WeatherEntityFeature.FORECAST_HOURLY
+        | NLWeatherEntityFeature.FORECAST_MINUTE
+    )
+
+    def __init__(
+        self,
+        current_entity,
+        forecast_entity,
+    ):
+        self.current_entity = current_entity
+        self.forecast_entity = forecast_entity
+
+        self._attr_unique_id = f"{current_entity.unique_id}_combined"
+        self._attr_name = "Combined"
+
+    async def async_update(self):
+        # Usually not needed if coordinators push updates.
+        pass
+
+    #
+    # Current observations
+    #
+
+    @property
+    def condition(self):
+        return self.current_entity.condition
+
+    @property
+    def native_temperature(self):
+        return self.current_entity.native_temperature
+
+    @property
+    def native_temperature_unit(self):
+        return self.current_entity.native_temperature_unit
+
+    @property
+    def humidity(self):
+        return self.current_entity.humidity
+
+    @property
+    def native_pressure(self):
+        return self.current_entity.native_pressure
+
+    @property
+    def native_wind_speed(self):
+        return self.current_entity.native_wind_speed
+
+    @property
+    def wind_bearing(self):
+        return self.current_entity.wind_bearing
+
+    #
+    # Forecast
+    #
+
+    async def async_forecast_daily(self):
+        return await self.forecast_entity.async_forecast_daily()
+
+    async def async_forecast_hourly(self):
+        return await self.forecast_entity.async_forecast_hourly()
