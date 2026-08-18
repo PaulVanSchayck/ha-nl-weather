@@ -2,63 +2,61 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
 import logging
+from datetime import timedelta
 from typing import cast
 
 from homeassistant.components.weather import (
-    WeatherEntity,
-    ATTR_CONDITION_SUNNY,
     ATTR_CONDITION_CLEAR_NIGHT,
-    ATTR_WEATHER_HUMIDITY,
-    ATTR_WEATHER_WIND_SPEED,
-    ATTR_WEATHER_CLOUD_COVERAGE,
-    ATTR_WEATHER_TEMPERATURE,
-    ATTR_WEATHER_VISIBILITY,
-    ATTR_WEATHER_WIND_GUST_SPEED,
-    ATTR_WEATHER_WIND_BEARING,
-    ATTR_WEATHER_DEW_POINT,
-    ATTR_WEATHER_PRESSURE,
     ATTR_CONDITION_CLOUDY,
-    ATTR_CONDITION_PARTLYCLOUDY,
-    Forecast,
-    WeatherEntityFeature,
     ATTR_CONDITION_FOG,
+    ATTR_CONDITION_PARTLYCLOUDY,
+    ATTR_CONDITION_SUNNY,
     ATTR_CONDITION_WINDY,
     ATTR_CONDITION_WINDY_VARIANT,
+    ATTR_WEATHER_CLOUD_COVERAGE,
+    ATTR_WEATHER_DEW_POINT,
+    ATTR_WEATHER_HUMIDITY,
+    ATTR_WEATHER_PRESSURE,
+    ATTR_WEATHER_TEMPERATURE,
+    ATTR_WEATHER_VISIBILITY,
+    ATTR_WEATHER_WIND_BEARING,
+    ATTR_WEATHER_WIND_GUST_SPEED,
+    ATTR_WEATHER_WIND_SPEED,
+    Forecast,
+    WeatherEntity,
+    WeatherEntityFeature,
 )
-from homeassistant.util import utcnow
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import (
-    UnitOfSpeed,
-    UnitOfTemperature,
-    UnitOfLength,
     CONF_LATITUDE,
     CONF_LONGITUDE,
     CONF_NAME,
+    UnitOfLength,
+    UnitOfSpeed,
+    UnitOfTemperature,
 )
-from homeassistant.helpers import sun
-from homeassistant.helpers.device_registry import DeviceInfo, DeviceEntryType
+from homeassistant.core import HomeAssistant, SupportsResponse
+from homeassistant.helpers import entity_platform, sun
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.helpers import entity_platform
+from homeassistant.util import utcnow
 
-from .coordinator import (
-    NLWeatherConfigEntry,
-    NLWeatherUpdateCoordinator,
-    NLWeatherNowcastCoordinator,
-    NLWeatherEDRCoordinator,
-)
 from .const import (
-    DOMAIN,
-    CONDITION_MAP,
-    PARAMETER_ATTRIBUTE_MAP,
     ATTR_WEATHER_CONDITION,
     CONDITION_FORECAST_MAP,
+    CONDITION_MAP,
+    DOMAIN,
+    PARAMETER_ATTRIBUTE_MAP,
     NLWeatherEntityFeature,
 )
-
-from homeassistant.core import HomeAssistant, SupportsResponse
-from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from .coordinator import (
+    NLWeatherConfigEntry,
+    NLWeatherEDRCoordinator,
+    NLWeatherNowcastCoordinator,
+    NLWeatherUpdateCoordinator,
+)
 
 SERVICE_GET_MINUTE_FORECAST = "get_minute_forecast"
 _LOGGER = logging.getLogger(__name__)
@@ -225,8 +223,6 @@ class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEn
         | WeatherEntityFeature.FORECAST_HOURLY
         | NLWeatherEntityFeature.FORECAST_MINUTE
     )
-    _hourly_forecast: list[Forecast] = []
-    _daily_forecast: list[Forecast] = []
 
     def __init__(
         self,

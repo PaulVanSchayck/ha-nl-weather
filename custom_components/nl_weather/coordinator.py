@@ -1,37 +1,37 @@
 from __future__ import annotations
+
 import asyncio
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from random import randint
 from math import floor
+from random import randint
 from typing import Any
 
-from homeassistant.config_entries import ConfigSubentry
-from homeassistant.const import CONF_NAME, CONF_LATITUDE, CONF_LONGITUDE, CONF_REGION
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
+from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME, CONF_REGION
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import utcnow
 
 from .const import (
     APP_FORECAST_API_SCAN_INTERVAL,
+    APP_NOWCAST_API_SCAN_INTERVAL,
     CONF_STATION,
     PARAMETER_ATTRIBUTE_MAP,
-    APP_NOWCAST_API_SCAN_INTERVAL,
 )
-from .KNMI.edr import EDR, NotFoundError, ServerError
 from .KNMI.app import App, AppException
-from .KNMI.notification_service import NotificationService
-from .KNMI.wms import WMS
+from .KNMI.edr import EDR, NotFoundError, ServerError
 from .KNMI.grid_definitions import GridDefinitions, GridManager
 from .KNMI.helpers import (
     Coordinate,
-    format_dt,
     coverage_distance,
+    format_dt,
     sort_coverages_on_distance,
     unique_items_sorted_by_frequency,
 )
+from .KNMI.notification_service import NotificationService
+from .KNMI.wms import WMS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -99,9 +99,7 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     day_detail["uvIndex"]["value"] if "uvIndex" in day_detail else None
                 )
                 daily_forecast["wind"] = day_detail["wind"]
-                daily_forecast["heatIndex"] = (
-                    day_detail["heatIndex"] if "heatIndex" in day_detail else None
-                )
+                daily_forecast["heatIndex"] = day_detail.get("heatIndex", None)
         except AppException as err:
             # TODO: Improve error handling
             raise UpdateFailed(f"Error while retrieving data: {err}") from err
@@ -175,7 +173,7 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
     _latest_filename_datetime = datetime(
         year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc
     )
-    _station_names = {}
+    _station_names: dict
 
     def __init__(self, hass, subentry: ConfigSubentry, ns, edr) -> None:
         super().__init__(
@@ -188,6 +186,7 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
         self._edr = edr
         self._config = subentry.data
         self._subentry = subentry
+        self._station_names = {}
 
         self._location = Coordinate(
             self._config[CONF_LATITUDE],
@@ -251,12 +250,7 @@ class NLWeatherAutoEDRCoordinator(NLWeatherEDRCoordinator):
             unique_items_sorted_by_frequency(datetimes)[0]
         )
         data["station_name"] = ", ".join(
-            list(
-                map(
-                    lambda s: self._station_names[s],
-                    unique_items_sorted_by_frequency(stations),
-                )
-            )
+            self._station_names[s] for s in unique_items_sorted_by_frequency(stations)
         )
         data["distance"] = unique_items_sorted_by_frequency(distances)[0]
 

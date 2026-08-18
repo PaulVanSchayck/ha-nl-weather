@@ -1,6 +1,7 @@
-import aiohttp
 import json
 import logging
+
+import aiohttp
 
 BASE_URL = "https://api.app.knmi.cloud"
 _LOGGER = logging.getLogger(__name__)
