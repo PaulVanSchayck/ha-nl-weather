@@ -60,7 +60,7 @@ class PrecipitationRadarCam(Camera):
     _last_modified: datetime | None = None
     _loading = False
     _mark_locations = True
-    _locations = []
+    _locations: list[Coordinate]
 
     def __init__(self, config_entry: NLWeatherConfigEntry) -> None:
         super().__init__()
@@ -91,7 +91,7 @@ class PrecipitationRadarCam(Camera):
         self._mark_locations = config_entry.options.get(CONF_MARK_LOCATIONS, True)
 
         # TODO: Deal with adding/removing location
-        self._locations: list[Coordinate] = []
+        self._locations = []
         for s in config_entry.subentries.values():
             self._locations.append(
                 Coordinate(s.data[CONF_LATITUDE], s.data[CONF_LONGITUDE])
@@ -202,8 +202,8 @@ class PrecipitationRadarCam(Camera):
                     except (WMSException, asyncio.TimeoutError) as e:
                         _LOGGER.warning("Error processing radar image: %s", e)
                         continue
-                    except Exception as e:
-                        _LOGGER.exception("Error processing radar image: %s", e)
+                    except Exception:
+                        _LOGGER.exception("Error processing radar image: %s")
                         for task in pending_tasks:
                             task.cancel()
                         break
@@ -287,7 +287,7 @@ class PrecipitationRadarCam(Camera):
         root = tree.getroot()
 
         for dim in root.findall(".//{*}Dimension[@name='time']"):
-            start, end, period = dim.text.strip().split("/")
+            _, end, _ = dim.text.strip().split("/")
             return datetime.fromisoformat(end.replace("Z", "+00:00"))
         return None
 

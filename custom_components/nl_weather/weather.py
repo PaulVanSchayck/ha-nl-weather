@@ -223,8 +223,6 @@ class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEn
         | WeatherEntityFeature.FORECAST_HOURLY
         | NLWeatherEntityFeature.FORECAST_MINUTE
     )
-    _hourly_forecast: list[Forecast] = []
-    _daily_forecast: list[Forecast] = []
 
     def __init__(
         self,

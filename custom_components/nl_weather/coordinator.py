@@ -99,9 +99,7 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     day_detail["uvIndex"]["value"] if "uvIndex" in day_detail else None
                 )
                 daily_forecast["wind"] = day_detail["wind"]
-                daily_forecast["heatIndex"] = (
-                    day_detail["heatIndex"] if "heatIndex" in day_detail else None
-                )
+                daily_forecast["heatIndex"] = day_detail.get("heatIndex", None)
         except AppException as err:
             # TODO: Improve error handling
             raise UpdateFailed(f"Error while retrieving data: {err}") from err
@@ -175,7 +173,7 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
     _latest_filename_datetime = datetime(
         year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc
     )
-    _station_names = {}
+    _station_names: dict
 
     def __init__(self, hass, subentry: ConfigSubentry, ns, edr) -> None:
         super().__init__(
@@ -251,12 +249,7 @@ class NLWeatherAutoEDRCoordinator(NLWeatherEDRCoordinator):
             unique_items_sorted_by_frequency(datetimes)[0]
         )
         data["station_name"] = ", ".join(
-            list(
-                map(
-                    lambda s: self._station_names[s],
-                    unique_items_sorted_by_frequency(stations),
-                )
-            )
+            self._station_names[s] for s in unique_items_sorted_by_frequency(stations)
         )
         data["distance"] = unique_items_sorted_by_frequency(distances)[0]
 

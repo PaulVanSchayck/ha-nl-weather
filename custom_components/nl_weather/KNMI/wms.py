@@ -44,35 +44,35 @@ class WMS:
     async def get(self, params):
         headers = {"Authorization": self._token}
         await self.wait_for_rate()
-        async with self._semaphore:
-            async with self._session.get(
-                f"{BASE_URL}", headers=headers, params=params
-            ) as resp:
-                cache = resp.headers.get("adaguc-cache", "unknown")
-                age = resp.headers.get("age", "unknown")
-                _LOGGER.debug(
-                    f"Called WMS endpoint (status: {resp.status}, cache: {cache}, age: {age}): {resp.url}"
-                )
-                if resp.status == 400:
-                    raise InvalidRequest(await resp.json()) from None
-                if resp.status == 404:
-                    raise NotFoundError("No data found for query") from None
-                elif resp.status == 403:
-                    # TODO: Also handle quota exceeded
-                    raise TokenInvalid(await resp.json()) from None
-                elif resp.status == 429:
-                    raise RateLimitExceeded("Rate limit exceeded") from None
-                elif resp.status >= 500:
-                    raise ServerError(f"Status code: {resp.status}") from None
+        async with (
+            self._semaphore,
+            self._session.get(f"{BASE_URL}", headers=headers, params=params) as resp,
+        ):
+            cache = resp.headers.get("adaguc-cache", "unknown")
+            age = resp.headers.get("age", "unknown")
+            _LOGGER.debug(
+                f"Called WMS endpoint (status: {resp.status}, cache: {cache}, age: {age}): {resp.url}"
+            )
+            if resp.status == 400:
+                raise InvalidRequest(await resp.json()) from None
+            if resp.status == 404:
+                raise NotFoundError("No data found for query") from None
+            elif resp.status == 403:
+                # TODO: Also handle quota exceeded
+                raise TokenInvalid(await resp.json()) from None
+            elif resp.status == 429:
+                raise RateLimitExceeded("Rate limit exceeded") from None
+            elif resp.status >= 500:
+                raise ServerError(f"Status code: {resp.status}") from None
 
-                buffer = io.BytesIO(await resp.read())
+            buffer = io.BytesIO(await resp.read())
 
-                # TODO: Not sure this check works
-                if b"ADAGUC Server:" in buffer.readline():
-                    raise InvalidRequest(buffer.read().decode("UTF-8")) from None
-                buffer.seek(0)
+            # TODO: Not sure this check works
+            if b"ADAGUC Server:" in buffer.readline():
+                raise InvalidRequest(buffer.read().decode("UTF-8")) from None
+            buffer.seek(0)
 
-                return buffer
+            return buffer
 
     async def get_capabilities_radar(self) -> ET.ElementTree:
         params = {}
