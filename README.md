@@ -62,7 +62,7 @@ You can get API keys from the [KNMI Developer Portal](https://developer.dataplat
 2. Web Map Service (WMS)
 3. Notification Service
 
-You'll receive copies of all keys via e-mail as well. Be sure to store them as  there is no way to revoke them after requesting them.
+You'll receive copies of all keys via e-mail as well. Be sure to store them as there is no way to revoke them after requesting them.
 
 > [!IMPORTANT]
 > The API keys you receive look very similar for all services. This is correct. The end and beginning of the keys will be the same, but the middle does differ. 
