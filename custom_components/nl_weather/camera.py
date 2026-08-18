@@ -4,23 +4,20 @@ from __future__ import annotations
 
 import asyncio
 import io
+import logging
 import os
 from datetime import datetime, timedelta, timezone
-import logging
 from random import randint
-from PIL import Image, ImageDraw
-from PIL.ImageFile import ImageFile
 
-from .KNMI.wms import WMSException
 from homeassistant.components.camera import Camera
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo, DeviceEntryType
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
+from PIL import Image, ImageDraw
+from PIL.ImageFile import ImageFile
 
-from .coordinator import NLWeatherConfigEntry
-from .KNMI.helpers import Coordinate, epsg4325_to_epsg3857
 from .const import (
     CONF_MARK_LOCATIONS,
     CONF_RADAR_STYLE,
@@ -29,7 +26,9 @@ from .const import (
     RADAR_STYLES,
     RadarStyle,
 )
-
+from .coordinator import NLWeatherConfigEntry
+from .KNMI.helpers import Coordinate, epsg4325_to_epsg3857
+from .KNMI.wms import WMSException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -205,11 +204,11 @@ class PrecipitationRadarCam(Camera):
                         continue
                     except Exception as e:
                         _LOGGER.exception("Error processing radar image: %s", e)
-                        for task in pending_tasks.keys():
+                        for task in pending_tasks:
                             task.cancel()
                         break
         except asyncio.TimeoutError:
-            for task in pending_tasks.keys():
+            for task in pending_tasks:
                 task.cancel()
             _LOGGER.warning(
                 f"Retrieving radar images timed out after 7 seconds and {len(time_to_image)} radar frames"

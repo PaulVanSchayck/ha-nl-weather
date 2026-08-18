@@ -1,8 +1,9 @@
-import aiohttp
 import asyncio
 import io
 import logging
 import xml.etree.ElementTree as ET
+
+import aiohttp
 
 from .helpers import format_dt
 

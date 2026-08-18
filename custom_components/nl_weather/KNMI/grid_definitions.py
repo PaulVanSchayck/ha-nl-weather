@@ -1,7 +1,6 @@
 import os
 from dataclasses import dataclass
 from enum import Enum, StrEnum
-from typing import Optional, Dict
 
 from pyproj import Transformer
 
@@ -84,7 +83,7 @@ class Grid:
 
         return self.sw.lat < c.lat <= self.ne.lat and self.sw.lon <= c.lon < self.ne.lon
 
-    def cell_number(self, coord_epsg4326: Coordinate) -> Optional[int]:
+    def cell_number(self, coord_epsg4326: Coordinate) -> int | None:
         c = self._to_grid(coord_epsg4326)
 
         if not self.contains(c):
@@ -99,13 +98,13 @@ class Grid:
 
         return lat_cell + lon_cell * self.steps.lat
 
-    def cell(self, coord: Coordinate) -> Optional[str]:
+    def cell(self, coord: Coordinate) -> str | None:
         n = self.cell_number(coord)
         return None if n is None else f"{self.prefix}{n}"
 
 
 class GridManager:
-    def __init__(self, grids: Dict[GridDefinitions, Grid]):
+    def __init__(self, grids: dict[GridDefinitions, Grid]):
         self.grids = grids
 
     @staticmethod
@@ -142,5 +141,5 @@ class GridManager:
             }
         )
 
-    def cell(self, grid_id: GridDefinitions, coord: Coordinate) -> Optional[str]:
+    def cell(self, grid_id: GridDefinitions, coord: Coordinate) -> str | None:
         return self.grids[grid_id].cell(coord)

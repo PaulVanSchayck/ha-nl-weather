@@ -4,10 +4,9 @@ import logging
 import uuid
 
 import aiomqtt
-from aiomqtt import ProtocolVersion, MqttError
-from paho.mqtt import properties
-
+from aiomqtt import MqttError, ProtocolVersion
 from homeassistant.util.ssl import get_default_context
+from paho.mqtt import properties
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -78,7 +77,7 @@ class NotificationService:
                 )
             except Exception as e:
                 _LOGGER.error(
-                    f"Error handling notification message for {dataset}: {str(e)}"
+                    f"Error handling notification message for {dataset}: {e!s}"
                 )
 
     async def disconnect(self):
