@@ -203,7 +203,7 @@ class PrecipitationRadarCam(Camera):
                         _LOGGER.warning("Error processing radar image: %s", e)
                         continue
                     except Exception:
-                        _LOGGER.exception("Error processing radar image: %s")
+                        _LOGGER.exception("Error processing radar image")
                         for task in pending_tasks:
                             task.cancel()
                         break

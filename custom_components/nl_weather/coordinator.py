@@ -186,6 +186,7 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
         self._edr = edr
         self._config = subentry.data
         self._subentry = subentry
+        self._station_names = {}
 
         self._location = Coordinate(
             self._config[CONF_LATITUDE],
