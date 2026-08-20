@@ -56,13 +56,13 @@ After adding the integration you'll first need to configure your API keys.
 
 ### Step 1. Connect to KNMI Data Platform APIs
 
-You can get API keys from the [KNMI Developer Portal](https://developer.dataplatform.knmi.nl/). Register an account by sending an e-mail to KNMI (read this [FAQ](https://developer.dataplatform.knmi.nl/faq#signup)).
+You can get API keys from the [KNMI Developer Portal](https://developer.dataplatform.knmi.nl/). Register an account through the [registration form](https://developer.dataplatform.knmi.nl/register) and then go the [API Catalog](https://developer.dataplatform.knmi.nl/apis) to request API keys for the following services:
 
 1. EDR API
 2. Web Map Service (WMS)
 3. Notification Service
 
-Be sure to write down the keys correctly, you will only be able to see them once. There is no way to revoke them after requesting them.
+You'll receive copies of all keys via e-mail as well. Be sure to store them as there is no way to revoke them after requesting them.
 
 > [!IMPORTANT]
 > The API keys you receive look very similar for all services. This is correct. The end and beginning of the keys will be the same, but the middle does differ. 
@@ -136,11 +136,12 @@ type: markdown
 content: |
   {% set alerts = state_attr('sensor.weer_home_alerts', 'alerts') or [] %}
   {% set titles = {'red': 'Code rood', 'orange': 'Code oranje', 'yellow': 'Code geel'} %}
+  {% set levels = {'red': 'error', 'orange': 'warning', 'yellow': 'info'} %}
   {% if alerts %}
   {% for alert in alerts %}
   {% set code = alert.code | lower %}
   {% set title = titles.get(code, 'Weerwaarschuwing') %}
-  {% set level = 'error' if code == 'red' else 'warning' if code in ['orange', 'yellow'] else 'info' %}
+  {% set level = levels.get(code) %}
   {% set item = alert.description | trim %}
   {% set prefix = title | lower ~ ' voor ' %}
   {% set prefix_length = prefix | length %}
@@ -150,8 +151,8 @@ content: |
   </ha-alert>
   {% endfor %}
   {% else %}
-  <ha-alert alert-type="info" title="Weerwaarschuwing">
-    Geen actieve weerwaarschuwingen.
+  <ha-alert alert-type="success" title="Waarschuwingen">
+    Geen actieve waarschuwingen.
   </ha-alert>
   {% endif %}
 ```

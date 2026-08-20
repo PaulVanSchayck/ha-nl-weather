@@ -3,19 +3,19 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntityDescription,
 )
 from homeassistant.config_entries import ConfigSubentry
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import utcnow
 
-from .const import Alert
 from . import DOMAIN
+from .const import Alert
 from .coordinator import (
     NLWeatherConfigEntry,
     NLWeatherNowcastCoordinator,
     NLWeatherUpdateCoordinator,
 )
-from homeassistant.core import HomeAssistant
-from homeassistant.util import utcnow
 
 
 async def async_setup_entry(

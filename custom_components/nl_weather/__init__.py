@@ -8,25 +8,27 @@ from homeassistant.const import CONF_MODE, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .KNMI.app import App
-from .KNMI.edr import EDR
-from .KNMI.notification_service import NotificationService
-from .KNMI.wms import WMS
 from .const import (
-    CONF_MQTT_TOKEN,
     CONF_EDR_API_TOKEN,
+    CONF_MQTT_TOKEN,
     CONF_WMS_TOKEN,
-    DOMAIN as DOMAIN,
     StationMode,
 )
+from .const import (
+    DOMAIN as DOMAIN,
+)
 from .coordinator import (
-    NLWeatherConfigEntry,
     NLWeatherAutoEDRCoordinator,
+    NLWeatherConfigEntry,
     NLWeatherManualEDRCoordinator,
     NLWeatherNowcastCoordinator,
     NLWeatherUpdateCoordinator,
     RuntimeData,
 )
+from .KNMI.app import App
+from .KNMI.edr import EDR
+from .KNMI.notification_service import NotificationService
+from .KNMI.wms import WMS
 
 _PLATFORMS: list[Platform] = [
     Platform.WEATHER,
@@ -119,19 +121,18 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry):
         # This means the user has downgraded from a future version
         return False
 
-    if config_entry.version == 1:
-        if config_entry.minor_version < 2:
-            for subentry in config_entry.subentries.values():
-                new_data = {**subentry.data}
-                new_data[CONF_MODE] = StationMode.AUTO
-                hass.config_entries.async_update_subentry(
-                    config_entry, subentry, data=new_data
-                )
-
-            hass.config_entries.async_update_entry(
-                config_entry,
-                minor_version=2,
+    if config_entry.version == 1 and config_entry.minor_version < 2:
+        for subentry in config_entry.subentries.values():
+            new_data = {**subentry.data}
+            new_data[CONF_MODE] = StationMode.AUTO
+            hass.config_entries.async_update_subentry(
+                config_entry, subentry, data=new_data
             )
+
+        hass.config_entries.async_update_entry(
+            config_entry,
+            minor_version=2,
+        )
 
     _LOGGER.debug(
         "Migration to configuration version %s.%s successful",

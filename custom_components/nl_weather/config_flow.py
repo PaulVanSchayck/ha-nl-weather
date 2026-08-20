@@ -80,8 +80,7 @@ OPTIONS_SCHEMA = vol.Schema(
         vol.Required(CONF_RADAR_STYLE, default=DEFAULT_RADAR_STYLE): SelectSelector(
             SelectSelectorConfig(
                 options=[
-                    SelectOptionDict(value=key, label=key)
-                    for key in RADAR_STYLES.keys()
+                    SelectOptionDict(value=key, label=key) for key in RADAR_STYLES
                 ],
                 translation_key="radar_style",
             ),
