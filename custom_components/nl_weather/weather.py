@@ -36,7 +36,7 @@ from homeassistant.const import (
     UnitOfSpeed,
     UnitOfTemperature,
 )
-from homeassistant.core import HomeAssistant, SupportsResponse
+from homeassistant.core import HomeAssistant, SupportsResponse, callback
 from homeassistant.helpers import entity_platform, sun
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -90,10 +90,7 @@ async def async_setup_entry(
         entities = [
             forecast,
             observations,
-            NLWeatherCombined(
-                observations,
-                forecast,
-            ),
+            NLWeatherCombined(observations, forecast, config_entry, subentry),
         ]
         async_add_entities(
             entities,
@@ -358,6 +355,8 @@ class NLWeatherCombined(WeatherEntity):
     """Weather entity combining observation and forecast sources."""
 
     _attr_has_entity_name = True
+    _attr_name = None
+    _attr_attribution = "Forecast and observation data provided by Koninklijk Nederlands Meteorologisch Instituut (KNMI) licensed under CC-BY 4.0"
     _attr_supported_features = (
         WeatherEntityFeature.FORECAST_DAILY
         | WeatherEntityFeature.FORECAST_HOURLY
@@ -366,18 +365,38 @@ class NLWeatherCombined(WeatherEntity):
 
     def __init__(
         self,
-        current_entity,
+        observation_entity,
         forecast_entity,
+        config_entry: NLWeatherConfigEntry,
+        subentry: ConfigSubentry,
     ):
-        self.current_entity = current_entity
+        self.current_entity = observation_entity
         self.forecast_entity = forecast_entity
 
-        self._attr_unique_id = f"{current_entity.unique_id}_combined"
-        self._attr_name = "Combined"
+        self._attr_unique_id = f"{config_entry.entry_id}_{subentry.subentry_id}_weather"
 
-    async def async_update(self):
-        # Usually not needed if coordinators push updates.
-        pass
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
+        )
+
+        # Units
+        self._attr_native_wind_speed_unit = UnitOfSpeed.KILOMETERS_PER_HOUR
+        self._attr_native_temperature_unit = UnitOfTemperature.CELSIUS
+        self._attr_native_visibility_unit = UnitOfLength.METERS
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+
+        self.async_on_remove(
+            self.current_entity.coordinator.async_add_listener(self._source_updated)
+        )
+        self.async_on_remove(
+            self.forecast_entity.coordinator.async_add_listener(self._source_updated)
+        )
+
+    @callback
+    def _source_updated(self) -> None:
+        self.async_write_ha_state()
 
     #
     # Current observations
@@ -405,7 +424,8 @@ class NLWeatherCombined(WeatherEntity):
 
     @property
     def native_wind_speed(self):
-        return self.current_entity.native_wind_speed
+        # Wind from observations is in m/s while forecast is in km/h
+        return self.current_entity.native_wind_speed * 3.6
 
     @property
     def wind_bearing(self):
@@ -420,3 +440,6 @@ class NLWeatherCombined(WeatherEntity):
 
     async def async_forecast_hourly(self):
         return await self.forecast_entity.async_forecast_hourly()
+
+    async def async_get_minute_forecast(self):
+        return await self.forecast_entity.async_get_minute_forecast()
