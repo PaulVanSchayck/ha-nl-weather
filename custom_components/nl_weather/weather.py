@@ -166,7 +166,7 @@ class NLWeatherForecastDataMixin:
     """Shared forecast-backed weather logic."""
 
     forecast_coordinator: NLWeatherUpdateCoordinator
-    nowcast_coordinator: NLWeatherNowcastCoordinator | None
+    nowcast_coordinator: NLWeatherNowcastCoordinator
 
     def _forecast_available(self) -> bool:
         return self._current_hourly_forecast() is not None
@@ -303,20 +303,18 @@ async def async_setup_entry(
     )
 
     for subentry_id, subentry in config_entry.subentries.items():
-        forecast = NLWeatherForecast(
-            config_entry.runtime_data.app_coordinators[subentry_id],
-            config_entry.runtime_data.nowcast_coordinators[subentry_id],
-            config_entry,
-            subentry,
-        )
-        observations = NLWeatherObservations(
-            config_entry.runtime_data.edr_coordinators[subentry_id],
-            config_entry,
-            subentry,
-        )
         entities = [
-            forecast,
-            observations,
+            NLWeatherForecast(
+                config_entry.runtime_data.app_coordinators[subentry_id],
+                config_entry.runtime_data.nowcast_coordinators[subentry_id],
+                config_entry,
+                subentry,
+            ),
+            NLWeatherObservations(
+                config_entry.runtime_data.edr_coordinators[subentry_id],
+                config_entry,
+                subentry,
+            ),
             NLWeatherCombined(
                 config_entry.runtime_data.edr_coordinators[subentry_id],
                 config_entry.runtime_data.app_coordinators[subentry_id],
@@ -428,7 +426,7 @@ class NLWeatherForecast(
     def __init__(
         self,
         coordinator: NLWeatherUpdateCoordinator,
-        nowcast_coordinator: NLWeatherNowcastCoordinator | None,
+        nowcast_coordinator: NLWeatherNowcastCoordinator,
         config_entry: NLWeatherConfigEntry,
         subentry: ConfigSubentry,
     ) -> None:
@@ -533,10 +531,6 @@ class NLWeatherCombined(
         self.async_on_remove(
             self.forecast_coordinator.async_add_listener(self._source_updated)
         )
-        if self.nowcast_coordinator is not None:
-            self.async_on_remove(
-                self.nowcast_coordinator.async_add_listener(self._source_updated)
-            )
 
     @callback
     def _source_updated(self) -> None:
