@@ -18,7 +18,8 @@ is used to display the forecast and nowcast. For the radar image the “Picture 
 ## Features
 
 - Integration as a Home Assistant `weather` entity provider
-  - Observations and forecast separated into two `weather` entities
+  - Combined `weather` entity per location that merges observations and forecast data
+  - Separate observations and forecast `weather` entities are still available for advanced use
 - Can have multiple configurable locations (limited to the Netherlands) with
   - Current weather observations (temperature, humidity, wind, etc.)  
   - Weather forecast (hourly/daily)
@@ -92,9 +93,16 @@ The integration creates the following entities for each configured location:
 
 ### Weather entities
 
+- `weather.weer_{location}` combined weather entity
+  - Uses observations for current values when available
+  - Falls back to forecast when observations are missing
+  - Supports `get_minute_forecast` for precipitation nowcast
 - `weather.weer_{location}_observations` for current weather observations
 - `weather.weer_{location}_forecast` for the weather forecast
-  - This entity also supports the service call `get_minute_forecast` to get the precipitation nowcast.
+  - Also supports the service call `get_minute_forecast` to get the precipitation nowcast.
+
+By default, the combined `weather.weer_{location}` entity is intended as the primary weather entity.
+The separate observations and forecast entities remain available and can be enabled when needed.
 
 ### Sensor entities
 
