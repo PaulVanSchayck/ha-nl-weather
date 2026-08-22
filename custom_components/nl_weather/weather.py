@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
-from typing import cast
+from typing import Any, cast
 
 from homeassistant.components.weather import (
     ATTR_CONDITION_CLEAR_NIGHT,
@@ -29,8 +29,6 @@ from homeassistant.components.weather import (
 )
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import (
-    CONF_LATITUDE,
-    CONF_LONGITUDE,
     CONF_NAME,
     UnitOfLength,
     UnitOfSpeed,
@@ -62,6 +60,235 @@ SERVICE_GET_MINUTE_FORECAST = "get_minute_forecast"
 _LOGGER = logging.getLogger(__name__)
 
 
+class NLWeatherObservationDataMixin:
+    """Shared observation-backed weather logic."""
+
+    observation_coordinator: NLWeatherEDRCoordinator
+    hass: HomeAssistant
+
+    def get_latest_range_value(self, attribute: str) -> float | None:
+        """Return the latest observation value for an attribute."""
+        if self.observation_coordinator.data is None:
+            return None
+
+        parameter = PARAMETER_ATTRIBUTE_MAP[attribute]
+        if parameter not in self.observation_coordinator.data["params"]:
+            return None
+        return self.observation_coordinator.data["params"][parameter]
+
+    def _observation_available(self) -> bool:
+        return (
+            self.get_latest_range_value(ATTR_WEATHER_CONDITION) is not None
+            and self.get_latest_range_value(ATTR_WEATHER_VISIBILITY) is not None
+            and self.get_latest_range_value(ATTR_WEATHER_CLOUD_COVERAGE) is not None
+        )
+
+    def _observation_condition(self) -> str | None:
+        """Return the current condition from observations."""
+        if (
+            condition_code := self.get_latest_range_value(ATTR_WEATHER_CONDITION)
+        ) is None:
+            return None
+
+        try:
+            condition = CONDITION_MAP[condition_code]
+        except KeyError:
+            _LOGGER.exception("Unknown condition")
+            return ATTR_CONDITION_SUNNY
+
+        visibility = self._observation_visibility()
+        if (
+            condition == ATTR_CONDITION_FOG
+            and visibility is not None
+            and visibility > 1000
+        ):
+            condition = ATTR_CONDITION_CLOUDY
+
+        cloud_coverage = self._observation_cloud_coverage()
+        wind_speed = self._observation_wind_speed()
+        wind_gust_speed = self._observation_wind_gust_speed()
+
+        if condition == ATTR_CONDITION_CLOUDY and cloud_coverage is not None:
+            if cloud_coverage <= 75:
+                condition = ATTR_CONDITION_PARTLYCLOUDY
+            if cloud_coverage <= 25:
+                condition = ATTR_CONDITION_SUNNY
+
+            if (
+                wind_speed is not None
+                and wind_speed > 12
+                or wind_gust_speed is not None
+                and wind_gust_speed > 20
+            ):
+                if cloud_coverage <= 75:
+                    condition = ATTR_CONDITION_WINDY
+                else:
+                    condition = ATTR_CONDITION_WINDY_VARIANT
+
+        if condition == ATTR_CONDITION_SUNNY and not sun.is_up(self.hass):
+            condition = ATTR_CONDITION_CLEAR_NIGHT
+
+        return condition
+
+    def _observation_temperature(self) -> float | None:
+        return self.get_latest_range_value(ATTR_WEATHER_TEMPERATURE)
+
+    def _observation_cloud_coverage(self) -> float | None:
+        if (
+            cloud_coverage := self.get_latest_range_value(ATTR_WEATHER_CLOUD_COVERAGE)
+        ) is None:
+            return None
+        return cloud_coverage / 8 * 100
+
+    def _observation_wind_speed(self) -> float | None:
+        return self.get_latest_range_value(ATTR_WEATHER_WIND_SPEED)
+
+    def _observation_visibility(self) -> float | None:
+        return self.get_latest_range_value(ATTR_WEATHER_VISIBILITY)
+
+    def _observation_pressure(self) -> float | None:
+        return self.get_latest_range_value(ATTR_WEATHER_PRESSURE)
+
+    def _observation_wind_gust_speed(self) -> float | None:
+        return self.get_latest_range_value(ATTR_WEATHER_WIND_GUST_SPEED)
+
+    def _observation_wind_bearing(self) -> float | str | None:
+        return self.get_latest_range_value(ATTR_WEATHER_WIND_BEARING)
+
+    def _observation_dew_point(self) -> float | None:
+        return self.get_latest_range_value(ATTR_WEATHER_DEW_POINT)
+
+    def _observation_humidity(self) -> float | None:
+        return self.get_latest_range_value(ATTR_WEATHER_HUMIDITY)
+
+
+class NLWeatherForecastDataMixin:
+    """Shared forecast-backed weather logic."""
+
+    forecast_coordinator: NLWeatherUpdateCoordinator
+    nowcast_coordinator: NLWeatherNowcastCoordinator | None
+
+    def _forecast_available(self) -> bool:
+        return self._current_hourly_forecast() is not None
+
+    def _current_hourly_forecast(self) -> dict[str, Any] | None:
+        if self.forecast_coordinator.data is None:
+            return None
+
+        hourly_forecast = self.forecast_coordinator.data.get("hourly", {}).get(
+            "forecast"
+        )
+        if not hourly_forecast:
+            return None
+        return hourly_forecast[0]
+
+    def _map_forecast_condition(self, weather_type: str) -> str:
+        try:
+            return CONDITION_FORECAST_MAP[weather_type]
+        except KeyError:
+            _LOGGER.warning("Unknown forecast condition: %s", weather_type)
+            return ATTR_CONDITION_SUNNY
+
+    def _forecast_condition(self) -> str | None:
+        if (current_forecast := self._current_hourly_forecast()) is None:
+            return None
+        return self._map_forecast_condition(current_forecast["weatherType"])
+
+    def _forecast_temperature(self) -> float | None:
+        if (current_forecast := self._current_hourly_forecast()) is None:
+            return None
+        return current_forecast["temperature"]
+
+    def _forecast_wind_speed(self) -> float | None:
+        if (current_forecast := self._current_hourly_forecast()) is None:
+            return None
+        return current_forecast["wind"]["speed"]
+
+    def _forecast_wind_gust_speed(self) -> float | None:
+        if (current_forecast := self._current_hourly_forecast()) is None:
+            return None
+        return current_forecast["wind"]["gusts"]
+
+    def _forecast_wind_bearing(self) -> float | str | None:
+        if (current_forecast := self._current_hourly_forecast()) is None:
+            return None
+        return current_forecast["wind"]["degree"]
+
+    def _hourly_forecast_item(self, forecast: dict[str, Any]) -> Forecast:
+        return cast(
+            Forecast,
+            {
+                "datetime": forecast["dateTime"],
+                "condition": self._map_forecast_condition(forecast["weatherType"]),
+                "native_temperature": forecast["temperature"],
+                "native_precipitation": forecast["precipitation"]["amount"],
+                "precipitation_probability": forecast["precipitation"]["chance"] * 100,
+                "native_wind_speed": forecast["wind"]["speed"],
+                "native_wind_gust_speed": forecast["wind"]["gusts"],
+                "wind_bearing": forecast["wind"]["degree"],
+                "heat_force_index": forecast["heatIndex"],
+            },
+        )
+
+    def _daily_forecast_item(self, forecast: dict[str, Any]) -> Forecast:
+        return cast(
+            Forecast,
+            {
+                "datetime": forecast["date"],
+                "condition": self._map_forecast_condition(forecast["weatherType"]),
+                "native_temperature": forecast["temperature"]["max"],
+                "native_templow": forecast["temperature"]["min"],
+                "native_precipitation": forecast["precipitation"]["amount"],
+                "precipitation_probability": forecast["precipitation"]["chance"] * 100,
+                "native_wind_speed": forecast["wind"]["speed"],
+                "native_wind_gust_speed": forecast["wind"]["gusts"],
+                "wind_bearing": forecast["wind"]["degree"],
+                "uv_index": forecast["uv_index"],
+                "heat_force_index": forecast["heatIndex"],
+            },
+        )
+
+    async def _async_forecast_hourly(self) -> list[Forecast] | None:
+        """Return the hourly forecast in native units."""
+        if self.forecast_coordinator.data is None:
+            return None
+
+        return [
+            self._hourly_forecast_item(forecast)
+            for forecast in self.forecast_coordinator.data["hourly"]["forecast"]
+        ]
+
+    async def _async_forecast_daily(self) -> list[Forecast] | None:
+        """Return the daily forecast in native units."""
+        if self.forecast_coordinator.data is None:
+            return None
+
+        return [
+            self._daily_forecast_item(forecast)
+            for forecast in self.forecast_coordinator.data["daily"]["forecast"]
+        ]
+
+    async def _async_get_minute_forecast(self) -> dict[str, list[dict[str, Any]]]:
+        """Return minute forecast."""
+        if self.nowcast_coordinator is None or self.nowcast_coordinator.data is None:
+            return {"forecast": []}
+
+        now = utcnow()
+        result: list[dict[str, Any]] = []
+        for item in self.nowcast_coordinator.data:
+            for offset in range(5):
+                forecast_time = item["datetime"] + timedelta(minutes=offset)
+                if forecast_time >= now:
+                    result.append(
+                        {
+                            "datetime": forecast_time,
+                            "precipitation": item.get("precipitation", 0),
+                        }
+                    )
+
+        return {"forecast": result}
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: NLWeatherConfigEntry,
@@ -90,7 +317,13 @@ async def async_setup_entry(
         entities = [
             forecast,
             observations,
-            NLWeatherCombined(observations, forecast, config_entry, subentry),
+            NLWeatherCombined(
+                config_entry.runtime_data.edr_coordinators[subentry_id],
+                config_entry.runtime_data.app_coordinators[subentry_id],
+                config_entry.runtime_data.nowcast_coordinators[subentry_id],
+                config_entry,
+                subentry,
+            ),
         ]
         async_add_entities(
             entities,
@@ -98,8 +331,13 @@ async def async_setup_entry(
         )
 
 
-class NLWeatherObservations(CoordinatorEntity[NLWeatherEDRCoordinator], WeatherEntity):
+class NLWeatherObservations(
+    CoordinatorEntity[NLWeatherEDRCoordinator],
+    WeatherEntity,
+    NLWeatherObservationDataMixin,
+):
     _attr_should_poll = False
+    _attr_entity_registry_enabled_default = False
     _attr_attribution = "Meteorological observations provided by Koninklijk Nederlands Meteorologisch Instituut (KNMI) licensed under CC-BY 4.0"
     _attr_has_entity_name = True
     _latest_coverage = None
@@ -111,6 +349,7 @@ class NLWeatherObservations(CoordinatorEntity[NLWeatherEDRCoordinator], WeatherE
         subentry: ConfigSubentry,
     ) -> None:
         super().__init__(coordinator)
+        self.observation_coordinator = coordinator
         self._attr_unique_id = (
             f"{config_entry.entry_id}_{subentry.subentry_id}_observations"
         )
@@ -128,97 +367,56 @@ class NLWeatherObservations(CoordinatorEntity[NLWeatherEDRCoordinator], WeatherE
 
     @property
     def available(self) -> bool:
-        return (
-            self.get_latest_range_value(ATTR_WEATHER_CONDITION) is not None
-            and self.get_latest_range_value(ATTR_WEATHER_VISIBILITY) is not None
-            and self.get_latest_range_value(ATTR_WEATHER_CLOUD_COVERAGE) is not None
-        )
+        return self._observation_available()
 
     @property
     def condition(self) -> str | None:
-        """Return the current condition."""
-        if (c := self.get_latest_range_value(ATTR_WEATHER_CONDITION)) is None:
-            return None
-
-        try:
-            condition = CONDITION_MAP[c]
-        except KeyError:
-            _LOGGER.exception("Unknown condition")
-            return ATTR_CONDITION_SUNNY
-
-        # Foggy condition is reported well above 1000 m visibility. Only below 1000 meter it is "fog"
-        if condition == ATTR_CONDITION_FOG and self.native_visibility > 1000:
-            condition = ATTR_CONDITION_CLOUDY
-
-        # Difference between cloudy, partly cloudy and sunny is not reported
-        if condition == ATTR_CONDITION_CLOUDY:
-            if self.cloud_coverage <= 75:
-                condition = ATTR_CONDITION_PARTLYCLOUDY
-            if self.cloud_coverage <= 25:
-                condition = ATTR_CONDITION_SUNNY
-
-            # Wind speed above 6 Bft or wind gusts above 72 km/h are windy conditions
-            if self.native_wind_speed > 12 or self.native_wind_gust_speed > 20:
-                if self.cloud_coverage <= 75:
-                    condition = ATTR_CONDITION_WINDY
-                else:
-                    condition = ATTR_CONDITION_WINDY_VARIANT
-
-        if condition == ATTR_CONDITION_SUNNY and not sun.is_up(self.hass):
-            condition = ATTR_CONDITION_CLEAR_NIGHT
-
-        return condition
+        return self._observation_condition()
 
     @property
-    def native_temperature(self) -> float:
-        return self.get_latest_range_value(ATTR_WEATHER_TEMPERATURE)
+    def native_temperature(self) -> float | None:
+        return self._observation_temperature()
 
     @property
     def cloud_coverage(self) -> float | None:
-        if (c := self.get_latest_range_value(ATTR_WEATHER_CLOUD_COVERAGE)) is None:
-            return None
-        # Unit is okta (https://qudt.org/vocab/unit/OKTA)
-        return c / 8 * 100
+        return self._observation_cloud_coverage()
 
     @property
     def native_wind_speed(self) -> float | None:
-        return self.get_latest_range_value(ATTR_WEATHER_WIND_SPEED)
+        return self._observation_wind_speed()
 
     @property
     def native_visibility(self) -> float | None:
-        return self.get_latest_range_value(ATTR_WEATHER_VISIBILITY)
+        return self._observation_visibility()
 
     @property
     def native_pressure(self) -> float | None:
-        return self.get_latest_range_value(ATTR_WEATHER_PRESSURE)
+        return self._observation_pressure()
 
     @property
     def native_wind_gust_speed(self) -> float | None:
-        return self.get_latest_range_value(ATTR_WEATHER_WIND_GUST_SPEED)
+        return self._observation_wind_gust_speed()
 
     @property
     def wind_bearing(self) -> float | str | None:
-        return self.get_latest_range_value(ATTR_WEATHER_WIND_BEARING)
+        return self._observation_wind_bearing()
 
     @property
     def native_dew_point(self) -> float | None:
-        return self.get_latest_range_value(ATTR_WEATHER_DEW_POINT)
+        return self._observation_dew_point()
 
     @property
     def humidity(self) -> float | None:
-        return self.get_latest_range_value(ATTR_WEATHER_HUMIDITY)
-
-    def get_latest_range_value(self, attribute) -> float | None:
-        if self.coordinator.data is None:
-            return None
-        p = PARAMETER_ATTRIBUTE_MAP[attribute]
-        if p not in self.coordinator.data["params"]:
-            return None
-        return self.coordinator.data["params"][p]
+        return self._observation_humidity()
 
 
-class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEntity):
+class NLWeatherForecast(
+    CoordinatorEntity[NLWeatherUpdateCoordinator],
+    WeatherEntity,
+    NLWeatherForecastDataMixin,
+):
     _attr_should_poll = False
+    _attr_entity_registry_enabled_default = False
     _attr_attribution = "Forecast data provided by Koninklijk Nederlands Meteorologisch Instituut (KNMI) licensed under CC-BY 4.0"
     _attr_has_entity_name = True
     _attr_supported_features = (
@@ -236,11 +434,8 @@ class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEn
     ) -> None:
         super().__init__(coordinator)
 
-        self._nowcast_coordinator = nowcast_coordinator
-        self._location = {
-            "lat": subentry.data[CONF_LATITUDE],
-            "lon": subentry.data[CONF_LONGITUDE],
-        }
+        self.forecast_coordinator = coordinator
+        self.nowcast_coordinator = nowcast_coordinator
         self._attr_unique_id = (
             f"{config_entry.entry_id}_{subentry.subentry_id}_forecast"
         )
@@ -262,96 +457,39 @@ class NLWeatherForecast(CoordinatorEntity[NLWeatherUpdateCoordinator], WeatherEn
 
     @property
     def condition(self) -> str | None:
-        # TODO: Handle exceptions
-        return CONDITION_FORECAST_MAP[
-            self.coordinator.data["hourly"]["forecast"][0]["weatherType"]
-        ]
+        return self._forecast_condition()
 
     @property
-    def native_temperature(self) -> float:
-        return self.coordinator.data["hourly"]["forecast"][0]["temperature"]
+    def native_temperature(self) -> float | None:
+        return self._forecast_temperature()
 
     @property
     def native_wind_speed(self) -> float | None:
-        return self.coordinator.data["hourly"]["forecast"][0]["wind"]["speed"]
+        return self._forecast_wind_speed()
 
     @property
     def native_wind_gust_speed(self) -> float | None:
-        return self.coordinator.data["hourly"]["forecast"][0]["wind"]["gusts"]
+        return self._forecast_wind_gust_speed()
 
     @property
     def wind_bearing(self) -> float | str | None:
-        return self.coordinator.data["hourly"]["forecast"][0]["wind"]["degree"]
+        return self._forecast_wind_bearing()
 
     async def async_forecast_hourly(self) -> list[Forecast] | None:
-        """Return the hourly forecast in native units."""
-        return [
-            cast(
-                Forecast,
-                {
-                    "datetime": h["dateTime"],
-                    "condition": CONDITION_FORECAST_MAP[
-                        h["weatherType"]
-                    ],  # TODO: Handle exceptions
-                    "native_temperature": h["temperature"],
-                    "native_precipitation": h["precipitation"]["amount"],
-                    "precipitation_probability": h["precipitation"]["chance"] * 100,
-                    "native_wind_speed": h["wind"]["speed"],
-                    "native_wind_gust_speed": h["wind"]["gusts"],
-                    "wind_bearing": h["wind"]["degree"],
-                    "heat_force_index": h["heatIndex"],
-                },
-            )
-            for h in self.coordinator.data["hourly"]["forecast"]
-        ]
+        return await self._async_forecast_hourly()
 
     async def async_forecast_daily(self) -> list[Forecast] | None:
-        """Return the hourly forecast in native units."""
-        return [
-            cast(
-                Forecast,
-                {
-                    "datetime": d["date"],
-                    "condition": CONDITION_FORECAST_MAP[
-                        d["weatherType"]
-                    ],  # TODO: Handle exceptions
-                    "native_temperature": d["temperature"]["max"],
-                    "native_templow": d["temperature"]["min"],
-                    "native_precipitation": d["precipitation"]["amount"],
-                    "precipitation_probability": d["precipitation"]["chance"] * 100,
-                    "native_wind_speed": d["wind"]["speed"],
-                    "native_wind_gust_speed": d["wind"]["gusts"],
-                    "wind_bearing": d["wind"]["degree"],
-                    "uv_index": d["uv_index"],
-                    "heat_force_index": d["heatIndex"],
-                },
-            )
-            for d in self.coordinator.data["daily"]["forecast"]
-        ]
+        return await self._async_forecast_daily()
 
-    async def async_get_minute_forecast(self) -> dict[str, list[dict]] | dict:
-        """Return minute forecast"""
-        if self._nowcast_coordinator is None or self._nowcast_coordinator.data is None:
-            return {"forecast": []}
-
-        now = utcnow()
-        result = []
-        # Fill the 5 minute values with repeating values every minute
-        for item in self._nowcast_coordinator.data:
-            for offset in range(5):
-                t = item["datetime"] + timedelta(minutes=offset)
-                if t >= now:
-                    result.append(
-                        {
-                            "datetime": t,
-                            "precipitation": item.get("precipitation", 0),
-                        }
-                    )
-
-        return {"forecast": result}
+    async def async_get_minute_forecast(self) -> dict[str, list[dict[str, Any]]]:
+        return await self._async_get_minute_forecast()
 
 
-class NLWeatherCombined(WeatherEntity):
+class NLWeatherCombined(
+    WeatherEntity,
+    NLWeatherObservationDataMixin,
+    NLWeatherForecastDataMixin,
+):
     """Weather entity combining observation and forecast sources."""
 
     _attr_has_entity_name = True
@@ -365,13 +503,15 @@ class NLWeatherCombined(WeatherEntity):
 
     def __init__(
         self,
-        observation_entity,
-        forecast_entity,
+        observation_coordinator: NLWeatherEDRCoordinator,
+        forecast_coordinator: NLWeatherUpdateCoordinator,
+        nowcast_coordinator: NLWeatherNowcastCoordinator,
         config_entry: NLWeatherConfigEntry,
         subentry: ConfigSubentry,
-    ):
-        self.current_entity = observation_entity
-        self.forecast_entity = forecast_entity
+    ) -> None:
+        self.observation_coordinator = observation_coordinator
+        self.forecast_coordinator = forecast_coordinator
+        self.nowcast_coordinator = nowcast_coordinator
 
         self._attr_unique_id = f"{config_entry.entry_id}_{subentry.subentry_id}_weather"
 
@@ -388,79 +528,81 @@ class NLWeatherCombined(WeatherEntity):
         await super().async_added_to_hass()
 
         self.async_on_remove(
-            self.current_entity.coordinator.async_add_listener(self._source_updated)
+            self.observation_coordinator.async_add_listener(self._source_updated)
         )
         self.async_on_remove(
-            self.forecast_entity.coordinator.async_add_listener(self._source_updated)
+            self.forecast_coordinator.async_add_listener(self._source_updated)
         )
+        if self.nowcast_coordinator is not None:
+            self.async_on_remove(
+                self.nowcast_coordinator.async_add_listener(self._source_updated)
+            )
 
     @callback
     def _source_updated(self) -> None:
         self.async_write_ha_state()
 
-    #
-    # Current observations
-    #
+    @property
+    def available(self) -> bool:
+        return self._observation_available() or self._forecast_available()
 
     @property
-    def condition(self):
-        return self.current_entity.condition
+    def condition(self) -> str | None:
+        if (condition := self._observation_condition()) is None:
+            return condition
+        return self._forecast_condition()
 
     @property
     def native_temperature(self) -> float | None:
-        return self.current_entity.native_temperature
-
-    @property
-    def native_temperature_unit(self):
-        return self.current_entity.native_temperature_unit
-
-    @property
-    def cloud_coverage(self) -> float | None:
-        return self.current_entity.cloud_coverage
-
-    @property
-    def humidity(self) -> float | None:
-        return self.current_entity.humidity
-
-    @property
-    def native_pressure(self) -> float | None:
-        return self.current_entity.native_pressure
+        if (temperature := self._observation_temperature()) is not None:
+            return temperature
+        return self._forecast_temperature()
 
     @property
     def native_wind_speed(self) -> float | None:
-        # Wind from observations is in m/s while forecast is in km/h
-        if (wind := self.current_entity.native_wind_speed) is None:
-            return None
-        return wind * 3.6
+        if (wind_speed := self._observation_wind_speed()) is not None:
+            # Observations are in m/s, forecast in km/h
+            return wind_speed * 3.6
+        return self._forecast_wind_speed()
 
     @property
     def native_wind_gust_speed(self) -> float | None:
-        # Wind gusts from observations are in m/s while forecast is in km/h
-        if (gusts := self.current_entity.native_wind_gust_speed) is None:
-            return None
-        return gusts * 3.6
+        if (wind_gust_speed := self._observation_wind_gust_speed()) is not None:
+            # Observations are in m/s, forecast in km/h
+            return wind_gust_speed * 3.6
+        return self._forecast_wind_gust_speed()
+
+    @property
+    def wind_bearing(self) -> float | str | None:
+        if (wind_bearing := self._observation_wind_bearing()) is not None:
+            return wind_bearing
+        return self._forecast_wind_bearing()
+
+    @property
+    def cloud_coverage(self) -> float | None:
+        return self._observation_cloud_coverage()
 
     @property
     def native_visibility(self) -> float | None:
-        return self.current_entity.native_visibility
+        return self._observation_visibility()
 
     @property
-    def wind_bearing(self) -> float | None:
-        return self.current_entity.wind_bearing
+    def native_pressure(self) -> float | None:
+        return self._observation_pressure()
 
     @property
     def native_dew_point(self) -> float | None:
-        return self.current_entity.native_dew_point
+        return self._observation_dew_point()
 
-    #
-    # Forecast
-    #
+    @property
+    def humidity(self) -> float | None:
+        return self._observation_humidity()
 
-    async def async_forecast_daily(self):
-        return await self.forecast_entity.async_forecast_daily()
+    async def async_forecast_daily(self) -> list[Forecast] | None:
+        return await self._async_forecast_daily()
 
-    async def async_forecast_hourly(self):
-        return await self.forecast_entity.async_forecast_hourly()
+    async def async_forecast_hourly(self) -> list[Forecast] | None:
+        return await self._async_forecast_hourly()
 
-    async def async_get_minute_forecast(self):
-        return await self.forecast_entity.async_get_minute_forecast()
+    async def async_get_minute_forecast(self) -> dict[str, list[dict[str, Any]]]:
+        return await self._async_get_minute_forecast()
