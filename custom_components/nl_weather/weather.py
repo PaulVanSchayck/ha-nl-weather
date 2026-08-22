@@ -114,11 +114,8 @@ class NLWeatherObservationDataMixin:
             if cloud_coverage <= 25:
                 condition = ATTR_CONDITION_SUNNY
 
-            if (
-                wind_speed is not None
-                and wind_speed > 12
-                or wind_gust_speed is not None
-                and wind_gust_speed > 20
+            if (wind_speed is not None and wind_speed > 12) or (
+                wind_gust_speed is not None and wind_gust_speed > 20
             ):
                 if cloud_coverage <= 75:
                     condition = ATTR_CONDITION_WINDY
@@ -492,6 +489,7 @@ class NLWeatherCombined(
 
     _attr_has_entity_name = True
     _attr_name = None
+    _attr_should_poll = False
     _attr_attribution = "Forecast and observation data provided by Koninklijk Nederlands Meteorologisch Instituut (KNMI) licensed under CC-BY 4.0"
     _attr_supported_features = (
         WeatherEntityFeature.FORECAST_DAILY
@@ -542,7 +540,7 @@ class NLWeatherCombined(
 
     @property
     def condition(self) -> str | None:
-        if (condition := self._observation_condition()) is None:
+        if (condition := self._observation_condition()) is not None:
             return condition
         return self._forecast_condition()
 
