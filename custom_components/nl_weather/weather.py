@@ -407,7 +407,7 @@ class NLWeatherCombined(WeatherEntity):
         return self.current_entity.condition
 
     @property
-    def native_temperature(self):
+    def native_temperature(self) -> float | None:
         return self.current_entity.native_temperature
 
     @property
@@ -415,21 +415,42 @@ class NLWeatherCombined(WeatherEntity):
         return self.current_entity.native_temperature_unit
 
     @property
-    def humidity(self):
+    def cloud_coverage(self) -> float | None:
+        return self.current_entity.cloud_coverage
+
+    @property
+    def humidity(self) -> float | None:
         return self.current_entity.humidity
 
     @property
-    def native_pressure(self):
+    def native_pressure(self) -> float | None:
         return self.current_entity.native_pressure
 
     @property
-    def native_wind_speed(self):
+    def native_wind_speed(self) -> float | None:
         # Wind from observations is in m/s while forecast is in km/h
-        return self.current_entity.native_wind_speed * 3.6
+        if (wind := self.current_entity.native_wind_speed) is None:
+            return None
+        return wind * 3.6
 
     @property
-    def wind_bearing(self):
+    def native_wind_gust_speed(self) -> float | None:
+        # Wind gusts from observations are in m/s while forecast is in km/h
+        if (gusts := self.current_entity.native_wind_gust_speed) is None:
+            return None
+        return gusts * 3.6
+
+    @property
+    def native_visibility(self) -> float | None:
+        return self.current_entity.native_visibility
+
+    @property
+    def wind_bearing(self) -> float | None:
         return self.current_entity.wind_bearing
+
+    @property
+    def native_dew_point(self) -> float | None:
+        return self.current_entity.native_dew_point
 
     #
     # Forecast
