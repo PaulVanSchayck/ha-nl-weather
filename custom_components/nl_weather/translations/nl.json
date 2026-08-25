@@ -121,6 +121,9 @@
       },
       "heat_force_index_today": {
         "name": "Max hittekracht vandaag"
+      },
+      "alert_region" : {
+        "name": "Waarschuwingsregio"
       }
     },
     "binary_sensor": {
