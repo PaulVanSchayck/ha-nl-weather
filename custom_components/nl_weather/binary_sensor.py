@@ -7,10 +7,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.util import utcnow
+from homeassistant.util.dt import utcnow
 
-from . import DOMAIN
-from .const import Alert
+from .const import DOMAIN, Alert
 from .coordinator import (
     NLWeatherConfigEntry,
     NLWeatherNowcastCoordinator,
