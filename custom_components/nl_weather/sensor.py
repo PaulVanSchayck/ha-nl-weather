@@ -8,6 +8,17 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
+from homeassistant.components.weather.const import (
+    ATTR_WEATHER_CLOUD_COVERAGE,
+    ATTR_WEATHER_DEW_POINT,
+    ATTR_WEATHER_HUMIDITY,
+    ATTR_WEATHER_PRESSURE,
+    ATTR_WEATHER_TEMPERATURE,
+    ATTR_WEATHER_VISIBILITY,
+    ATTR_WEATHER_WIND_BEARING,
+    ATTR_WEATHER_WIND_GUST_SPEED,
+    ATTR_WEATHER_WIND_SPEED,
+)
 from homeassistant.components.weather.significant_change import (
     VALID_CARDINAL_DIRECTIONS,
 )
@@ -15,6 +26,7 @@ from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import (
     DEGREE,
     PERCENTAGE,
+    EntityCategory,
     UnitOfIrradiance,
     UnitOfLength,
     UnitOfPressure,
@@ -24,26 +36,16 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from . import DOMAIN
 from .const import (
     ATTR_WEATHER_CLOUD_CEILING,
-    ATTR_WEATHER_CLOUD_COVERAGE,
-    ATTR_WEATHER_DEW_POINT,
-    ATTR_WEATHER_HUMIDITY,
-    ATTR_WEATHER_PRESSURE,
     ATTR_WEATHER_SOLAR_RADIATION,
     ATTR_WEATHER_SUNSHINE,
-    ATTR_WEATHER_TEMPERATURE,
     ATTR_WEATHER_TEMPERATURE_GRASS,
     ATTR_WEATHER_TEMPERATURE_SOIL,
-    ATTR_WEATHER_VISIBILITY,
-    ATTR_WEATHER_WIND_BEARING,
-    ATTR_WEATHER_WIND_GUST_SPEED,
-    ATTR_WEATHER_WIND_SPEED,
+    DOMAIN,
     PARAMETER_ATTRIBUTE_MAP,
     Alert,
 )
