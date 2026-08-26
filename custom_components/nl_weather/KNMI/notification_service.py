@@ -86,20 +86,17 @@ class NotificationService:
         self._task.cancel()
 
     async def test_connection(self) -> bool:
-        """Test the MQTT connection and validate the configured token."""
+        """Test the MQTT connection using the configured token."""
         try:
             async with self._setup_client() as client:
                 await client.subscribe(TOPICS[0])
-        except aiomqtt.exceptions.MqttConnectError as err:
-            if err.rc == 135:
+        except MqttError as err:
+            if getattr(err, "rc", None) == 135:
                 raise TokenInvalid from err
-    
-            _LOGGER.debug("MQTT connection failed: %s", err)
+
+            _LOGGER.exception("Exception occurred")
             return False
-        except aiomqtt.exceptions.MqttError as err:
-            _LOGGER.debug("MQTT connection failed: %s", err)
-            return False
-    
+
         return True
 
 
