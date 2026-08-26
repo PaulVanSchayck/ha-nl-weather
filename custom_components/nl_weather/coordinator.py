@@ -12,7 +12,6 @@ from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME, CONF_REGION
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from homeassistant.util import utcnow
 
 from .const import (
     APP_FORECAST_API_SCAN_INTERVAL,
@@ -105,7 +104,11 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise UpdateFailed(f"Error while retrieving data: {err}") from err
 
         # Prune hours that already passed from the data, this is way more convenient to do here already
-        current_hour = utcnow().replace(minute=0, second=0, microsecond=0)
+        current_hour = datetime.now(timezone.utc).replace(
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
         summary["hourly"]["forecast"] = [
             h
             for h in summary["hourly"]["forecast"]
@@ -151,7 +154,7 @@ class NLWeatherNowcastCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
         ]
 
     async def _async_update_data(self) -> list[dict[str, Any]]:
-        now = utcnow()
+        now = datetime.now(timezone.utc)
         latest_5_minutes = now.replace(
             minute=floor(now.minute / 5) * 5, second=0, microsecond=0
         )
@@ -167,7 +170,9 @@ class NLWeatherNowcastCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
             ) from err
 
 
-class NLWeatherEDRCoordinator(DataUpdateCoordinator):
+class NLWeatherEDRCoordinator(
+    DataUpdateCoordinator[dict[str, object] | None]
+):
     """Base EDR Coordinator"""
 
     _latest_filename_datetime = datetime(
@@ -175,10 +180,11 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
     )
     _station_names: dict
 
-    def __init__(self, hass, subentry: ConfigSubentry, ns, edr) -> None:
+    def __init__(self, hass, entry: NLWeatherConfigEntry, subentry: ConfigSubentry, ns: NotificationService, edr: EDR) -> None:
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=entry,
             name=f"NL Weather EDR API data coordinator for {subentry.data[CONF_NAME]}",
             update_interval=None,  # no polling
         )
@@ -196,7 +202,7 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
     async def get_coverage_datetime(self, event) -> None:
         pass
 
-    async def _async_update_data(self):
+    async def _async_update_data(self) -> dict[str, object] | None:
         """No polling. Just return the already available data."""
         return self.data
 
