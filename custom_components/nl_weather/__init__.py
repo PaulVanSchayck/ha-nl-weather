@@ -14,9 +14,6 @@ from .const import (
     CONF_WMS_TOKEN,
     StationMode,
 )
-from .const import (
-    DOMAIN as DOMAIN,
-)
 from .coordinator import (
     NLWeatherAutoEDRCoordinator,
     NLWeatherConfigEntry,
