@@ -4,9 +4,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from math import floor
 from random import randint
-from typing import Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME, CONF_REGION
@@ -19,7 +17,7 @@ from .const import (
     CONF_STATION,
     PARAMETER_ATTRIBUTE_MAP,
 )
-from .KNMI.app import App, AppException
+from .KNMI.app import App, AppException, PrecipitationGraph
 from .KNMI.edr import EDR, NotFoundError, ServerError
 from .KNMI.grid_definitions import GridDefinitions, GridManager
 from .KNMI.helpers import (
@@ -49,7 +47,7 @@ class RuntimeData:
 type NLWeatherConfigEntry = ConfigEntry[RuntimeData]
 
 
-class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, object]]):
     """Coordinator for NL Weather forecast data."""
 
     config_entry: ConfigEntry
@@ -80,7 +78,7 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             GridDefinitions.FORECAST, self._location
         )
 
-    async def _async_update_data(self) -> dict[str, Any]:
+    async def _async_update_data(self) -> dict[str, object]:
         """Obtain the latest data from KNMI App API."""
         try:
             summary = await self._api.weather(self._forecast_cell, self._region)
@@ -118,56 +116,105 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return summary
 
 
-class NLWeatherNowcastCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
+class NLWeatherNowcastCoordinator(
+    DataUpdateCoordinator[list[dict[str, object]]]
+):
     """Coordinator for NL Weather precipitation nowcast data."""
 
     def __init__(
-        self, hass: HomeAssistant, entry: NLWeatherConfigEntry, subentry: ConfigSubentry
+        self,
+        hass: HomeAssistant,
+        entry: NLWeatherConfigEntry,
+        subentry: ConfigSubentry,
     ) -> None:
+        """Initialize the precipitation nowcast coordinator."""
         super().__init__(
             hass,
             _LOGGER,
             config_entry=entry,
-            name=f"NL Weather KNMI App API precipitation nowcast coordinator for {entry.title} ({subentry.data[CONF_NAME]})",
+            name=(
+                "NL Weather KNMI App API precipitation nowcast coordinator "
+                f"for {entry.title} ({subentry.data[CONF_NAME]})"
+            ),
             always_update=False,
             update_interval=APP_NOWCAST_API_SCAN_INTERVAL,
         )
+
         self._api = entry.runtime_data.app
         self._location = Coordinate(
             subentry.data[CONF_LATITUDE],
             subentry.data[CONF_LONGITUDE],
         )
         self._region = subentry.data[CONF_REGION]
+        self._radar_cell = GridManager.default().cell(
+            GridDefinitions.RADAR,
+            self._location,
+        )
 
-    async def _async_setup(self) -> None:
-        grid_manager = GridManager.default()
-        self._radar_cell = grid_manager.cell(GridDefinitions.RADAR, self._location)
+    def _get_precipitation_nowcast(
+        self,
+        precipitation_graph: dict[str, object],
+    ) -> list[dict[str, object]]:
+        """Convert precipitation graph data to five-minute forecast data."""
+        precipitation = precipitation_graph.get("precipitation")
 
-    def _get_precipitation_nowcast(self, precipitation_graph):
-        """Get 5 minute weather data from the forecast."""
+        if not isinstance(precipitation, dict):
+            raise TypeError(
+                "Invalid precipitation graph: 'precipitation' must be a dictionary"
+            )
+
+        times = precipitation.get("times")
+        amounts = precipitation.get("amounts")
+
+        if not isinstance(times, list):
+            raise TypeError(
+                "Invalid precipitation graph: 'times' must be a list"
+            )
+
+        if not isinstance(amounts, list):
+            raise TypeError(
+                "Invalid precipitation graph: 'amounts' must be a list"
+            )
+
+        if len(times) != len(amounts):
+            raise ValueError(
+                "Invalid precipitation graph: 'times' and 'amounts' "
+                "must have the same length"
+            )
+
+        if not all(isinstance(time, str) for time in times):
+            raise TypeError(
+                "Invalid precipitation graph: all 'times' values must be strings"
+            )
+
         return [
             {
                 "datetime": datetime.fromisoformat(time),
-                "precipitation": precipitation_graph["precipitation"]["amounts"][idx],
+                "precipitation": amount,
             }
-            for idx, time in enumerate(precipitation_graph["precipitation"]["times"])
+            for time, amount in zip(times, amounts, strict=True)
         ]
 
-    async def _async_update_data(self) -> list[dict[str, Any]]:
+    async def _async_update_data(self) -> list[dict[str, object]]:
+        """Retrieve precipitation nowcast data."""
         now = datetime.now(timezone.utc)
         latest_5_minutes = now.replace(
-            minute=floor(now.minute / 5) * 5, second=0, microsecond=0
+            minute=(now.minute // 5) * 5,
+            second=0,
+            microsecond=0,
         )
+
         try:
             precipitation_graph = await self._api.precipitation_graph(
-                self._radar_cell, format_dt(latest_5_minutes)
+                self._radar_cell,
+                format_dt(latest_5_minutes),
             )
-            return self._get_precipitation_nowcast(precipitation_graph)
         except AppException as err:
-            # Nowcast is non-critical for the forecast entity
             raise UpdateFailed(
                 f"Error while retrieving precipitation nowcast: {err}"
             ) from err
+
+        return self._get_precipitation_nowcast(precipitation_graph)
 
 
 class NLWeatherEDRCoordinator(
@@ -178,15 +225,24 @@ class NLWeatherEDRCoordinator(
     _latest_filename_datetime = datetime(
         year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc
     )
-    _station_names: dict
+    _station_names: dict[str, str]
 
-    def __init__(self, hass, entry: NLWeatherConfigEntry, subentry: ConfigSubentry, ns: NotificationService, edr: EDR) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: NLWeatherConfigEntry,
+        subentry: ConfigSubentry,
+        ns: NotificationService,
+        edr: EDR,
+    ) -> None:
+        """Initialize the EDR coordinator."""
         super().__init__(
             hass,
             _LOGGER,
             config_entry=entry,
-            name=f"NL Weather EDR API data coordinator for {subentry.data[CONF_NAME]}",
-            update_interval=None,  # no polling
+            name=f"NL Weather EDR API data coordinator for "
+            f"{subentry.data[CONF_NAME]}",
+            update_interval=None,
         )
         self._ns = ns
         self._edr = edr
@@ -303,14 +359,22 @@ class NLWeatherAutoEDRCoordinator(NLWeatherEDRCoordinator):
 
 
 class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
-    """Coordinator that gets data for specific weather station"""
+    """Coordinator that gets data for a specific weather station."""
 
     _latest_filename_datetime = datetime(
         year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc
     )
 
-    def __init__(self, hass, subentry: ConfigSubentry, ns, edr) -> None:
-        super().__init__(hass, subentry, ns, edr)
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: NLWeatherConfigEntry,
+        subentry: ConfigSubentry,
+        ns: NotificationService,
+        edr: EDR,
+    ) -> None:
+        """Initialize the manual EDR coordinator."""
+        super().__init__(hass, entry, subentry, ns, edr)
         self._station = self._config[CONF_STATION]
 
     def _prepare_data(self, coverage):
