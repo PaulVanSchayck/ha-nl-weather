@@ -538,8 +538,8 @@ class AlertRegionSensor(SensorEntity):
             identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
         )
         self._attr_has_entity_name = True
-        self.value = subentry.data[CONF_REGION]
+        self._region_id = subentry.data[CONF_REGION]
 
     @property
     def native_value(self):
-        return ALERT_REGIONS.get(self.value)
+        return ALERT_REGIONS.get(self._region_id, self._region_id)

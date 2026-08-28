@@ -122,7 +122,7 @@
       "heat_force_index_today": {
         "name": "Max heat force today"
       },
-      "alert_region" : {
+      "alert_region": {
         "name": "Alert region"
       }
     },
