@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import TypedDict, cast
 
 import aiohttp
 
@@ -7,17 +8,218 @@ BASE_URL = "https://api.app.knmi.cloud"
 _LOGGER = logging.getLogger(__name__)
 
 
+class PrecipitationGraphData(TypedDict):
+    """Precipitation graph data."""
+
+    times: list[str]
+    amounts: list[float]
+
+
+class PrecipitationGraph(TypedDict):
+    """Precipitation graph response."""
+
+    precipitation: PrecipitationGraphData
+
+
+class WeatherPrecipitation(TypedDict):
+    """Weather precipitation data."""
+
+    amount: float
+    chance: float
+
+
+class WeatherWind(TypedDict):
+    """Weather wind data."""
+
+    source: str
+    degree: float
+    speed: float
+    gusts: float
+    beaufort: int
+
+
+class WeatherHourlyForecast(TypedDict):
+    """Hourly weather forecast."""
+
+    dateTime: str
+    temperature: float
+    precipitation: WeatherPrecipitation
+    weatherType: int
+    alertLevel: str
+    wind: WeatherWind
+    heatIndex: float
+
+
+class WeatherHourly(TypedDict):
+    """Hourly weather forecast container."""
+
+    forecast: list[WeatherHourlyForecast]
+
+
+class WeatherDailyTemperature(TypedDict):
+    """Daily temperature data."""
+
+    min: float
+    max: float
+
+
+class WeatherDailyForecast(TypedDict):
+    """Daily weather forecast."""
+
+    temperature: WeatherDailyTemperature
+    precipitation: WeatherPrecipitation
+    weatherType: int
+    alertLevels: list[str]
+    date: str
+
+
+class WeatherDaily(TypedDict):
+    """Daily weather forecast container."""
+
+    forecast: list[WeatherDailyForecast]
+
+
+class WeatherBackground(TypedDict):
+    """Weather background information."""
+
+    sky: str
+    clouds: str
+    celestial: str
+    dateTime: str
+
+
+class WeatherAlert(TypedDict):
+    """Weather alert."""
+
+    level: str
+    title: str
+    description: str
+
+
+class WeatherSummary(TypedDict):
+    """Weather summary."""
+
+    dateTime: str
+    temperature: float
+
+
+class WeatherSun(TypedDict):
+    """Sunrise and sunset information."""
+
+    sunrise: str
+    sunset: str
+
+
+class WeatherUvIndex(TypedDict):
+    """UV index information."""
+
+    value: float
+    summary: str
+
+
+class Weather(TypedDict):
+    """KNMI weather response."""
+
+    backgrounds: list[WeatherBackground]
+    alerts: list[WeatherAlert]
+    summaries: list[WeatherSummary]
+    hourly: WeatherHourly
+    daily: WeatherDaily
+    wind: WeatherWind
+    sun: WeatherSun
+    uvIndex: WeatherUvIndex
+    heatIndex: float
+
+
+class PrecipitationChance(TypedDict):
+    """Precipitation probability data."""
+
+    chance: float
+    summary: str
+
+
+class Sunshine(TypedDict):
+    """Sunshine information."""
+
+    description: str
+    hours: float
+
+
+class ClimateTemperatureRange(TypedDict):
+    """Climate temperature range."""
+
+    min: float
+    max: float
+
+
+class Climate(TypedDict):
+    """Climate information."""
+
+    month: int
+    currentTemperatureRange: ClimateTemperatureRange
+    averageTemperatureRange: ClimateTemperatureRange
+    summary: str
+    label: str
+
+
+class DailyTemperatureData(TypedDict):
+    """Daily temperature time series."""
+
+    dates: list[str]
+    minTemperatures: list[float]
+    lowerMinTemperatures: list[float]
+    upperMinTemperatures: list[float]
+    maxTemperatures: list[float]
+    lowerMaxTemperatures: list[float]
+    upperMaxTemperatures: list[float]
+
+
+class DailyPrecipitationData(TypedDict):
+    """Daily precipitation time series."""
+
+    dates: list[str]
+    amounts: list[float]
+    lowerAmounts: list[float]
+    upperAmounts: list[float]
+
+
+class WeatherDetailDaily(TypedDict):
+    """Detailed daily weather data."""
+
+    temperature: DailyTemperatureData
+    precipitation: DailyPrecipitationData
+
+
+class WeatherDetail(TypedDict):
+    """KNMI detailed weather response."""
+
+    alerts: list[WeatherAlert]
+    precipitationChance: PrecipitationChance
+    sunshine: Sunshine
+    wind: WeatherWind
+    sun: WeatherSun
+    uvIndex: WeatherUvIndex
+    heatIndex: float
+    climate: Climate
+    daily: WeatherDetailDaily
+
+
 class App:
     _session: aiohttp.ClientSession
     _area_definition: dict
 
-    def __init__(self, aiohttp_session):
+    def __init__(self, aiohttp_session: aiohttp.ClientSession) -> None:
         self._session = aiohttp_session
 
-    async def get(self, endpoint: str, params=None):
+    async def get(
+        self,
+        endpoint: str,
+        params: dict[str, str] | None = None,
+    ) -> object:
         _LOGGER.debug(f"Calling KNMI App API endpoint {endpoint} with {params}")
         async with self._session.get(f"{BASE_URL}/{endpoint}", params=params) as resp:
             body = await resp.text()
+
             try:
                 resp.raise_for_status()
             except aiohttp.ClientResponseError as e:
@@ -30,17 +232,52 @@ class App:
                 raise
             return json.loads(body)
 
-    async def weather(self, cell_id, region):
-        params = {"location": cell_id, "region": region}
-        return await self.get("weather", params)
+    async def weather(
+        self,
+        cell_id: str,
+        region: str,
+    ) -> Weather:
+        """Get weather data."""
+        params = {
+            "location": cell_id,
+            "region": region,
+        }
 
-    async def weather_detail(self, cell_id, region, date):
-        params = {"location": cell_id, "region": region, "date": date}
-        return await self.get("weather/detail", params)
+        response = await self.get("weather", params)
+        # _LOGGER.debug("Weather response: %s", response)
+        return cast(Weather, response)
 
-    async def precipitation_graph(self, radar_cell_id, date):
-        params = {"location": radar_cell_id, "time": date}
-        return await self.get("precipitation/graph", params)
+    async def weather_detail(
+        self,
+        cell_id: str,
+        region: str,
+        date: str,
+    ) -> WeatherDetail:
+        """Get detailed weather data."""
+        params = {
+            "location": cell_id,
+            "region": region,
+            "date": date,
+        }
+        response = await self.get("weather/detail", params)
+        # _LOGGER.debug("Weather/detail response: %s", response)
+
+        return cast(WeatherDetail, response)
+
+    async def precipitation_graph(
+        self,
+        radar_cell_id: str,
+        date: str,
+    ) -> PrecipitationGraph:
+        """Get precipitation graph data."""
+        params = {
+            "location": radar_cell_id,
+            "time": date,
+        }
+        response = await self.get("precipitation/graph", params)
+        # _LOGGER.debug("precipitation/graph response: %s", response)
+
+        return cast(PrecipitationGraph, response)
 
 
 class AppException(Exception):
