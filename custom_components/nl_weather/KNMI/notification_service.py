@@ -134,6 +134,55 @@ class NotificationService:
 
         _LOGGER.debug("KNMI MQTT notification service stopped")
 
+    async def test_connection(self) -> None:
+        """Test the KNMI MQTT connection and validate the token."""
+        _LOGGER.debug("KNMI MQTT testing connection")
+
+        self._connected.clear()
+        self._connection_error = None
+
+        try:
+            if self._windows:
+                await self._test_paho_connection()
+            else:
+                await self._test_aiomqtt_connection()
+        finally:
+            await self._disconnect()
+
+    async def _test_aiomqtt_connection(self) -> None:
+        """Test the MQTT connection using aiomqtt."""
+        _LOGGER.debug("KNMI MQTT testing connection using aiomqtt")
+
+        async with self._create_aiomqtt_client():
+            _LOGGER.debug("KNMI MQTT aiomqtt connection test succeeded")
+
+    async def _test_paho_connection(self) -> None:
+        """Test the MQTT connection using Paho on Windows."""
+        _LOGGER.debug("KNMI MQTT testing connection using Paho")
+
+        client = self._create_paho_client()
+        self._paho_client = client
+        self._client = client
+
+        try:
+            client.connect(
+                BROKER_DOMAIN,
+                BROKER_PORT,
+                keepalive=KEEPALIVE,
+            )
+
+            client.loop_start()
+
+            await self._wait_for_paho_connection()
+
+            if self._connection_error is not None:
+                raise self._connection_error
+
+            _LOGGER.debug("KNMI MQTT Paho connection test succeeded")
+
+        finally:
+            client.loop_stop()
+
     async def _run_aiomqtt(self) -> None:
         """Run the asyncio-native MQTT implementation."""
         _LOGGER.debug("KNMI MQTT using aiomqtt transport")
@@ -376,6 +425,28 @@ class NotificationService:
                     exc_info=exception,
                 )
 
+    async def _execute_callback(
+        self,
+        dataset: str,
+        identifier: str,
+        callback: Callback,
+        event: dict[str, object],
+    ) -> None:
+        """Execute one KNMI MQTT callback and log its execution."""
+        _LOGGER.debug(
+            "KNMI MQTT callback executing: dataset=%s identifier=%s",
+            dataset,
+            identifier,
+        )
+
+        await callback(event)
+
+        _LOGGER.debug(
+            "KNMI MQTT callback completed: dataset=%s identifier=%s",
+            dataset,
+            identifier,
+        )
+
     async def _handle_message(
         self,
         payload: bytes,
@@ -427,8 +498,23 @@ class NotificationService:
             len(callbacks),
         )
 
+        for identifier in callbacks:
+            _LOGGER.debug(
+                "KNMI MQTT callback executing: dataset=%s identifier=%s",
+                dataset,
+                identifier,
+            )
+
         results = await asyncio.gather(
-            *(callback(event) for callback in callbacks.values()),
+            *(
+                self._execute_callback(
+                    dataset,
+                    identifier,
+                    callback,
+                    event,
+                )
+                for identifier, callback in callbacks.items()
+            ),
             return_exceptions=True,
         )
 
