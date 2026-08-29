@@ -1,8 +1,8 @@
 import json
 import logging
-from typing import TypedDict, cast
+from typing import NotRequired, TypedDict, cast
 
-import aiohttp
+from aiohttp import ClientResponseError, ClientSession
 
 BASE_URL = "https://api.app.knmi.cloud"
 _LOGGER = logging.getLogger(__name__)
@@ -71,6 +71,9 @@ class WeatherDailyForecast(TypedDict):
     weatherType: int
     alertLevels: list[str]
     date: str
+    uv_index: NotRequired[float | None]
+    wind: NotRequired[WeatherWind]
+    heatIndex: NotRequired[float | None]
 
 
 class WeatherDaily(TypedDict):
@@ -119,6 +122,20 @@ class WeatherUvIndex(TypedDict):
 
 class Weather(TypedDict):
     """KNMI weather response."""
+
+    backgrounds: list[WeatherBackground]
+    alerts: list[WeatherAlert]
+    summaries: list[WeatherSummary]
+    hourly: WeatherHourly
+    daily: WeatherDaily
+    wind: WeatherWind
+    sun: WeatherSun
+    uvIndex: WeatherUvIndex
+    heatIndex: float
+
+
+class EnrichedWeather(TypedDict):
+    """KNMI weather data enriched with detailed daily forecasts."""
 
     backgrounds: list[WeatherBackground]
     alerts: list[WeatherAlert]
@@ -205,10 +222,12 @@ class WeatherDetail(TypedDict):
 
 
 class App:
-    _session: aiohttp.ClientSession
+    """Client for the KNMI App API."""
+
+    _session: ClientSession
     _area_definition: dict
 
-    def __init__(self, aiohttp_session: aiohttp.ClientSession) -> None:
+    def __init__(self, aiohttp_session: ClientSession) -> None:
         self._session = aiohttp_session
 
     async def get(
@@ -216,13 +235,23 @@ class App:
         endpoint: str,
         params: dict[str, str] | None = None,
     ) -> object:
-        _LOGGER.debug(f"Calling KNMI App API endpoint {endpoint} with {params}")
-        async with self._session.get(f"{BASE_URL}/{endpoint}", params=params) as resp:
-            body = await resp.text()
+        """Get JSON data from a KNMI App API endpoint."""
+
+        _LOGGER.debug(
+            "Calling KNMI App API endpoint %s with %s",
+            endpoint,
+            params,
+        )
+
+        async with self._session.get(
+            f"{BASE_URL}/{endpoint}",
+            params=params
+        ) as response:
+            body = await response.text()
 
             try:
-                resp.raise_for_status()
-            except aiohttp.ClientResponseError as e:
+                response.raise_for_status()
+            except ClientResponseError as e:
                 if e.status == 400:
                     raise InvalidRequest(json.loads(body)) from None
                 if e.status == 404:
