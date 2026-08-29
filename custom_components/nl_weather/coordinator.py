@@ -9,6 +9,7 @@ from random import randint
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME, CONF_REGION
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -17,7 +18,13 @@ from .const import (
     CONF_STATION,
     PARAMETER_ATTRIBUTE_MAP,
 )
-from .KNMI.app import App, AppException, PrecipitationGraph
+from .KNMI.app import (
+    App,
+    AppException,
+    PrecipitationGraph,
+    Weather,
+    WeatherDailyForecast,
+)
 from .KNMI.edr import EDR, NotFoundError, ServerError
 from .KNMI.grid_definitions import GridDefinitions, GridManager
 from .KNMI.helpers import (
@@ -47,7 +54,9 @@ class RuntimeData:
 type NLWeatherConfigEntry = ConfigEntry[RuntimeData]
 
 
-class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, object]]):
+class NLWeatherUpdateCoordinator(
+    DataUpdateCoordinator[Weather],
+):
     """Coordinator for NL Weather forecast data."""
 
     config_entry: ConfigEntry
@@ -78,42 +87,72 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, object]]):
             GridDefinitions.FORECAST, self._location
         )
 
-    async def _async_update_data(self) -> dict[str, object]:
+    async def _async_update_data(self) -> Weather:
         """Obtain the latest data from KNMI App API."""
-        try:
-            summary = await self._api.weather(self._forecast_cell, self._region)
+        forecast_cell = self._forecast_cell
 
-            # Fetch all individual days
+        if forecast_cell is None:
+            raise UpdateFailed("KNMI forecast cell is not configured.")
+
+        try:
+            summary = await self._api.weather(
+                forecast_cell,
+                self._region,
+            )
+
+            enriched_forecast: list[WeatherDailyForecast] = []
+
             for daily_forecast in summary["daily"]["forecast"]:
                 day_detail = await self._api.weather_detail(
-                    self._forecast_cell, self._region, daily_forecast["date"]
+                    forecast_cell,
+                    self._region,
+                    daily_forecast["date"],
                 )
-                # Augment the summary data with daily data
-                daily_forecast["precipitation"]["chance"] = day_detail[
-                    "precipitationChance"
-                ]["chance"]
-                daily_forecast["uv_index"] = (
-                    day_detail["uvIndex"]["value"] if "uvIndex" in day_detail else None
-                )
-                daily_forecast["wind"] = day_detail["wind"]
-                daily_forecast["heatIndex"] = day_detail.get("heatIndex", None)
-        except AppException as err:
-            # TODO: Improve error handling
-            raise UpdateFailed(f"Error while retrieving data: {err}") from err
 
-        # Prune hours that already passed from the data, this is way more convenient to do here already
+                enriched_forecast.append(
+                    {
+                        **daily_forecast,
+                        "precipitation": {
+                            **daily_forecast["precipitation"],
+                            "chance": day_detail["precipitationChance"]["chance"],
+                        },
+                        "uv_index": (
+                            day_detail["uvIndex"]["value"]
+                            if "uvIndex" in day_detail
+                            else None
+                        ),
+                        "wind": day_detail["wind"],
+                        "heatIndex": day_detail.get("heatIndex"),
+                    }
+                )
+
+        except AppException as err:
+            raise UpdateFailed(
+                f"Error while retrieving data: {err}"
+            ) from err
+
         current_hour = datetime.now(timezone.utc).replace(
             minute=0,
             second=0,
             microsecond=0,
         )
-        summary["hourly"]["forecast"] = [
-            h
-            for h in summary["hourly"]["forecast"]
-            if datetime.fromisoformat(h["dateTime"]) >= current_hour
+
+        filtered_hourly_forecast = [
+            hourly_forecast
+            for hourly_forecast in summary["hourly"]["forecast"]
+            if datetime.fromisoformat(hourly_forecast["dateTime"]) >= current_hour
         ]
 
-        return summary
+        return {
+            **summary,
+            "hourly": {
+                **summary["hourly"],
+                "forecast": filtered_hourly_forecast,
+            },
+            "daily": {
+                "forecast": enriched_forecast,
+            },
+        }
 
 
 class NLWeatherNowcastCoordinator(
@@ -146,14 +185,21 @@ class NLWeatherNowcastCoordinator(
             subentry.data[CONF_LONGITUDE],
         )
         self._region = subentry.data[CONF_REGION]
-        self._radar_cell = GridManager.default().cell(
+        radar_cell = GridManager.default().cell(
             GridDefinitions.RADAR,
             self._location,
         )
 
+        if radar_cell is None:
+            raise ConfigEntryError(
+                "Unable to determine the KNMI radar cell for the configured location."
+            )
+
+        self._radar_cell: str = radar_cell
+
     def _get_precipitation_nowcast(
         self,
-        precipitation_graph: dict[str, object],
+        precipitation_graph: PrecipitationGraph,
     ) -> list[dict[str, object]]:
         """Convert precipitation graph data to five-minute forecast data."""
         precipitation = precipitation_graph.get("precipitation")
