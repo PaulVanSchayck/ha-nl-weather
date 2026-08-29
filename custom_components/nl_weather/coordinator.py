@@ -423,15 +423,137 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
         super().__init__(hass, entry, subentry, ns, edr)
         self._station = self._config[CONF_STATION]
 
-    def _prepare_data(self, coverage):
-        return {
-            "datetime": datetime.fromisoformat(
-                coverage["domain"]["axes"]["t"]["values"][-1]
+    def _get_dict_value(
+        self,
+        data: dict[str, object],
+        key: str,
+        context: str,
+    ) -> dict[str, object]:
+        """Get a dictionary value from API data."""
+        value = data.get(key)
+
+        if not isinstance(value, dict):
+            raise TypeError(
+                f"KNMI {context} contains invalid {key} data."
+            )
+
+        return value
+
+    def _get_list_value(
+        self,
+        data: dict[str, object],
+        key: str,
+        context: str,
+    ) -> list[object]:
+        """Get a list value from API data."""
+        value = data.get(key)
+
+        if not isinstance(value, list):
+            raise TypeError(
+                f"KNMI {context} contains invalid {key} data."
+            )
+
+        return value
+
+    def _get_parameter_value(
+        self,
+        parameter_data: object,
+        parameter: str,
+    ) -> float:
+        """Get the latest numeric value for a weather parameter."""
+        if not isinstance(parameter_data, dict):
+            raise TypeError(
+                f"KNMI coverage contains invalid data for parameter {parameter}."
+            )
+
+        values = parameter_data.get("values")
+
+        if not isinstance(values, list):
+            raise TypeError(
+                f"KNMI coverage contains invalid values for parameter {parameter}."
+            )
+
+        if not values:
+            raise ValueError(
+                f"KNMI coverage contains no values for parameter {parameter}."
+            )
+
+        value = values[-1]
+
+        if not isinstance(value, (int, float)):
+            raise TypeError(
+                f"KNMI coverage contains a non-numeric value for parameter "
+                f"{parameter}."
+            )
+
+        return float(value)
+
+    def _prepare_parameters(
+        self,
+        ranges: dict[str, object],
+    ) -> dict[str, float]:
+        """Prepare the latest values for all weather parameters."""
+        params: dict[str, float] = {}
+
+        for parameter, parameter_data in ranges.items():
+            params[parameter] = self._get_parameter_value(
+                parameter_data,
+                parameter,
+            )
+
+        return params
+
+    def _get_datetime_value(
+        self,
+        values: list[object],
+        context: str,
+    ) -> datetime:
+        """Get a timezone-aware datetime from API values."""
+        if not values:
+            raise ValueError(
+                f"KNMI {context} contains no datetime values."
+            )
+
+        value = values[-1]
+
+        if not isinstance(value, str):
+            raise TypeError(
+                f"KNMI {context} contains a non-string datetime value."
+            )
+
+        return datetime.fromisoformat(value)
+
+    def _prepare_data(self, coverage: dict[str, object]) -> dict[str, object]:
+        """Prepare KNMI observation data for the coordinator."""
+        domain = self._get_dict_value(coverage, "domain", "coverage response")
+        axes = self._get_dict_value(domain, "axes", "domain")
+        time_axis = self._get_dict_value(axes, "t", "axes")
+        time_values = self._get_list_value(time_axis, "values", "time axis")
+
+        location_id = coverage.get("eumetnet:locationId")
+        if not isinstance(location_id, str):
+            raise TypeError(
+                "KNMI coverage response contains an invalid "
+                "EUMETNET location ID."
+            )
+
+        ranges = self._get_dict_value(
+            coverage,
+            "ranges",
+            "coverage response",
+        )
+
+        prepare_data = {
+            "datetime": self._get_datetime_value(
+                time_values,
+                "coverage response",
             ),
-            "station_name": self._station_names[coverage["eumetnet:locationId"]],
+            "station_name": self._station_names[location_id],
             "distance": coverage_distance(coverage, self._location),
-            "params": {p: i["values"][-1] for p, i in coverage["ranges"].items()},
+            "params": self._prepare_parameters(ranges),
         }
+        _LOGGER.debug("Prepare location data: %s", prepare_data)
+        return prepare_data
 
     async def get_coverage_datetime(self, event) -> None:
         filename_datetime = datetime.strptime(
@@ -462,7 +584,8 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
             f"Could not retrieve coverage for {self._station} at {filename_datetime} after 3 attempts"
         )
 
-    async def _async_setup(self):
+    async def _async_setup(self) -> None:
+        """Set up the coordinator and fetch initial observation data."""
         await super()._async_setup()
 
         # Get some initial observation data
