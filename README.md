@@ -24,7 +24,7 @@ is used to display the forecast and nowcast. For the radar image the “Picture 
   - Current weather observations (temperature, humidity, wind, etc.)  
   - Weather forecast (hourly/daily)
   - Weather alerts (issued by KNMI)
-- Precipitation / rain radar and forecast graph
+- Precipitation / rain radar and forecast graph (2 hours into future)
   - Can mark home location on the radar image
   - Radar has a dark and light color theme 
   - Precipitation nowcast and binary sensor when precipitation is predicted
@@ -112,6 +112,7 @@ The separate observations and forecast entities remain available and can be enab
 - Forecast temperature sensors for today's and tomorrow's highs and lows
 - Precipitation forecast binary sensor 
   - Nowcast graph data stored as a sensor attribute `forecast` (in mm/h)
+  - Nowcast predicts two hours into the future
 - Heat force index (hittekracht) for now and today
   - Index of the Wet Bulb Globe Temperature.
   - See https://www.knmi.nl/kennis-en-datacentrum/uitleg/hittekracht
@@ -160,7 +161,7 @@ content: |
   {% endfor %}
   {% else %}
   <ha-alert alert-type="success" title="Waarschuwingen">
-    Geen actieve waarschuwingen.
+    Geen waarschuwingen actief
   </ha-alert>
   {% endif %}
 ```
@@ -183,7 +184,7 @@ Home Assistant lacks a way to directly render the precipitation nowcast graph.
 The data for the graph is available in two ways:
 
 1. As service call `get_minute_forecast` to the `weather.weer_{location}_forecast` entity.
-    - This has been pruned to only include data from now onwards.
+    - This has been pruned to only include data from now onwards up to two hours into the future
     - At a minute interval
 2. As `forecast` attribute to the `sensor.weer_{location}_precipitation_forecasted` sensor.
     - Use the HA Developer Tools to inspect the sensor
@@ -272,22 +273,24 @@ To make something like this:
 
 ![Screenshot of precipitation nowcast using Plotly Graph Card](images/nowcast-plotly.png "Precipitation Nowcast using Plotly Graph Card")
 
-### Creating a precipitation forecasted sensor with a custom threshold
+### Creating a precipitation forecasted sensor with custom thresholds
 
-The default `sensor.weer_{location}_precipitation_forecasted` will trigger at any precipitation (e.g 0.1 mm/h). If you like a higher threshold, you can add this templated binary sensor in your `configuration.yaml`:
+The default `sensor.weer_{location}_precipitation_forecasted` will trigger at any precipitation (e.g 0.1 mm/h) up to two hours in the future. 
+If you like a higher precipitation threshold or a shorter time horizon, you can add this templated binary sensor in your `configuration.yaml`:
 
 ```yaml
 template:
   - binary_sensor:
-      - name: "Precipitation forecasted (2 mm/h threshold)"
+      - name: "Precipitation forecasted (at least 2 mm/h in next 15 minutes)"
         unique_id: weer_home_precipitation_forecasted_threshold
         state: >
           {% set threshold = 2 %}
           {% set now = now() %}
+          {% set cutoff = now + timedelta(minutes=15) %}
           {% set nowcast = state_attr('binary_sensor.weer_home_precipitation_forecasted','forecast') or [] %}
           {% set ns = namespace(rain=false) %}
           {% for p in nowcast %}
-            {% if p.datetime > now and (p.precipitation | default(0)) > threshold %}
+            {% if now < as_datetime(p.datetime) <= cutoff and (p.precipitation | default(0)) > threshold %}
               {% set ns.rain = true %}
             {% endif %}
           {% endfor %}

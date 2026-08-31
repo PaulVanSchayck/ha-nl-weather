@@ -24,6 +24,7 @@ from homeassistant.components.weather.significant_change import (
 )
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import (
+    CONF_REGION,
     DEGREE,
     PERCENTAGE,
     EntityCategory,
@@ -40,6 +41,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    ALERT_REGIONS,
     ATTR_WEATHER_CLOUD_CEILING,
     ATTR_WEATHER_SOLAR_RADIATION,
     ATTR_WEATHER_SUNSHINE,
@@ -433,6 +435,7 @@ async def async_setup_entry(
                 NLObservationSensor(edr_coordinator, config_entry, subentry, desc)
                 for desc in OBSERVATION_SENSOR_DESCRIPTIONS
             ],
+            AlertRegionSensor(config_entry, subentry),
         ]
 
         async_add_entities(entities, config_subentry_id=subentry_id)
@@ -602,3 +605,27 @@ def wind_direction_icon(wind_direction_degrees: int) -> str:
 
     # Return the icon name in the format 'mdi:icon-name'
     return f"mdi:{icon_direction}"
+
+
+class AlertRegionSensor(SensorEntity):
+    def __init__(
+        self, config_entry: NLWeatherConfigEntry, subentry: ConfigSubentry
+    ) -> None:
+
+        self.entity_description = SensorEntityDescription(
+            key="alert_region",
+            translation_key="alert_region",
+            entity_category=EntityCategory.DIAGNOSTIC,
+        )
+        self._attr_unique_id = (
+            f"{config_entry.entry_id}_{subentry.subentry_id}_alert_region"
+        )
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"{config_entry.entry_id}_{subentry.subentry_id}")},
+        )
+        self._attr_has_entity_name = True
+        self._region_id = subentry.data[CONF_REGION]
+
+    @property
+    def native_value(self):
+        return ALERT_REGIONS.get(self._region_id, self._region_id)
