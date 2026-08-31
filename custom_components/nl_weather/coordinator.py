@@ -4,15 +4,13 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from math import floor
 from random import randint
-from typing import Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME, CONF_REGION
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from homeassistant.util import utcnow
 
 from .const import (
     APP_FORECAST_API_SCAN_INTERVAL,
@@ -20,7 +18,13 @@ from .const import (
     CONF_STATION,
     PARAMETER_ATTRIBUTE_MAP,
 )
-from .KNMI.app import App, AppException
+from .KNMI.app import (
+    App,
+    AppException,
+    PrecipitationGraph,
+    Weather,
+    WeatherDailyForecast,
+)
 from .KNMI.edr import EDR, NotFoundError, ServerError
 from .KNMI.grid_definitions import GridDefinitions, GridManager
 from .KNMI.helpers import (
@@ -50,7 +54,9 @@ class RuntimeData:
 type NLWeatherConfigEntry = ConfigEntry[RuntimeData]
 
 
-class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+class NLWeatherUpdateCoordinator(
+    DataUpdateCoordinator[Weather],
+):
     """Coordinator for NL Weather forecast data."""
 
     config_entry: ConfigEntry
@@ -81,106 +87,208 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             GridDefinitions.FORECAST, self._location
         )
 
-    async def _async_update_data(self) -> dict[str, Any]:
+    async def _async_update_data(self) -> Weather:
         """Obtain the latest data from KNMI App API."""
-        try:
-            summary = await self._api.weather(self._forecast_cell, self._region)
+        forecast_cell = self._forecast_cell
 
-            # Fetch all individual days
+        if forecast_cell is None:
+            raise UpdateFailed("KNMI forecast cell is not configured.")
+
+        try:
+            summary = await self._api.weather(
+                forecast_cell,
+                self._region,
+            )
+
+            enriched_forecast: list[WeatherDailyForecast] = []
+
             for daily_forecast in summary["daily"]["forecast"]:
                 day_detail = await self._api.weather_detail(
-                    self._forecast_cell, self._region, daily_forecast["date"]
+                    forecast_cell,
+                    self._region,
+                    daily_forecast["date"],
                 )
-                # Augment the summary data with daily data
-                daily_forecast["precipitation"]["chance"] = day_detail[
-                    "precipitationChance"
-                ]["chance"]
-                daily_forecast["uv_index"] = (
-                    day_detail["uvIndex"]["value"] if "uvIndex" in day_detail else None
-                )
-                daily_forecast["wind"] = day_detail["wind"]
-                daily_forecast["heatIndex"] = day_detail.get("heatIndex", None)
-        except AppException as err:
-            # TODO: Improve error handling
-            raise UpdateFailed(f"Error while retrieving data: {err}") from err
 
-        # Prune hours that already passed from the data, this is way more convenient to do here already
-        current_hour = utcnow().replace(minute=0, second=0, microsecond=0)
-        summary["hourly"]["forecast"] = [
-            h
-            for h in summary["hourly"]["forecast"]
-            if datetime.fromisoformat(h["dateTime"]) >= current_hour
+                enriched_forecast.append(
+                    {
+                        **daily_forecast,
+                        "precipitation": {
+                            **daily_forecast["precipitation"],
+                            "chance": day_detail["precipitationChance"]["chance"],
+                        },
+                        "uv_index": (
+                            day_detail["uvIndex"]["value"]
+                            if "uvIndex" in day_detail
+                            else None
+                        ),
+                        "wind": day_detail["wind"],
+                        "heatIndex": day_detail.get("heatIndex"),
+                    }
+                )
+
+        except AppException as err:
+            raise UpdateFailed(
+                f"Error while retrieving data: {err}"
+            ) from err
+
+        current_hour = datetime.now(timezone.utc).replace(
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+
+        filtered_hourly_forecast = [
+            hourly_forecast
+            for hourly_forecast in summary["hourly"]["forecast"]
+            if datetime.fromisoformat(hourly_forecast["dateTime"]) >= current_hour
         ]
 
-        return summary
+        return {
+            **summary,
+            "hourly": {
+                **summary["hourly"],
+                "forecast": filtered_hourly_forecast,
+            },
+            "daily": {
+                "forecast": enriched_forecast,
+            },
+        }
 
 
-class NLWeatherNowcastCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
+class NLWeatherNowcastCoordinator(
+    DataUpdateCoordinator[list[dict[str, object]]]
+):
     """Coordinator for NL Weather precipitation nowcast data."""
 
     def __init__(
-        self, hass: HomeAssistant, entry: NLWeatherConfigEntry, subentry: ConfigSubentry
+        self,
+        hass: HomeAssistant,
+        entry: NLWeatherConfigEntry,
+        subentry: ConfigSubentry,
     ) -> None:
+        """Initialize the precipitation nowcast coordinator."""
         super().__init__(
             hass,
             _LOGGER,
             config_entry=entry,
-            name=f"NL Weather KNMI App API precipitation nowcast coordinator for {entry.title} ({subentry.data[CONF_NAME]})",
+            name=(
+                "NL Weather KNMI App API precipitation nowcast coordinator "
+                f"for {entry.title} ({subentry.data[CONF_NAME]})"
+            ),
             always_update=False,
             update_interval=APP_NOWCAST_API_SCAN_INTERVAL,
         )
+
         self._api = entry.runtime_data.app
         self._location = Coordinate(
             subentry.data[CONF_LATITUDE],
             subentry.data[CONF_LONGITUDE],
         )
         self._region = subentry.data[CONF_REGION]
+        radar_cell = GridManager.default().cell(
+            GridDefinitions.RADAR,
+            self._location,
+        )
 
-    async def _async_setup(self) -> None:
-        grid_manager = GridManager.default()
-        self._radar_cell = grid_manager.cell(GridDefinitions.RADAR, self._location)
+        if radar_cell is None:
+            raise ConfigEntryError(
+                "Unable to determine the KNMI radar cell for the configured location."
+            )
 
-    def _get_precipitation_nowcast(self, precipitation_graph):
-        """Get 5 minute weather data from the forecast."""
+        self._radar_cell: str = radar_cell
+
+    def _get_precipitation_nowcast(
+        self,
+        precipitation_graph: PrecipitationGraph,
+    ) -> list[dict[str, object]]:
+        """Convert precipitation graph data to five-minute forecast data."""
+        precipitation = precipitation_graph.get("precipitation")
+
+        if not isinstance(precipitation, dict):
+            raise TypeError(
+                "Invalid precipitation graph: 'precipitation' must be a dictionary"
+            )
+
+        times = precipitation.get("times")
+        amounts = precipitation.get("amounts")
+
+        if not isinstance(times, list):
+            raise TypeError(
+                "Invalid precipitation graph: 'times' must be a list"
+            )
+
+        if not isinstance(amounts, list):
+            raise TypeError(
+                "Invalid precipitation graph: 'amounts' must be a list"
+            )
+
+        if len(times) != len(amounts):
+            raise ValueError(
+                "Invalid precipitation graph: 'times' and 'amounts' "
+                "must have the same length"
+            )
+
+        if not all(isinstance(time, str) for time in times):
+            raise TypeError(
+                "Invalid precipitation graph: all 'times' values must be strings"
+            )
+
         return [
             {
                 "datetime": datetime.fromisoformat(time),
-                "precipitation": precipitation_graph["precipitation"]["amounts"][idx],
+                "precipitation": amount,
             }
-            for idx, time in enumerate(precipitation_graph["precipitation"]["times"])
+            for time, amount in zip(times, amounts, strict=True)
         ]
 
-    async def _async_update_data(self) -> list[dict[str, Any]]:
-        now = utcnow()
+    async def _async_update_data(self) -> list[dict[str, object]]:
+        """Retrieve precipitation nowcast data."""
+        now = datetime.now(timezone.utc)
         latest_5_minutes = now.replace(
-            minute=floor(now.minute / 5) * 5, second=0, microsecond=0
+            minute=(now.minute // 5) * 5,
+            second=0,
+            microsecond=0,
         )
+
         try:
             precipitation_graph = await self._api.precipitation_graph(
-                self._radar_cell, format_dt(latest_5_minutes)
+                self._radar_cell,
+                format_dt(latest_5_minutes),
             )
-            return self._get_precipitation_nowcast(precipitation_graph)
         except AppException as err:
-            # Nowcast is non-critical for the forecast entity
             raise UpdateFailed(
                 f"Error while retrieving precipitation nowcast: {err}"
             ) from err
 
+        return self._get_precipitation_nowcast(precipitation_graph)
 
-class NLWeatherEDRCoordinator(DataUpdateCoordinator):
+
+class NLWeatherEDRCoordinator(
+    DataUpdateCoordinator[dict[str, object] | None]
+):
     """Base EDR Coordinator"""
 
     _latest_filename_datetime = datetime(
         year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc
     )
-    _station_names: dict
+    _station_names: dict[str, str]
 
-    def __init__(self, hass, subentry: ConfigSubentry, ns, edr) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: NLWeatherConfigEntry,
+        subentry: ConfigSubentry,
+        ns: NotificationService,
+        edr: EDR,
+    ) -> None:
+        """Initialize the EDR coordinator."""
         super().__init__(
             hass,
             _LOGGER,
-            name=f"NL Weather EDR API data coordinator for {subentry.data[CONF_NAME]}",
-            update_interval=None,  # no polling
+            config_entry=entry,
+            name=f"NL Weather EDR API data coordinator for "
+            f"{subentry.data[CONF_NAME]}",
+            update_interval=None,
         )
         self._ns = ns
         self._edr = edr
@@ -196,7 +304,7 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
     async def get_coverage_datetime(self, event) -> None:
         pass
 
-    async def _async_update_data(self):
+    async def _async_update_data(self) -> dict[str, object] | None:
         """No polling. Just return the already available data."""
         return self.data
 
@@ -297,25 +405,155 @@ class NLWeatherAutoEDRCoordinator(NLWeatherEDRCoordinator):
 
 
 class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
-    """Coordinator that gets data for specific weather station"""
+    """Coordinator that gets data for a specific weather station."""
 
     _latest_filename_datetime = datetime(
         year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc
     )
 
-    def __init__(self, hass, subentry: ConfigSubentry, ns, edr) -> None:
-        super().__init__(hass, subentry, ns, edr)
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: NLWeatherConfigEntry,
+        subentry: ConfigSubentry,
+        ns: NotificationService,
+        edr: EDR,
+    ) -> None:
+        """Initialize the manual EDR coordinator."""
+        super().__init__(hass, entry, subentry, ns, edr)
         self._station = self._config[CONF_STATION]
 
-    def _prepare_data(self, coverage):
-        return {
-            "datetime": datetime.fromisoformat(
-                coverage["domain"]["axes"]["t"]["values"][-1]
+    def _get_dict_value(
+        self,
+        data: dict[str, object],
+        key: str,
+        context: str,
+    ) -> dict[str, object]:
+        """Get a dictionary value from API data."""
+        value = data.get(key)
+
+        if not isinstance(value, dict):
+            raise TypeError(
+                f"KNMI {context} contains invalid {key} data."
+            )
+
+        return value
+
+    def _get_list_value(
+        self,
+        data: dict[str, object],
+        key: str,
+        context: str,
+    ) -> list[object]:
+        """Get a list value from API data."""
+        value = data.get(key)
+
+        if not isinstance(value, list):
+            raise TypeError(
+                f"KNMI {context} contains invalid {key} data."
+            )
+
+        return value
+
+    def _get_parameter_value(
+        self,
+        parameter_data: object,
+        parameter: str,
+    ) -> float:
+        """Get the latest numeric value for a weather parameter."""
+        if not isinstance(parameter_data, dict):
+            raise TypeError(
+                f"KNMI coverage contains invalid data for parameter {parameter}."
+            )
+
+        values = parameter_data.get("values")
+
+        if not isinstance(values, list):
+            raise TypeError(
+                f"KNMI coverage contains invalid values for parameter {parameter}."
+            )
+
+        if not values:
+            raise ValueError(
+                f"KNMI coverage contains no values for parameter {parameter}."
+            )
+
+        value = values[-1]
+
+        if not isinstance(value, (int, float)):
+            raise TypeError(
+                f"KNMI coverage contains a non-numeric value for parameter "
+                f"{parameter}."
+            )
+
+        return float(value)
+
+    def _prepare_parameters(
+        self,
+        ranges: dict[str, object],
+    ) -> dict[str, float]:
+        """Prepare the latest values for all weather parameters."""
+        params: dict[str, float] = {}
+
+        for parameter, parameter_data in ranges.items():
+            params[parameter] = self._get_parameter_value(
+                parameter_data,
+                parameter,
+            )
+
+        return params
+
+    def _get_datetime_value(
+        self,
+        values: list[object],
+        context: str,
+    ) -> datetime:
+        """Get a timezone-aware datetime from API values."""
+        if not values:
+            raise ValueError(
+                f"KNMI {context} contains no datetime values."
+            )
+
+        value = values[-1]
+
+        if not isinstance(value, str):
+            raise TypeError(
+                f"KNMI {context} contains a non-string datetime value."
+            )
+
+        return datetime.fromisoformat(value)
+
+    def _prepare_data(self, coverage: dict[str, object]) -> dict[str, object]:
+        """Prepare KNMI observation data for the coordinator."""
+        domain = self._get_dict_value(coverage, "domain", "coverage response")
+        axes = self._get_dict_value(domain, "axes", "domain")
+        time_axis = self._get_dict_value(axes, "t", "axes")
+        time_values = self._get_list_value(time_axis, "values", "time axis")
+
+        location_id = coverage.get("eumetnet:locationId")
+        if not isinstance(location_id, str):
+            raise TypeError(
+                "KNMI coverage response contains an invalid "
+                "EUMETNET location ID."
+            )
+
+        ranges = self._get_dict_value(
+            coverage,
+            "ranges",
+            "coverage response",
+        )
+
+        prepare_data = {
+            "datetime": self._get_datetime_value(
+                time_values,
+                "coverage response",
             ),
-            "station_name": self._station_names[coverage["eumetnet:locationId"]],
+            "station_name": self._station_names[location_id],
             "distance": coverage_distance(coverage, self._location),
-            "params": {p: i["values"][-1] for p, i in coverage["ranges"].items()},
+            "params": self._prepare_parameters(ranges),
         }
+        _LOGGER.debug("Prepare location data: %s", prepare_data)
+        return prepare_data
 
     async def get_coverage_datetime(self, event) -> None:
         filename_datetime = datetime.strptime(
@@ -346,7 +584,8 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
             f"Could not retrieve coverage for {self._station} at {filename_datetime} after 3 attempts"
         )
 
-    async def _async_setup(self):
+    async def _async_setup(self) -> None:
+        """Set up the coordinator and fetch initial observation data."""
         await super()._async_setup()
 
         # Get some initial observation data

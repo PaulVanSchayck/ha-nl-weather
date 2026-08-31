@@ -14,9 +14,6 @@ from .const import (
     CONF_WMS_TOKEN,
     StationMode,
 )
-from .const import (
-    DOMAIN as DOMAIN,
-)
 from .coordinator import (
     NLWeatherAutoEDRCoordinator,
     NLWeatherConfigEntry,
@@ -67,11 +64,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: NLWeatherConfigEntry) ->
         )
         if subentry.data[CONF_MODE] == StationMode.AUTO:
             entry.runtime_data.edr_coordinators[subentry_id] = (
-                NLWeatherAutoEDRCoordinator(hass, subentry, ns, edr)
+                NLWeatherAutoEDRCoordinator(hass, entry, subentry, ns, edr)
             )
         elif subentry.data[CONF_MODE] == StationMode.MANUAL:
             entry.runtime_data.edr_coordinators[subentry_id] = (
-                NLWeatherManualEDRCoordinator(hass, subentry, ns, edr)
+                NLWeatherManualEDRCoordinator(
+                    hass,
+                    entry,
+                    subentry,
+                    ns,
+                    edr,
+                )
             )
 
     await asyncio.gather(
@@ -86,9 +89,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: NLWeatherConfigEntry) ->
     )
 
     # Setup nowcast coordinators in a way where they are allowed to fail
-    for c in entry.runtime_data.nowcast_coordinators.values():
-        await c._async_setup()
-        hass.async_create_task(c.async_refresh())
+    for coordinator in entry.runtime_data.nowcast_coordinators.values():
+        hass.async_create_task(
+            coordinator.async_refresh(),
+            name="nl_weather_nowcast_refresh",
+        )
 
     await hass.config_entries.async_forward_entry_setups(entry, _PLATFORMS)
 
@@ -109,7 +114,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: NLWeatherConfigEntry) -
     return await hass.config_entries.async_unload_platforms(entry, _PLATFORMS)
 
 
-async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry):
+async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry):  # noqa: S7503
     """Migrate old entry."""
     _LOGGER.debug(
         "Migrating configuration from version %s.%s",
