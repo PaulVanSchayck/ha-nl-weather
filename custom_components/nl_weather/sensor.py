@@ -47,6 +47,7 @@ from .const import (
     ATTR_WEATHER_TEMPERATURE_SOIL,
     DOMAIN,
     PARAMETER_ATTRIBUTE_MAP,
+    WIND_DIRECTIONS_ICON_MAP,
     Alert,
 )
 from .coordinator import (
@@ -59,19 +60,19 @@ from .coordinator import (
 @dataclass(frozen=True)
 class AlertSensorDescription(SensorEntityDescription):
     value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
-    extra_state_attributes_fn: Callable[[dict[str, Any]], dict[str, Any]] | None = (
+    extra_state_attributes_fn: Callable[[dict[str, object]], dict[str, object]] | None = (
         field(default=None, repr=False)
     )
 
 
 @dataclass(frozen=True)
 class ObservationSensorDescription(SensorEntityDescription):
-    value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
+    value_fn: Callable[[dict[str, object]], object] | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)
 class ForecastSensorDescription(SensorEntityDescription):
-    value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
+    value_fn: Callable[[dict[str, object]], object] | None = field(default=None, repr=False)
 
 
 def _get_alerts(data: dict[str, Any]) -> list[dict[str, str]]:
@@ -230,7 +231,9 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfSpeed.METERS_PER_SECOND,
         suggested_display_precision=1,
-        value_fn=lambda data: _get_observation_param(data, ATTR_WEATHER_WIND_SPEED),
+        value_fn=lambda data: _get_observation_param(
+            data, ATTR_WEATHER_WIND_SPEED
+        ),
     ),
     ObservationSensorDescription(
         key="wind_gust",
@@ -250,7 +253,9 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         suggested_display_precision=1,
-        value_fn=lambda data: _get_observation_param(data, ATTR_WEATHER_DEW_POINT),
+        value_fn=lambda data: _get_observation_param(
+            data, ATTR_WEATHER_DEW_POINT
+        ),
     ),
     ObservationSensorDescription(
         key="wind_direction",
@@ -260,7 +265,9 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT_ANGLE,
         native_unit_of_measurement=DEGREE,
         suggested_display_precision=0,
-        value_fn=lambda data: _get_observation_param(data, ATTR_WEATHER_WIND_BEARING),
+        value_fn=lambda data: _get_observation_param(
+            data, ATTR_WEATHER_WIND_BEARING
+        ),
     ),
     ObservationSensorDescription(
         key="cloud_coverage",
@@ -289,7 +296,9 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfTime.MINUTES,
         suggested_display_precision=0,
-        value_fn=lambda data: _get_observation_param(data, ATTR_WEATHER_SUNSHINE),
+        value_fn=lambda data: _get_observation_param(
+            data, ATTR_WEATHER_SUNSHINE
+        ),
     ),
     ObservationSensorDescription(
         key="temperature_grass",
@@ -448,24 +457,29 @@ class NLAlertSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity)
         )
         self._attr_has_entity_name = True
         self._value_fn = desc.value_fn
+        self._extra_state_attributes_fn = desc.extra_state_attributes_fn
 
     @property
-    def native_value(self):
-        if self.coordinator.data is None:
+    def native_value(self) -> object:  # type: ignore[override]
+        """Return the current sensor value."""
+        if self.coordinator.data is None or self._value_fn is None:
             return None
+
         return self._value_fn(self.coordinator.data)
 
     @property
-    def extra_state_attributes(self) -> dict[str, Any] | None:
+    def extra_state_attributes(self) -> dict[str, object] | None:  # type: ignore[override]
         if (
-            self.entity_description.extra_state_attributes_fn is None
-            or self.coordinator.data is None
+            self.coordinator.data is None
+            or self.entity_description.extra_state_attributes_fn is None
         ):
             return None
         return self.entity_description.extra_state_attributes_fn(self.coordinator.data)
 
 
 class NLObservationSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEntity):
+    """Representation of an observation sensor."""
+
     def __init__(
         self,
         coordinator: NLWeatherEDRCoordinator,
@@ -487,10 +501,28 @@ class NLObservationSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEnti
         self._value_fn = desc.value_fn
 
     @property
-    def native_value(self):
-        if self.coordinator.data is None:
+    def native_value(self) -> object:  # type: ignore[override]
+        """Return the current sensor value."""
+        if self.coordinator.data is None or self._value_fn is None:
             return None
+
         return self._value_fn(self.coordinator.data)
+
+    @property
+    def icon(self) -> str:  # type: ignore[override]
+        """Return the appropriate icon for the sensor."""
+        if (
+            self.entity_description.key == "wind_direction"
+            and self.coordinator.data is not None
+            and self._value_fn is not None
+        ):
+            value = self._value_fn(self.coordinator.data)
+            windrgr_value = safe_int(value)
+
+            if windrgr_value is not None:
+                return wind_direction_icon(windrgr_value)
+
+        return self.entity_description.icon or ""
 
 
 class NLForecastSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity):
@@ -514,7 +546,59 @@ class NLForecastSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEnti
         self._value_fn = desc.value_fn
 
     @property
-    def native_value(self):
-        if self.coordinator.data is None:
+    def native_value(self) -> object:  # type: ignore[override]
+        """Return the current sensor value."""
+        if self.coordinator.data is None or self._value_fn is None:
             return None
+
         return self._value_fn(self.coordinator.data)
+
+
+def safe_int(value: object) -> int | None:
+    """
+    Safely convert a value to an integer.
+
+    Supports:
+    - int
+    - float
+    - str (if numeric)
+
+    Returns None if conversion fails.
+    """
+    try:
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+    except (TypeError, ValueError):
+        pass
+    return None
+
+
+def wind_direction_icon(wind_direction_degrees: int) -> str:
+    """
+    Generate the icon name based on wind direction degrees.
+
+    Args:
+        wind_direction_degrees (int): Wind direction in degrees.
+
+    Returns:
+        str: The icon name in the format 'mdi:icon-name'.
+    """
+    # Calculate the wind direction value in degrees (0 to 360)
+    direction = wind_direction_degrees % 360
+
+    # Find the closest wind direction value in the dictionary
+    closest_direction = min(WIND_DIRECTIONS_ICON_MAP, key=lambda angle: abs(direction - angle))
+
+    # Handle cases where the direction does not exactly match any predefined angle
+    if abs(direction - closest_direction) > 22.5:
+        # Round the direction to the nearest 45-degree angle
+        closest_direction = round(direction / 45) * 45
+
+    # Get the icon name from the directions dictionary, using the closest wind direction value
+    icon_direction = WIND_DIRECTIONS_ICON_MAP.get(closest_direction, 'compass-outline')
+    # mdi:arrow-bottom-left
+
+    # Return the icon name in the format 'mdi:icon-name'
+    return f"mdi:{icon_direction}"
