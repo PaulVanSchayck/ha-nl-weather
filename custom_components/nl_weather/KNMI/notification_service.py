@@ -9,6 +9,7 @@ import logging
 import sys
 import uuid
 from collections.abc import Awaitable, Callable
+from enum import StrEnum
 
 import aiomqtt
 import paho.mqtt.client as mqtt
@@ -36,6 +37,14 @@ DATASET_RADAR = "radar_forecast"
 Callback = Callable[[dict[str, object]], Awaitable[None]]
 
 
+class ConnectionState(StrEnum):
+    """Represent the Paho MQTT connection state."""
+
+    CONNECTING = "connecting"
+    CONNECTED = "connected"
+    DISCONNECTED = "disconnected"
+
+
 class TokenInvalid(Exception):
     """Raised when the KNMI MQTT token is rejected."""
 
@@ -50,10 +59,16 @@ class NotificationService:
         self._windows = sys.platform == "win32"
 
         self._stopping = asyncio.Event()
-        self._connected = asyncio.Event()
+
+        # Current Paho connection attempt completed.
+        self._connection_ready = asyncio.Event()
+
+        # An established Paho connection was lost.
+        self._connection_lost = asyncio.Event()
 
         self._client: aiomqtt.Client | mqtt.Client | None = None
         self._paho_client: mqtt.Client | None = None
+        self._paho_state = ConnectionState.DISCONNECTED
 
         self._callbacks: dict[str, dict[str, Callback]] = {
             DATASET_OBSERVATIONS: {},
@@ -92,21 +107,26 @@ class NotificationService:
         _LOGGER.debug("KNMI MQTT notification service started")
 
         while not self._stopping.is_set():
-            self._connected.clear()
-            self._connection_error = None
-
             try:
                 if self._windows:
                     await self._run_paho()
                 else:
                     await self._run_aiomqtt()
 
+            except TokenInvalid:
+                _LOGGER.error(
+                    "KNMI MQTT token was rejected",
+                )
+                return
+
+            except MqttError as err:
+                _LOGGER.warning(
+                    "KNMI MQTT connection lost: %s",
+                    err,
+                )
+
             except asyncio.CancelledError:
                 raise
-
-            except TokenInvalid:
-                _LOGGER.error("KNMI MQTT token was rejected")
-                return
 
             except Exception:
                 _LOGGER.exception(
@@ -138,7 +158,7 @@ class NotificationService:
         """Test the KNMI MQTT connection and validate the token."""
         _LOGGER.debug("KNMI MQTT testing connection")
 
-        self._connected.clear()
+        self._connection_ready.clear()
         self._connection_error = None
 
         try:
@@ -160,6 +180,11 @@ class NotificationService:
         """Test the MQTT connection using Paho on Windows."""
         _LOGGER.debug("KNMI MQTT testing connection using Paho")
 
+        self._connection_ready.clear()
+        self._connection_lost.clear()
+        self._connection_error = None
+        self._paho_state = ConnectionState.CONNECTING
+
         client = self._create_paho_client()
         self._paho_client = client
         self._client = client
@@ -175,12 +200,14 @@ class NotificationService:
 
             await self._wait_for_paho_connection()
 
-            if self._connection_error is not None:
-                raise self._connection_error
-
             _LOGGER.debug("KNMI MQTT Paho connection test succeeded")
 
         finally:
+            self._paho_state = ConnectionState.DISCONNECTED
+
+            with contextlib.suppress(Exception):
+                client.disconnect()
+
             client.loop_stop()
 
     async def _run_aiomqtt(self) -> None:
@@ -200,7 +227,7 @@ class NotificationService:
                     topic,
                 )
 
-            self._connected.set()
+            self._connection_ready.set()
 
             async for message in client.messages:
                 if self._stopping.is_set():
@@ -239,19 +266,16 @@ class NotificationService:
         """Run the Windows Paho MQTT implementation."""
         _LOGGER.debug("KNMI MQTT using Paho transport")
 
+        self._connection_ready.clear()
+        self._connection_lost.clear()
+        self._connection_error = None
+        self._paho_state = ConnectionState.CONNECTING
+
         client = self._create_paho_client()
         self._paho_client = client
         self._client = client
 
         try:
-            _LOGGER.debug(
-                "KNMI MQTT connecting using Paho: "
-                "broker=%s port=%d client_id=%s",
-                BROKER_DOMAIN,
-                BROKER_PORT,
-                client._client_id.decode(),
-            )
-
             client.connect(
                 BROKER_DOMAIN,
                 BROKER_PORT,
@@ -263,9 +287,42 @@ class NotificationService:
 
             await self._wait_for_paho_connection()
 
-            await self._stopping.wait()
+            _LOGGER.debug("KNMI MQTT Paho connection established")
+
+            stop_task = asyncio.create_task(
+                self._stopping.wait(),
+                name="knmi_mqtt_paho_stop",
+            )
+            connection_lost_task = asyncio.create_task(
+                self._connection_lost.wait(),
+                name="knmi_mqtt_paho_connection_lost",
+            )
+
+            try:
+                done, _ = await asyncio.wait(
+                    (stop_task, connection_lost_task),
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+
+                if (
+                    connection_lost_task in done
+                    and not self._stopping.is_set()
+                ):
+                    raise MqttError(
+                        "KNMI MQTT Paho connection was lost"
+                    )
+            finally:
+                stop_task.cancel()
+                connection_lost_task.cancel()
+
+                await asyncio.gather(
+                    stop_task,
+                    connection_lost_task,
+                    return_exceptions=True,
+                )
 
         finally:
+            self._paho_state = ConnectionState.DISCONNECTED
             client.loop_stop()
 
     def _create_paho_client(self) -> mqtt.Client:
@@ -305,10 +362,10 @@ class NotificationService:
         return client
 
     async def _wait_for_paho_connection(self) -> None:
-        """Wait until Paho reports a successful MQTT connection."""
+        """Wait for Paho to establish an MQTT connection."""
         try:
             await asyncio.wait_for(
-                self._connected.wait(),
+                self._connection_ready.wait(),
                 timeout=CONNECT_TIMEOUT,
             )
         except TimeoutError as err:
@@ -318,6 +375,14 @@ class NotificationService:
             raise MqttError(
                 "KNMI MQTT connection timed out waiting for CONNACK"
             ) from err
+
+        if self._connection_error is not None:
+            raise self._connection_error
+
+    def _set_connection_success(self) -> None:
+        """Mark the current MQTT connection as established."""
+        self._paho_state = ConnectionState.CONNECTED
+        self._connection_ready.set()
 
     def _on_paho_connect(
         self,
@@ -333,6 +398,7 @@ class NotificationService:
             reason_code,
             flags,
         )
+
         if reason_code.is_failure:
             if int(reason_code) == 135:
                 error: Exception = TokenInvalid(
@@ -353,12 +419,14 @@ class NotificationService:
             result, _mid = client.subscribe(topic)
 
             if result != mqtt.MQTT_ERR_SUCCESS:
-                _LOGGER.error(
-                    "KNMI MQTT Paho subscribe failed: topic=%s result=%s",
-                    topic,
-                    result,
+                self._loop.call_soon_threadsafe(
+                    self._set_connection_error,
+                    MqttError(
+                        f"KNMI MQTT subscribe failed for topic {topic}: "
+                        f"result={result}"
+                    ),
                 )
-                continue
+                return
 
             _LOGGER.debug(
                 "KNMI MQTT Paho subscribed: topic=%s",
@@ -366,8 +434,22 @@ class NotificationService:
             )
 
         self._loop.call_soon_threadsafe(
-            self._connected.set,
+            self._set_connection_success,
         )
+
+    def _handle_paho_disconnect(self) -> None:
+        """Handle a Paho disconnect on the asyncio event loop."""
+        previous_state = self._paho_state
+        self._paho_state = ConnectionState.DISCONNECTED
+
+        if previous_state is ConnectionState.CONNECTED:
+            self._connection_lost.set()
+        elif previous_state is ConnectionState.CONNECTING:
+            self._set_connection_error(
+                MqttError(
+                    "KNMI MQTT connection was lost during connection attempt"
+                )
+            )
 
     def _on_paho_disconnect(
         self,
@@ -377,14 +459,14 @@ class NotificationService:
         reason_code: mqtt.ReasonCode,
         properties: Properties | None,
     ) -> None:
-        """Handle a Paho disconnect callback."""
+        """Handle a Paho MQTT disconnect callback."""
         _LOGGER.debug(
             "KNMI MQTT Paho on_disconnect: reason_code=%s",
             reason_code,
         )
 
         self._loop.call_soon_threadsafe(
-            self._connected.clear,
+            self._handle_paho_disconnect,
         )
 
     def _on_paho_message(
@@ -498,13 +580,6 @@ class NotificationService:
             len(callbacks),
         )
 
-        for identifier in callbacks:
-            _LOGGER.debug(
-                "KNMI MQTT callback executing: dataset=%s identifier=%s",
-                dataset,
-                identifier,
-            )
-
         results = await asyncio.gather(
             *(
                 self._execute_callback(
@@ -531,11 +606,9 @@ class NotificationService:
         self,
         error: Exception,
     ) -> None:
-        """Store a connection error on the asyncio event loop."""
+        """Mark the current MQTT connection attempt as failed."""
         self._connection_error = error
-
-        if not self._connected.is_set():
-            self._connected.set()
+        self._connection_ready.set()
 
     async def _disconnect(self) -> None:
         """Disconnect the active MQTT client."""
@@ -553,16 +626,12 @@ class NotificationService:
 
         self._paho_client = None
         self._client = None
+        self._paho_state = ConnectionState.DISCONNECTED
 
         _LOGGER.debug("KNMI MQTT Paho disconnecting")
 
         with contextlib.suppress(Exception):
             client.disconnect()
-
-        # loop_stop() is deliberately called here as well as in
-        # _run_paho(). Paho handles the second call safely.
-        with contextlib.suppress(Exception):
-            client.loop_stop()
 
     async def disconnect(self) -> None:
         """Stop the MQTT notification service."""
