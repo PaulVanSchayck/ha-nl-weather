@@ -92,13 +92,15 @@ class NotificationService:
         except aiomqtt.exceptions.MqttConnectError as e:
             if e.rc == 135:
                 raise TokenInvalid from None
+            else:
+                raise CannotConnect(str(e)) from None
         except MqttError as e:
             raise CannotConnect(str(e)) from None
         except Exception:
             _LOGGER.exception(
                 "Unknown exception occurred during testing MQTT connection"
             )
-            return False
+            raise
         return True
 
 
@@ -107,4 +109,4 @@ class TokenInvalid(Exception):
 
 
 class CannotConnect(Exception):
-    """Exception class when token is not accepted"""
+    """Exception class when cannot connect to service"""
