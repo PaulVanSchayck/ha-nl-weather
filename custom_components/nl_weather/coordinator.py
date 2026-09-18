@@ -175,10 +175,13 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
     )
     _station_names: dict
 
-    def __init__(self, hass, subentry: ConfigSubentry, ns, edr) -> None:
+    def __init__(
+        self, hass, entry: NLWeatherConfigEntry, subentry: ConfigSubentry, ns, edr
+    ) -> None:
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=entry,
             name=f"NL Weather EDR API data coordinator for {subentry.data[CONF_NAME]}",
             update_interval=None,  # no polling
         )
@@ -303,8 +306,10 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
         year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc
     )
 
-    def __init__(self, hass, subentry: ConfigSubentry, ns, edr) -> None:
-        super().__init__(hass, subentry, ns, edr)
+    def __init__(
+        self, hass, entry: NLWeatherConfigEntry, subentry: ConfigSubentry, ns, edr
+    ) -> None:
+        super().__init__(hass, entry, subentry, ns, edr)
         self._station = self._config[CONF_STATION]
 
     def _prepare_data(self, coverage):

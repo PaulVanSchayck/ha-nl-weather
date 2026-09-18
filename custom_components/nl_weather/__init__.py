@@ -67,11 +67,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: NLWeatherConfigEntry) ->
         )
         if subentry.data[CONF_MODE] == StationMode.AUTO:
             entry.runtime_data.edr_coordinators[subentry_id] = (
-                NLWeatherAutoEDRCoordinator(hass, subentry, ns, edr)
+                NLWeatherAutoEDRCoordinator(hass, entry, subentry, ns, edr)
             )
         elif subentry.data[CONF_MODE] == StationMode.MANUAL:
             entry.runtime_data.edr_coordinators[subentry_id] = (
-                NLWeatherManualEDRCoordinator(hass, subentry, ns, edr)
+                NLWeatherManualEDRCoordinator(hass, entry, subentry, ns, edr)
             )
 
     await asyncio.gather(
