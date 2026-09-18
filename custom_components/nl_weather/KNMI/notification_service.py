@@ -91,12 +91,22 @@ class NotificationService:
                 await c.subscribe(TOPICS[0])
         except aiomqtt.exceptions.MqttConnectError as e:
             if e.rc == 135:
-                raise TokenInvalid
+                raise TokenInvalid from None
+            else:
+                raise CannotConnect(str(e)) from None
+        except MqttError as e:
+            raise CannotConnect(str(e)) from None
         except Exception:
-            _LOGGER.exception("Exception occurred")
-            return False
+            _LOGGER.exception(
+                "Unknown exception occurred during testing MQTT connection"
+            )
+            raise
         return True
 
 
 class TokenInvalid(Exception):
     """Exception class when token is not accepted"""
+
+
+class CannotConnect(Exception):
+    """Exception class when cannot connect to service"""
