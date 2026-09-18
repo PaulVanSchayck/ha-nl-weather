@@ -155,8 +155,9 @@
       }
     },
     "error": {
-      "cannot_connect": "Niet gelukt om te verbinden met de service",
-      "invalid": "Incorrect token (moet beginnen met `ey...`)",
+      "cannot_connect": "Niet gelukt om te verbinden met de service. Controleer logs",
+      "invalid_token": "Token is geweigerd door de service",
+      "incorrect": "Incorrect token (moet beginnen met `ey...`)",
       "unknown": "Onverwachte fout"
     }
   },

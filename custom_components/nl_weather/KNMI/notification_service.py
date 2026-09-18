@@ -40,7 +40,7 @@ class NotificationService:
             password=self._token,
             protocol=ProtocolVersion.V5,
             transport="websockets",
-            port=443,
+            port=444,
             identifier=CLIENT_ID,
             tls_context=self._tls_context,
             properties=connect_properties,
@@ -91,12 +91,20 @@ class NotificationService:
                 await c.subscribe(TOPICS[0])
         except aiomqtt.exceptions.MqttConnectError as e:
             if e.rc == 135:
-                raise TokenInvalid
+                raise TokenInvalid from None
+        except MqttError as e:
+            raise CannotConnect(str(e)) from None
         except Exception:
-            _LOGGER.exception("Exception occurred")
+            _LOGGER.exception(
+                "Unknown exception occurred during testing MQTT connection"
+            )
             return False
         return True
 
 
 class TokenInvalid(Exception):
+    """Exception class when token is not accepted"""
+
+
+class CannotConnect(Exception):
     """Exception class when token is not accepted"""

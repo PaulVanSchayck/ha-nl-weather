@@ -1,9 +1,11 @@
 import binascii
 import json
 import logging
+from asyncio import TimeoutError
 from base64 import b64decode
 from typing import Any
 
+import aiohttp
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import (
@@ -48,7 +50,11 @@ from .const import (
     RADAR_STYLES,
     StationMode,
 )
+from .KNMI.edr import ServerError as EDRServerError
 from .KNMI.edr import TokenInvalid
+from .KNMI.notification_service import (
+    CannotConnect as NSCannotConnect,
+)
 from .KNMI.notification_service import (
     NotificationService,
 )
@@ -57,7 +63,15 @@ from .KNMI.notification_service import (
 from .KNMI.notification_service import (
     TokenInvalid as NSTokenInvalid,
 )
-from .KNMI.wms import TokenInvalid as WMSTokenInvalid
+from .KNMI.wms import (
+    RateLimitExceeded,
+)
+from .KNMI.wms import (
+    ServerError as WMSServerError,
+)
+from .KNMI.wms import (
+    TokenInvalid as WMSTokenInvalid,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -117,7 +131,8 @@ async def validate_edr_input(hass: HomeAssistant, data: dict) -> None:
 
     Raises:
         IncorrectToken: If token is not properly base64 encoded.
-        CannotConnect: If EDR API token validation fails.
+        InvalidToken: If EDR API token is rejected.
+        CannotConnect: If there is a network or service issue.
     """
     validate_token(data[CONF_EDR_API_TOKEN])
     edr = EDR(async_get_clientsession(hass), data[CONF_EDR_API_TOKEN])
@@ -126,6 +141,9 @@ async def validate_edr_input(hass: HomeAssistant, data: dict) -> None:
         await edr.metadata()
     except TokenInvalid as err:
         _LOGGER.error("EDR API token validation failed: %s", err)
+        raise InvalidToken from err
+    except (EDRServerError, aiohttp.ClientError, TimeoutError) as err:
+        _LOGGER.error("EDR API connection failed: %s", err)
         raise CannotConnect from err
 
 
@@ -138,7 +156,8 @@ async def validate_wms_input(hass: HomeAssistant, data: dict) -> None:
 
     Raises:
         IncorrectToken: If token is not properly base64 encoded.
-        CannotConnect: If WMS token validation fails.
+        InvalidToken: If WMS token is rejected.
+        CannotConnect: If there is a network or service issue.
     """
     validate_token(data[CONF_WMS_TOKEN])
     wms = WMS(async_get_clientsession(hass), data[CONF_WMS_TOKEN])
@@ -147,6 +166,14 @@ async def validate_wms_input(hass: HomeAssistant, data: dict) -> None:
         await wms.get({})
     except WMSTokenInvalid as err:
         _LOGGER.error("WMS token validation failed: %s", err)
+        raise InvalidToken from err
+    except (
+        WMSServerError,
+        RateLimitExceeded,
+        aiohttp.ClientError,
+        TimeoutError,
+    ) as err:
+        _LOGGER.error("WMS API connection failed: %s", err)
         raise CannotConnect from err
 
 
@@ -159,7 +186,8 @@ async def validate_mqtt_input(hass: HomeAssistant, data: dict) -> None:
 
     Raises:
         IncorrectToken: If token is not properly base64 encoded.
-        CannotConnect: If MQTT token validation fails.
+        InvalidToken: If MQTT token is rejected.
+        CannotConnect: If there is a network or service issue.
     """
     validate_token(data[CONF_MQTT_TOKEN])
     ns = NotificationService(data[CONF_MQTT_TOKEN])
@@ -168,6 +196,9 @@ async def validate_mqtt_input(hass: HomeAssistant, data: dict) -> None:
         await ns.test_connection()
     except NSTokenInvalid as err:
         _LOGGER.error("MQTT token validation failed: %s", err)
+        raise InvalidToken from err
+    except NSCannotConnect as err:
+        _LOGGER.error("MQTT could not connect: %s", err)
         raise CannotConnect from err
 
 
@@ -202,22 +233,28 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await validate_edr_input(self.hass, user_input)
             except CannotConnect:
                 errors[CONF_EDR_API_TOKEN] = "cannot_connect"
+            except InvalidToken:
+                errors[CONF_EDR_API_TOKEN] = "invalid_token"
             except IncorrectToken:
-                errors[CONF_EDR_API_TOKEN] = "invalid"
+                errors[CONF_EDR_API_TOKEN] = "incorrect"
 
             try:
                 await validate_wms_input(self.hass, user_input)
             except CannotConnect:
                 errors[CONF_WMS_TOKEN] = "cannot_connect"
+            except InvalidToken:
+                errors[CONF_WMS_TOKEN] = "invalid_token"
             except IncorrectToken:
-                errors[CONF_WMS_TOKEN] = "invalid"
+                errors[CONF_WMS_TOKEN] = "incorrect"
 
             try:
                 await validate_mqtt_input(self.hass, user_input)
             except CannotConnect:
                 errors[CONF_MQTT_TOKEN] = "cannot_connect"
+            except InvalidToken:
+                errors[CONF_MQTT_TOKEN] = "invalid_token"
             except IncorrectToken:
-                errors[CONF_MQTT_TOKEN] = "invalid"
+                errors[CONF_MQTT_TOKEN] = "incorrect"
 
         if not errors and user_input is not None:
             self._config = user_input
@@ -355,3 +392,7 @@ class IncorrectToken(HomeAssistantError):
 
 class CannotConnect(HomeAssistantError):
     """Error to indicate we cannot connect."""
+
+
+class InvalidToken(HomeAssistantError):
+    """Error to indicate that the used token could not be used to connect to the service"""
