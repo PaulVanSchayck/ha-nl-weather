@@ -40,7 +40,7 @@ class NotificationService:
             password=self._token,
             protocol=ProtocolVersion.V5,
             transport="websockets",
-            port=444,
+            port=443,
             identifier=CLIENT_ID,
             tls_context=self._tls_context,
             properties=connect_properties,

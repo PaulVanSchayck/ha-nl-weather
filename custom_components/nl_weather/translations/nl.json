@@ -142,11 +142,11 @@
     "step": {
       "user": {
         "title": "Verbind met de KNMI Data Platform APIs",
-        "description": "Je kan de API tokens verkrijgen via {kdp_url}",
+        "description": "Je kan de API keys verkrijgen via {kdp_url}",
         "data": {
-          "edr_api_token": "EDR API Token",
-          "mqtt_token": "Notification Service (MQTT) Token",
-          "wms_token": "Web Map Service (WMS) Token"
+          "edr_api_token": "EDR API Key",
+          "mqtt_token": "Notification Service (MQTT) Key",
+          "wms_token": "Web Map Service (WMS) Key"
         }
       },
       "finish": {
@@ -156,8 +156,8 @@
     },
     "error": {
       "cannot_connect": "Niet gelukt om te verbinden met de service. Controleer logs",
-      "invalid_token": "Token is geweigerd door de service",
-      "incorrect": "Incorrect token (moet beginnen met `ey...`)",
+      "invalid_token": "Key is geweigerd door de service. Gebruik je de juiste key?",
+      "incorrect": "Incorrect key (moet beginnen met `ey...`)",
       "unknown": "Onverwachte fout"
     }
   },
