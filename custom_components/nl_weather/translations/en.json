@@ -155,8 +155,9 @@
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect to service",
-      "invalid": "Invalid token (should start with `ey...`)",
+      "cannot_connect": "Failed to connect to service. Check logs",
+      "invalid_token": "Key was rejected by the service. Are you using the correct key?",
+      "incorrect": "Incorrect key (should start with `ey...`)",
       "unknown": "Unexpected error"
     }
   },

@@ -59,11 +59,7 @@ class NotificationService:
         self._windows = sys.platform == "win32"
 
         self._stopping = asyncio.Event()
-
-        # Current Paho connection attempt completed.
         self._connection_ready = asyncio.Event()
-
-        # An established Paho connection was lost.
         self._connection_lost = asyncio.Event()
 
         self._client: aiomqtt.Client | mqtt.Client | None = None
@@ -114,9 +110,7 @@ class NotificationService:
                     await self._run_aiomqtt()
 
             except TokenInvalid:
-                _LOGGER.error(
-                    "KNMI MQTT token was rejected",
-                )
+                _LOGGER.error("KNMI MQTT token was rejected")
                 return
 
             except MqttError as err:
@@ -171,10 +165,22 @@ class NotificationService:
 
     async def _test_aiomqtt_connection(self) -> None:
         """Test the MQTT connection using aiomqtt."""
-        _LOGGER.debug("KNMI MQTT testing connection using aiomqtt")
+        _LOGGER.debug(
+            "KNMI MQTT testing connection using aiomqtt"
+        )
 
-        async with self._create_aiomqtt_client():
-            _LOGGER.debug("KNMI MQTT aiomqtt connection test succeeded")
+        try:
+            async with self._create_aiomqtt_client():
+                _LOGGER.debug(
+                    "KNMI MQTT aiomqtt connection test succeeded"
+                )
+        except MqttError as err:
+            if self._is_token_rejection(err):
+                raise TokenInvalid(
+                    "KNMI MQTT token was rejected by the broker"
+                ) from err
+
+            raise
 
     async def _test_paho_connection(self) -> None:
         """Test the MQTT connection using Paho on Windows."""
@@ -200,7 +206,9 @@ class NotificationService:
 
             await self._wait_for_paho_connection()
 
-            _LOGGER.debug("KNMI MQTT Paho connection test succeeded")
+            _LOGGER.debug(
+                "KNMI MQTT Paho connection test succeeded"
+            )
 
         finally:
             self._paho_state = ConnectionState.DISCONNECTED
@@ -214,28 +222,42 @@ class NotificationService:
         """Run the asyncio-native MQTT implementation."""
         _LOGGER.debug("KNMI MQTT using aiomqtt transport")
 
-        async with self._create_aiomqtt_client() as client:
-            self._client = client
-
-            _LOGGER.debug("KNMI MQTT connected using aiomqtt")
-
-            for topic in TOPICS:
-                await client.subscribe(topic)
+        try:
+            async with self._create_aiomqtt_client() as client:
+                self._client = client
 
                 _LOGGER.debug(
-                    "KNMI MQTT subscribed: topic=%s",
-                    topic,
+                    "KNMI MQTT connected using aiomqtt"
                 )
 
-            self._connection_ready.set()
+                for topic in TOPICS:
+                    await client.subscribe(topic)
 
-            async for message in client.messages:
-                if self._stopping.is_set():
-                    break
+                    _LOGGER.debug(
+                        "KNMI MQTT subscribed: topic=%s",
+                        topic,
+                    )
 
-                await self._handle_message(
-                    bytes(message.payload),
-                )
+                self._connection_ready.set()
+
+                async for message in client.messages:
+                    if self._stopping.is_set():
+                        break
+
+                    await self._handle_message(
+                        bytes(message.payload),
+                    )
+
+        except MqttError as err:
+            if self._is_token_rejection(err):
+                raise TokenInvalid(
+                    "KNMI MQTT token was rejected by the broker"
+                ) from err
+
+            raise
+
+        finally:
+            self._client = None
 
     def _create_aiomqtt_client(self) -> aiomqtt.Client:
         """Create the asyncio-native MQTT client."""
@@ -287,7 +309,9 @@ class NotificationService:
 
             await self._wait_for_paho_connection()
 
-            _LOGGER.debug("KNMI MQTT Paho connection established")
+            _LOGGER.debug(
+                "KNMI MQTT Paho connection established"
+            )
 
             stop_task = asyncio.create_task(
                 self._stopping.wait(),
@@ -311,6 +335,7 @@ class NotificationService:
                     raise MqttError(
                         "KNMI MQTT Paho connection was lost"
                     )
+
             finally:
                 stop_task.cancel()
                 connection_lost_task.cancel()
@@ -384,6 +409,14 @@ class NotificationService:
         self._paho_state = ConnectionState.CONNECTED
         self._connection_ready.set()
 
+    def _set_connection_error(
+        self,
+        error: Exception,
+    ) -> None:
+        """Mark the current MQTT connection attempt as failed."""
+        self._connection_error = error
+        self._connection_ready.set()
+
     def _on_paho_connect(
         self,
         client: mqtt.Client,
@@ -447,7 +480,8 @@ class NotificationService:
         elif previous_state is ConnectionState.CONNECTING:
             self._set_connection_error(
                 MqttError(
-                    "KNMI MQTT connection was lost during connection attempt"
+                    "KNMI MQTT connection was lost during "
+                    "connection attempt"
                 )
             )
 
@@ -602,13 +636,10 @@ class NotificationService:
                     exc_info=result,
                 )
 
-    def _set_connection_error(
-        self,
-        error: Exception,
-    ) -> None:
-        """Mark the current MQTT connection attempt as failed."""
-        self._connection_error = error
-        self._connection_ready.set()
+    @staticmethod
+    def _is_token_rejection(error: MqttError) -> bool:
+        """Return whether an aiomqtt error represents token rejection."""
+        return "135" in str(error)
 
     async def _disconnect(self) -> None:
         """Disconnect the active MQTT client."""
@@ -618,7 +649,7 @@ class NotificationService:
             self._client = None
 
     async def _disconnect_paho(self) -> None:
-        """Disconnect the Windows Paho client."""
+        """Disconnect the Windows Paho MQTT client."""
         client = self._paho_client
 
         if client is None:
@@ -635,7 +666,9 @@ class NotificationService:
 
     async def disconnect(self) -> None:
         """Stop the MQTT notification service."""
-        _LOGGER.debug("KNMI MQTT notification service stopping")
+        _LOGGER.debug(
+            "KNMI MQTT notification service stopping"
+        )
 
         self._stopping.set()
 
