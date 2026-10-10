@@ -398,6 +398,13 @@ FORECAST_SENSOR_DESCRIPTIONS: list[ForecastSensorDescription] = [
         icon="mdi:sun-thermometer-outline",
         value_fn=lambda data: data["daily"]["forecast"][0].get("heatIndex", None),
     ),
+    ForecastSensorDescription(
+        key="uv_index_today",
+        translation_key="uv_index_today",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:sun-wireless",
+        value_fn=lambda data: data["daily"]["forecast"][0].get("uv_index", None),
+    ),
 ]
 
 

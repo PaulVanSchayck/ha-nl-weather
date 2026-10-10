@@ -122,6 +122,9 @@
       "heat_force_index_today": {
         "name": "Max hittekracht vandaag"
       },
+      "uv_index_today": {
+        "name": "UV index vandaag"
+      },
       "alert_region": {
         "name": "Waarschuwingsregio"
       }
@@ -141,7 +144,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Verbind met de KNMI Data Platform APIs",
+        "title": "Verbindt met de KNMI Data Platform APIs",
         "description": "Je kan de API keys verkrijgen via {kdp_url}",
         "data": {
           "edr_api_token": "EDR API Key",
