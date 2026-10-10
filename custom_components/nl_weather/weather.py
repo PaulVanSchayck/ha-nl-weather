@@ -179,15 +179,6 @@ class NLWeatherForecastDataMixin:
             return None
         return hourly_forecast[0]
 
-    def _current_daily_forecast(self) -> dict[str, Any] | None:
-        if self.forecast_coordinator.data is None:
-            return None
-
-        daily_forecast = self.forecast_coordinator.data.get("daily", {}).get("forecast")
-        if not daily_forecast:
-            return None
-        return daily_forecast[0]
-
     def _map_forecast_condition(self, weather_type: str) -> str:
         try:
             return CONDITION_FORECAST_MAP[weather_type]
@@ -219,11 +210,6 @@ class NLWeatherForecastDataMixin:
         if (current_forecast := self._current_hourly_forecast()) is None:
             return None
         return current_forecast["wind"]["degree"]
-
-    def _forecast_uv_index(self) -> float | None:
-        if (current_forecast := self._current_daily_forecast()) is None:
-            return None
-        return current_forecast["uv_index"]
 
     def _hourly_forecast_item(self, forecast: dict[str, Any]) -> Forecast:
         return cast(
@@ -484,10 +470,6 @@ class NLWeatherForecast(
     def wind_bearing(self) -> float | str | None:
         return self._forecast_wind_bearing()
 
-    @property
-    def uv_index(self) -> float | None:
-        return self._forecast_uv_index()
-
     async def async_forecast_hourly(self) -> list[Forecast] | None:
         return await self._async_forecast_hourly()
 
@@ -587,10 +569,6 @@ class NLWeatherCombined(
         if (wind_bearing := self._observation_wind_bearing()) is not None:
             return wind_bearing
         return self._forecast_wind_bearing()
-
-    @property
-    def uv_index(self) -> float | None:
-        return self._forecast_uv_index()
 
     @property
     def cloud_coverage(self) -> float | None:

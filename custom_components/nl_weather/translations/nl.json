@@ -144,7 +144,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Verbindt met de KNMI Data Platform APIs",
+        "title": "Verbind met de KNMI Data Platform APIs",
         "description": "Je kan de API keys verkrijgen via {kdp_url}",
         "data": {
           "edr_api_token": "EDR API Key",
