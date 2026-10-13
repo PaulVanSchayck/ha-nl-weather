@@ -46,6 +46,9 @@ type Coverage = dict[str, object]
 type NotificationEvent = dict[str, object]
 
 
+type NLWeatherConfigEntry = ConfigEntry["RuntimeData"]
+
+
 @dataclass
 class RuntimeData:
     """Runtime data for the NL Weather integration."""
@@ -54,12 +57,9 @@ class RuntimeData:
     wms: WMS
     app: App
     edr: EDR
-    app_coordinators: dict[str, NLWeatherUpdateCoordinator]
-    nowcast_coordinators: dict[str, NLWeatherNowcastCoordinator]
-    edr_coordinators: dict[str, NLWeatherEDRCoordinator]
-
-
-type NLWeatherConfigEntry = ConfigEntry[RuntimeData]
+    app_coordinators: dict[str, "NLWeatherUpdateCoordinator"]
+    nowcast_coordinators: dict[str, "NLWeatherNowcastCoordinator"]
+    edr_coordinators: dict[str, "NLWeatherEDRCoordinator"]
 
 
 class NLWeatherUpdateCoordinator(DataUpdateCoordinator[Weather]):

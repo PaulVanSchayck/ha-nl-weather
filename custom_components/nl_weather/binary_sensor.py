@@ -60,10 +60,17 @@ class NLWeatherAlertActiveSensor(
         )
 
     @property
-    def is_on(self):
-        return (
-            self.coordinator.data["hourly"]["forecast"][0]["alertLevel"] != Alert.NONE
-        )
+    def is_on(self) -> bool:
+        if self.coordinator.data is None:
+            return False
+
+        try:
+            return (
+                self.coordinator.data["hourly"]["forecast"][0]["alertLevel"]
+                != Alert.NONE
+            )
+        except (KeyError, IndexError, TypeError, ValueError):
+            return False
 
 
 class NLWeatherPrecipitationNowcastSensor(
