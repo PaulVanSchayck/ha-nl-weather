@@ -86,9 +86,7 @@ class NotificationService:
     ) -> None:
         """Register a callback for a KNMI MQTT dataset."""
         if dataset not in self._callbacks:
-            raise ValueError(
-                f"Unsupported KNMI MQTT dataset: {dataset}"
-            )
+            raise ValueError(f"Unsupported KNMI MQTT dataset: {dataset}")
 
         self._callbacks[dataset][identifier] = callback
 
@@ -165,15 +163,11 @@ class NotificationService:
 
     async def _test_aiomqtt_connection(self) -> None:
         """Test the MQTT connection using aiomqtt."""
-        _LOGGER.debug(
-            "KNMI MQTT testing connection using aiomqtt"
-        )
+        _LOGGER.debug("KNMI MQTT testing connection using aiomqtt")
 
         try:
             async with self._create_aiomqtt_client():
-                _LOGGER.debug(
-                    "KNMI MQTT aiomqtt connection test succeeded"
-                )
+                _LOGGER.debug("KNMI MQTT aiomqtt connection test succeeded")
         except MqttError as err:
             if self._is_token_rejection(err):
                 raise TokenInvalid(
@@ -206,9 +200,7 @@ class NotificationService:
 
             await self._wait_for_paho_connection()
 
-            _LOGGER.debug(
-                "KNMI MQTT Paho connection test succeeded"
-            )
+            _LOGGER.debug("KNMI MQTT Paho connection test succeeded")
 
         finally:
             self._paho_state = ConnectionState.DISCONNECTED
@@ -226,9 +218,7 @@ class NotificationService:
             async with self._create_aiomqtt_client() as client:
                 self._client = client
 
-                _LOGGER.debug(
-                    "KNMI MQTT connected using aiomqtt"
-                )
+                _LOGGER.debug("KNMI MQTT connected using aiomqtt")
 
                 for topic in TOPICS:
                     await client.subscribe(topic)
@@ -309,9 +299,7 @@ class NotificationService:
 
             await self._wait_for_paho_connection()
 
-            _LOGGER.debug(
-                "KNMI MQTT Paho connection established"
-            )
+            _LOGGER.debug("KNMI MQTT Paho connection established")
 
             stop_task = asyncio.create_task(
                 self._stopping.wait(),
@@ -328,13 +316,8 @@ class NotificationService:
                     return_when=asyncio.FIRST_COMPLETED,
                 )
 
-                if (
-                    connection_lost_task in done
-                    and not self._stopping.is_set()
-                ):
-                    raise MqttError(
-                        "KNMI MQTT Paho connection was lost"
-                    )
+                if connection_lost_task in done and not self._stopping.is_set():
+                    raise MqttError("KNMI MQTT Paho connection was lost")
 
             finally:
                 stop_task.cancel()
@@ -438,9 +421,7 @@ class NotificationService:
                     "KNMI MQTT token was rejected by the broker"
                 )
             else:
-                error = MqttError(
-                    f"KNMI MQTT connection rejected: {reason_code}"
-                )
+                error = MqttError(f"KNMI MQTT connection rejected: {reason_code}")
 
             self._loop.call_soon_threadsafe(
                 self._set_connection_error,
@@ -455,8 +436,7 @@ class NotificationService:
                 self._loop.call_soon_threadsafe(
                     self._set_connection_error,
                     MqttError(
-                        f"KNMI MQTT subscribe failed for topic {topic}: "
-                        f"result={result}"
+                        f"KNMI MQTT subscribe failed for topic {topic}: result={result}"
                     ),
                 )
                 return
@@ -479,10 +459,7 @@ class NotificationService:
             self._connection_lost.set()
         elif previous_state is ConnectionState.CONNECTING:
             self._set_connection_error(
-                MqttError(
-                    "KNMI MQTT connection was lost during "
-                    "connection attempt"
-                )
+                MqttError("KNMI MQTT connection was lost during connection attempt")
             )
 
     def _on_paho_disconnect(
@@ -571,9 +548,7 @@ class NotificationService:
         try:
             event = json.loads(payload)
         except json.JSONDecodeError:
-            _LOGGER.warning(
-                "KNMI MQTT received invalid JSON payload"
-            )
+            _LOGGER.warning("KNMI MQTT received invalid JSON payload")
             return
 
         if not isinstance(event, dict):
@@ -586,17 +561,13 @@ class NotificationService:
         data = event.get("data")
 
         if not isinstance(data, dict):
-            _LOGGER.warning(
-                "KNMI MQTT event does not contain valid data"
-            )
+            _LOGGER.warning("KNMI MQTT event does not contain valid data")
             return
 
         dataset = data.get("datasetName")
 
         if not isinstance(dataset, str):
-            _LOGGER.warning(
-                "KNMI MQTT event does not contain datasetName"
-            )
+            _LOGGER.warning("KNMI MQTT event does not contain datasetName")
             return
 
         callbacks = self._callbacks.get(dataset)
@@ -666,9 +637,7 @@ class NotificationService:
 
     async def disconnect(self) -> None:
         """Stop the MQTT notification service."""
-        _LOGGER.debug(
-            "KNMI MQTT notification service stopping"
-        )
+        _LOGGER.debug("KNMI MQTT notification service stopping")
 
         self._stopping.set()
 

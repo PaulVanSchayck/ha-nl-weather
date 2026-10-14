@@ -244,8 +244,7 @@ class App:
         )
 
         async with self._session.get(
-            f"{BASE_URL}/{endpoint}",
-            params=params
+            f"{BASE_URL}/{endpoint}", params=params
         ) as response:
             body = await response.text()
 

@@ -3,8 +3,9 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from random import randint
+from typing import NotRequired, TypedDict
 
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME, CONF_REGION
@@ -44,6 +45,22 @@ _LOGGER = logging.getLogger(__name__)
 
 type Coverage = dict[str, object]
 type NotificationEvent = dict[str, object]
+
+
+class PrecipitationNowcastItem(TypedDict):
+    """Precipitation nowcast forecast item."""
+
+    datetime: datetime
+    precipitation: float
+
+
+class EDRObservationData(TypedDict):
+    """Observation data from KNMI EDR."""
+
+    params: dict[str, float]
+    datetime: datetime | None
+    station_name: str
+    distance: NotRequired[float]
 
 
 type NLWeatherConfigEntry = ConfigEntry["RuntimeData"]
@@ -138,11 +155,9 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[Weather]):
                 )
 
         except AppException as err:
-            raise UpdateFailed(
-                f"Error while retrieving data: {err}"
-            ) from err
+            raise UpdateFailed(f"Error while retrieving data: {err}") from err
 
-        current_hour = datetime.now(timezone.utc).replace(
+        current_hour = datetime.now(UTC).replace(
             minute=0,
             second=0,
             microsecond=0,
@@ -167,7 +182,7 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[Weather]):
 
 
 class NLWeatherNowcastCoordinator(
-    DataUpdateCoordinator[list[dict[str, object]]]
+    DataUpdateCoordinator[list[PrecipitationNowcastItem]]
 ):
     """Coordinator for NL Weather precipitation nowcast data."""
 
@@ -204,8 +219,7 @@ class NLWeatherNowcastCoordinator(
 
         if radar_cell is None:
             raise ConfigEntryError(
-                "Unable to determine the KNMI radar cell for the configured "
-                "location."
+                "Unable to determine the KNMI radar cell for the configured location."
             )
 
         self._radar_cell = radar_cell
@@ -213,7 +227,7 @@ class NLWeatherNowcastCoordinator(
     def _get_precipitation_nowcast(
         self,
         precipitation_graph: PrecipitationGraph,
-    ) -> list[dict[str, object]]:
+    ) -> list[PrecipitationNowcastItem]:
         """Convert precipitation graph data to five-minute forecast data."""
         precipitation = precipitation_graph.get("precipitation")
 
@@ -226,14 +240,10 @@ class NLWeatherNowcastCoordinator(
         amounts = precipitation.get("amounts")
 
         if not isinstance(times, list):
-            raise TypeError(
-                "Invalid precipitation graph: 'times' must be a list."
-            )
+            raise TypeError("Invalid precipitation graph: 'times' must be a list.")
 
         if not isinstance(amounts, list):
-            raise TypeError(
-                "Invalid precipitation graph: 'amounts' must be a list."
-            )
+            raise TypeError("Invalid precipitation graph: 'amounts' must be a list.")
 
         if len(times) != len(amounts):
             raise ValueError(
@@ -249,14 +259,14 @@ class NLWeatherNowcastCoordinator(
         return [
             {
                 "datetime": datetime.fromisoformat(time),
-                "precipitation": amount,
+                "precipitation": float(amount),
             }
             for time, amount in zip(times, amounts, strict=True)
         ]
 
-    async def _async_update_data(self) -> list[dict[str, object]]:
+    async def _async_update_data(self) -> list[PrecipitationNowcastItem]:
         """Retrieve precipitation nowcast data."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         latest_5_minutes = now.replace(
             minute=(now.minute // 5) * 5,
             second=0,
@@ -276,16 +286,14 @@ class NLWeatherNowcastCoordinator(
         return self._get_precipitation_nowcast(precipitation_graph)
 
 
-class NLWeatherEDRCoordinator(
-    DataUpdateCoordinator[dict[str, object] | None]
-):
+class NLWeatherEDRCoordinator(DataUpdateCoordinator[EDRObservationData | None]):
     """Base coordinator for KNMI EDR observation data."""
 
     _INITIAL_DATETIME = datetime(
         1970,
         1,
         1,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
 
     def __init__(
@@ -302,11 +310,15 @@ class NLWeatherEDRCoordinator(
             _LOGGER,
             config_entry=entry,
             name=(
-                "NL Weather EDR API data coordinator for "
-                f"{subentry.data[CONF_NAME]}"
+                f"NL Weather EDR API data coordinator for {subentry.data[CONF_NAME]}"
             ),
             update_interval=None,
         )
+
+        if CONF_LATITUDE not in subentry.data or CONF_LONGITUDE not in subentry.data:
+            raise ConfigEntryError(
+                "Missing required latitude or longitude in subentry configuration."
+            )
 
         self._notification_service = notification_service
         self._edr = edr
@@ -327,7 +339,7 @@ class NLWeatherEDRCoordinator(
         """Handle a new KNMI observation notification."""
         raise NotImplementedError
 
-    async def _async_update_data(self) -> dict[str, object] | None:
+    async def _async_update_data(self) -> EDRObservationData | None:
         """Return the latest event-driven EDR data without polling."""
         return self.data
 
@@ -373,14 +385,14 @@ class NLWeatherAutoEDRCoordinator(NLWeatherEDRCoordinator):
     def _prepare_data(
         self,
         coverages: list[Coverage],
-    ) -> dict[str, object]:
+    ) -> EDRObservationData:
         """Prepare observation data from the available station coverages."""
         sorted_coverages = sort_coverages_on_distance(
             coverages,
             self._location,
         )
 
-        data: dict[str, object] = {
+        data: EDRObservationData = {
             "params": {},
             "datetime": None,
             "station_name": "",
@@ -411,10 +423,10 @@ class NLWeatherAutoEDRCoordinator(NLWeatherEDRCoordinator):
 
                 value = values[-1]
 
-                if value is None:
+                if value is None or not isinstance(value, (int, float)):
                     continue
 
-                params[parameter] = value
+                params[parameter] = float(value)
 
                 location_id = coverage.get("eumetnet:locationId")
                 if isinstance(location_id, str):
@@ -452,9 +464,7 @@ class NLWeatherAutoEDRCoordinator(NLWeatherEDRCoordinator):
             )
 
         if not stations:
-            raise ValueError(
-                "KNMI EDR coverages contain no valid station identifiers."
-            )
+            raise ValueError("KNMI EDR coverages contain no valid station identifiers.")
 
         data["datetime"] = datetime.fromisoformat(
             unique_items_sorted_by_frequency(datetimes)[0]
@@ -531,26 +541,20 @@ class NLWeatherAutoEDRCoordinator(NLWeatherEDRCoordinator):
         event_data = event.get("data")
 
         if not isinstance(event_data, dict):
-            raise ValueError(
-                "KNMI notification event contains invalid 'data'."
-            )
+            raise TypeError("KNMI notification event contains invalid 'data'.")
 
         filename = event_data.get("filename")
 
         if not isinstance(filename, str):
-            raise ValueError(
-                "KNMI notification event contains no valid 'filename'."
-            )
+            raise TypeError("KNMI notification event contains no valid 'filename'.")
 
         try:
             return datetime.strptime(
                 filename,
                 "KMDS__OPER_P___10M_OBS_L2_%Y%m%d%H%M.nc",
-            ).replace(tzinfo=timezone.utc)
+            ).replace(tzinfo=UTC)
         except ValueError as err:
-            raise ValueError(
-                f"Invalid KNMI observation filename: {filename}"
-            ) from err
+            raise ValueError(f"Invalid KNMI observation filename: {filename}") from err
 
 
 class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
@@ -572,7 +576,12 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
             notification_service,
             edr,
         )
-        self._station = self._config[CONF_STATION]
+        station = self._config.get(CONF_STATION)
+        if not isinstance(station, str) or not station:
+            raise ConfigEntryError(
+                "Missing or invalid weather station configuration for manual EDR coordinator."
+            )
+        self._station = station
 
     def _get_dict_value(
         self,
@@ -584,9 +593,7 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
         value = data.get(key)
 
         if not isinstance(value, dict):
-            raise TypeError(
-                f"KNMI {context} contains invalid {key} data."
-            )
+            raise TypeError(f"KNMI {context} contains invalid {key} data.")
 
         return value
 
@@ -600,9 +607,7 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
         value = data.get(key)
 
         if not isinstance(value, list):
-            raise TypeError(
-                f"KNMI {context} contains invalid {key} data."
-            )
+            raise TypeError(f"KNMI {context} contains invalid {key} data.")
 
         return value
 
@@ -633,8 +638,7 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
 
         if not isinstance(value, (int, float)):
             raise TypeError(
-                f"KNMI coverage contains a non-numeric value for parameter "
-                f"{parameter}."
+                f"KNMI coverage contains a non-numeric value for parameter {parameter}."
             )
 
         return float(value)
@@ -659,30 +663,24 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
     ) -> datetime:
         """Get a timezone-aware datetime from API values."""
         if not values:
-            raise ValueError(
-                f"KNMI {context} contains no datetime values."
-            )
+            raise ValueError(f"KNMI {context} contains no datetime values.")
 
         value = values[-1]
 
         if not isinstance(value, str):
-            raise TypeError(
-                f"KNMI {context} contains a non-string datetime value."
-            )
+            raise TypeError(f"KNMI {context} contains a non-string datetime value.")
 
         parsed_datetime = datetime.fromisoformat(value)
 
         if parsed_datetime.tzinfo is None:
-            raise ValueError(
-                f"KNMI {context} contains a timezone-naive datetime."
-            )
+            raise ValueError(f"KNMI {context} contains a timezone-naive datetime.")
 
         return parsed_datetime
 
     def _prepare_data(
         self,
         coverage: Coverage,
-    ) -> dict[str, object]:
+    ) -> EDRObservationData:
         """Prepare KNMI observation data for the coordinator."""
         domain = self._get_dict_value(
             coverage,
@@ -708,8 +706,7 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
         location_id = coverage.get("eumetnet:locationId")
         if not isinstance(location_id, str):
             raise TypeError(
-                "KNMI coverage response contains an invalid "
-                "EUMETNET location ID."
+                "KNMI coverage response contains an invalid EUMETNET location ID."
             )
 
         station_name = self._station_names.get(location_id)
@@ -724,7 +721,7 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
             "coverage response",
         )
 
-        prepared_data: dict[str, object] = {
+        prepared_data: EDRObservationData = {
             "datetime": self._get_datetime_value(
                 time_values,
                 "coverage response",
@@ -784,9 +781,7 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
                 continue
 
             self._latest_filename_datetime = filename_datetime
-            self.async_set_updated_data(
-                self._prepare_data(coverage)
-            )
+            self.async_set_updated_data(self._prepare_data(coverage))
             return
 
         _LOGGER.warning(
@@ -814,9 +809,7 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
             self.async_set_updated_data(None)
             return
 
-        self.async_set_updated_data(
-            self._prepare_data(coverage)
-        )
+        self.async_set_updated_data(self._prepare_data(coverage))
 
     @staticmethod
     def _get_filename_datetime(
@@ -826,23 +819,17 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
         event_data = event.get("data")
 
         if not isinstance(event_data, dict):
-            raise ValueError(
-                "KNMI notification event contains invalid 'data'."
-            )
+            raise TypeError("KNMI notification event contains invalid 'data'.")
 
         filename = event_data.get("filename")
 
         if not isinstance(filename, str):
-            raise ValueError(
-                "KNMI notification event contains no valid 'filename'."
-            )
+            raise TypeError("KNMI notification event contains no valid 'filename'.")
 
         try:
             return datetime.strptime(
                 filename,
                 "KMDS__OPER_P___10M_OBS_L2_%Y%m%d%H%M.nc",
-            ).replace(tzinfo=timezone.utc)
+            ).replace(tzinfo=UTC)
         except ValueError as err:
-            raise ValueError(
-                f"Invalid KNMI observation filename: {filename}"
-            ) from err
+            raise ValueError(f"Invalid KNMI observation filename: {filename}") from err

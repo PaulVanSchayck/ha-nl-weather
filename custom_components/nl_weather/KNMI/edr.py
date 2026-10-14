@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import aiohttp
 
@@ -52,7 +52,7 @@ class EDR:
 
     async def locations(self):
         # Get current locations
-        dt = format_dt(datetime.now(timezone.utc))
+        dt = format_dt(datetime.now(UTC))
         params = {"datetime": dt, "bbox": BBOX_NL}
         return await self.get("/locations", params)
 

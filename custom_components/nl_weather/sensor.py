@@ -1,6 +1,5 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -53,31 +52,35 @@ from .const import (
     Alert,
 )
 from .coordinator import (
+    EDRObservationData,
     NLWeatherConfigEntry,
     NLWeatherEDRCoordinator,
     NLWeatherUpdateCoordinator,
 )
+from .KNMI.app import Weather
 
 
 @dataclass(frozen=True)
 class AlertSensorDescription(SensorEntityDescription):
-    value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
-    extra_state_attributes_fn: Callable[[dict[str, object]], dict[str, object]] | None = (
-        field(default=None, repr=False)
+    value_fn: Callable[[Weather], object] | None = field(default=None, repr=False)
+    extra_state_attributes_fn: Callable[[Weather], dict[str, object]] | None = field(
+        default=None, repr=False
     )
 
 
 @dataclass(frozen=True)
 class ObservationSensorDescription(SensorEntityDescription):
-    value_fn: Callable[[dict[str, object]], object] | None = field(default=None, repr=False)
+    value_fn: Callable[[EDRObservationData], object] | None = field(
+        default=None, repr=False
+    )
 
 
 @dataclass(frozen=True)
 class ForecastSensorDescription(SensorEntityDescription):
-    value_fn: Callable[[dict[str, object]], object] | None = field(default=None, repr=False)
+    value_fn: Callable[[Weather], object] | None = field(default=None, repr=False)
 
 
-def _get_alerts(data: dict[str, Any]) -> list[dict[str, str]]:
+def _get_alerts(data: Weather) -> list[dict[str, str]]:
     alerts = data.get("alerts", [])
     return [
         {
@@ -91,18 +94,18 @@ def _get_alerts(data: dict[str, Any]) -> list[dict[str, str]]:
     ]
 
 
-def _get_alert_description(data: dict[str, Any]) -> str | None:
+def _get_alert_description(data: Weather) -> str | None:
     alerts = _get_alerts(data)
     if not alerts:
         return "none"
     return alerts[0]["description"]
 
 
-def _get_alert_count(data: dict[str, Any]) -> int:
+def _get_alert_count(data: Weather) -> int:
     return len(_get_alerts(data))
 
 
-def _get_alert_attributes(data: dict[str, Any]) -> dict[str, Any]:
+def _get_alert_attributes(data: Weather) -> dict[str, object]:
     alerts = _get_alerts(data)
     descriptions = [alert["description"] for alert in alerts]
     return {
@@ -114,7 +117,7 @@ def _get_alert_attributes(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _get_alert_level(data: dict[str, Any]) -> Alert:
+def _get_alert_level(data: Weather) -> Alert:
     # TODO: Is the first alert always the highest?
     try:
         return Alert(data["hourly"]["forecast"][0]["alertLevel"])
@@ -123,13 +126,13 @@ def _get_alert_level(data: dict[str, Any]) -> Alert:
 
 
 def _get_observation_param(
-    data: dict[str, Any],
+    data: EDRObservationData,
     weather_attribute: str,
-) -> Any:
+) -> float | None:
     return data.get("params", {}).get(PARAMETER_ATTRIBUTE_MAP[weather_attribute])
 
 
-def _get_cloud_coverage(data: dict[str, Any]) -> float | int | None:
+def _get_cloud_coverage(data: EDRObservationData) -> float | int | None:
     okta = _get_observation_param(data, ATTR_WEATHER_CLOUD_COVERAGE)
     if okta is None:
         return None
@@ -138,7 +141,7 @@ def _get_cloud_coverage(data: dict[str, Any]) -> float | int | None:
     return round(okta / 8 * 100, 1)
 
 
-def _get_wind_direction_cardinal(data: dict[str, Any]) -> str | None:
+def _get_wind_direction_cardinal(data: EDRObservationData) -> str | None:
     degrees = _get_observation_param(data, ATTR_WEATHER_WIND_BEARING)
     if degrees is None:
         return None
@@ -148,15 +151,15 @@ def _get_wind_direction_cardinal(data: dict[str, Any]) -> str | None:
 
 def _get_forecast_temperature(
     day_index: int, temp_key: str
-) -> Callable[[dict[str, Any]], Any]:
+) -> Callable[[Weather], float | None]:
     """Return a value_fn that extracts a forecast temperature.
 
     The returned callable accepts the full coordinator data dict.
     """
 
-    def _fn(data: dict[str, Any]) -> Any:
+    def _fn(data: Weather) -> float | None:
         try:
-            return data["daily"]["forecast"][day_index]["temperature"][temp_key]
+            return data["daily"]["forecast"][day_index]["temperature"][temp_key]  # type: ignore[literal-required]
         except (KeyError, IndexError, TypeError):
             return None
 
@@ -233,9 +236,7 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfSpeed.METERS_PER_SECOND,
         suggested_display_precision=1,
-        value_fn=lambda data: _get_observation_param(
-            data, ATTR_WEATHER_WIND_SPEED
-        ),
+        value_fn=lambda data: _get_observation_param(data, ATTR_WEATHER_WIND_SPEED),
     ),
     ObservationSensorDescription(
         key="wind_gust",
@@ -255,9 +256,7 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         suggested_display_precision=1,
-        value_fn=lambda data: _get_observation_param(
-            data, ATTR_WEATHER_DEW_POINT
-        ),
+        value_fn=lambda data: _get_observation_param(data, ATTR_WEATHER_DEW_POINT),
     ),
     ObservationSensorDescription(
         key="wind_direction",
@@ -267,9 +266,7 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT_ANGLE,
         native_unit_of_measurement=DEGREE,
         suggested_display_precision=0,
-        value_fn=lambda data: _get_observation_param(
-            data, ATTR_WEATHER_WIND_BEARING
-        ),
+        value_fn=lambda data: _get_observation_param(data, ATTR_WEATHER_WIND_BEARING),
     ),
     ObservationSensorDescription(
         key="cloud_coverage",
@@ -298,9 +295,7 @@ OBSERVATION_SENSOR_DESCRIPTIONS: list[ObservationSensorDescription] = [
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfTime.MINUTES,
         suggested_display_precision=0,
-        value_fn=lambda data: _get_observation_param(
-            data, ATTR_WEATHER_SUNSHINE
-        ),
+        value_fn=lambda data: _get_observation_param(data, ATTR_WEATHER_SUNSHINE),
     ),
     ObservationSensorDescription(
         key="temperature_grass",
@@ -592,7 +587,9 @@ def wind_direction_icon(wind_direction_degrees: int) -> str:
     direction = wind_direction_degrees % 360
 
     # Find the closest wind direction value in the dictionary
-    closest_direction = min(WIND_DIRECTIONS_ICON_MAP, key=lambda angle: abs(direction - angle))
+    closest_direction = min(
+        WIND_DIRECTIONS_ICON_MAP, key=lambda angle: abs(direction - angle)
+    )
 
     # Handle cases where the direction does not exactly match any predefined angle
     if abs(direction - closest_direction) > 22.5:
@@ -600,7 +597,7 @@ def wind_direction_icon(wind_direction_degrees: int) -> str:
         closest_direction = round(direction / 45) * 45
 
     # Get the icon name from the directions dictionary, using the closest wind direction value
-    icon_direction = WIND_DIRECTIONS_ICON_MAP.get(closest_direction, 'compass-outline')
+    icon_direction = WIND_DIRECTIONS_ICON_MAP.get(closest_direction, "compass-outline")
     # mdi:arrow-bottom-left
 
     # Return the icon name in the format 'mdi:icon-name'
