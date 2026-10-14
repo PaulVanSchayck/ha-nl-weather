@@ -14,6 +14,7 @@ from enum import StrEnum
 import aiomqtt
 import paho.mqtt.client as mqtt
 from aiomqtt import MqttError, ProtocolVersion
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util.ssl import get_default_context
 from paho.mqtt.properties import Properties
 
@@ -43,6 +44,10 @@ class ConnectionState(StrEnum):
     CONNECTING = "connecting"
     CONNECTED = "connected"
     DISCONNECTED = "disconnected"
+
+
+class CannotConnect(HomeAssistantError):
+    """Error to indicate we cannot connect."""
 
 
 class TokenInvalid(Exception):
