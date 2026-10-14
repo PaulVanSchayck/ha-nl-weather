@@ -21,6 +21,8 @@ from homeassistant.components.weather import (
     ATTR_CONDITION_SUNNY,
     ATTR_CONDITION_WINDY,
     ATTR_CONDITION_WINDY_VARIANT,
+)
+from homeassistant.components.weather.const import (
     ATTR_WEATHER_CLOUD_COVERAGE,
     ATTR_WEATHER_DEW_POINT,
     ATTR_WEATHER_HUMIDITY,
@@ -192,6 +194,18 @@ CONDITION_FORECAST_MAP = {
     cond_code: cond_ha
     for cond_ha, cond_codes in CONDITION_FORECAST_CLASSES.items()
     for cond_code in cond_codes
+}
+
+# Define the wind directions and their corresponding icon names
+WIND_DIRECTIONS_ICON_MAP = {
+    0: 'arrow-down',
+    45: 'arrow-bottom-left',
+    90: 'arrow-left',
+    135: 'arrow-top-left',
+    180: 'arrow-up',
+    225: 'arrow-top-right',
+    270: 'arrow-right',
+    315: 'arrow-bottom-right',
 }
 
 
