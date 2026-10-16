@@ -1,0 +1,66 @@
+"""Tests for NL Weather sensor platform and helper functions."""
+
+from custom_components.nl_weather.sensor import (
+    _get_cloud_coverage,
+    _get_wind_direction_cardinal,
+    safe_int,
+    wind_direction_icon,
+)
+
+
+def test_wind_direction_icon_cardinals_and_intercardinals() -> None:
+    """Test wind_direction_icon maps cardinal and intercardinal angles correctly."""
+    assert wind_direction_icon(0) == "mdi:arrow-down"
+    assert wind_direction_icon(45) == "mdi:arrow-bottom-left"
+    assert wind_direction_icon(90) == "mdi:arrow-left"
+    assert wind_direction_icon(135) == "mdi:arrow-top-left"
+    assert wind_direction_icon(180) == "mdi:arrow-up"
+    assert wind_direction_icon(225) == "mdi:arrow-top-right"
+    assert wind_direction_icon(270) == "mdi:arrow-right"
+    assert wind_direction_icon(315) == "mdi:arrow-bottom-right"
+
+
+def test_wind_direction_icon_north_wraparound() -> None:
+    """Test wind_direction_icon handles angles close to North (360°)."""
+    assert wind_direction_icon(360) == "mdi:arrow-down"
+    assert wind_direction_icon(355) == "mdi:arrow-down"
+    assert wind_direction_icon(350) == "mdi:arrow-down"
+    assert wind_direction_icon(338) == "mdi:arrow-down"
+
+
+def test_wind_direction_icon_negative_and_overflow_angles() -> None:
+    """Test wind_direction_icon with negative or angles > 360."""
+    assert wind_direction_icon(-45) == "mdi:arrow-bottom-right"
+    assert wind_direction_icon(-90) == "mdi:arrow-right"
+    assert wind_direction_icon(720) == "mdi:arrow-down"
+    assert wind_direction_icon(405) == "mdi:arrow-bottom-left"
+
+
+def test_safe_int() -> None:
+    """Test safe_int conversion helper."""
+    assert safe_int(10) == 10
+    assert safe_int(10.8) == 10
+    assert safe_int("25") == 25
+    assert safe_int("invalid") is None
+    assert safe_int(None) is None
+
+
+def test_get_wind_direction_cardinal() -> None:
+    """Test cardinal direction extraction from EDR observation data."""
+    assert _get_wind_direction_cardinal({"params": {"dd": 0}}) == "n"
+    assert _get_wind_direction_cardinal({"params": {"dd": 360}}) == "n"
+    assert _get_wind_direction_cardinal({"params": {"dd": 355}}) == "n"
+    assert _get_wind_direction_cardinal({"params": {"dd": 90}}) == "e"
+    assert _get_wind_direction_cardinal({"params": {"dd": 180}}) == "s"
+    assert _get_wind_direction_cardinal({"params": {"dd": 270}}) == "w"
+    assert _get_wind_direction_cardinal({"params": {"dd": -90}}) == "w"
+    assert _get_wind_direction_cardinal({"params": {}}) is None
+
+
+def test_get_cloud_coverage() -> None:
+    """Test cloud coverage conversion from oktas to percentage."""
+    assert _get_cloud_coverage({"params": {"nhc": 0}}) == 0.0
+    assert _get_cloud_coverage({"params": {"nhc": 4}}) == 50.0
+    assert _get_cloud_coverage({"params": {"nhc": 8}}) == 100.0
+    assert _get_cloud_coverage({"params": {"nhc": 9}}) == 100
+    assert _get_cloud_coverage({"params": {}}) is None

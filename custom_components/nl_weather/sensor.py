@@ -145,7 +145,7 @@ def _get_wind_direction_cardinal(data: EDRObservationData) -> str | None:
     degrees = _get_observation_param(data, ATTR_WEATHER_WIND_BEARING)
     if degrees is None:
         return None
-    index = int((float(degrees) + 11.25) / 22.5) % 16
+    index = int(((float(degrees) % 360) + 11.25) / 22.5) % 16
     return VALID_CARDINAL_DIRECTIONS[index]
 
 
@@ -583,24 +583,8 @@ def wind_direction_icon(wind_direction_degrees: int) -> str:
     Returns:
         str: The icon name in the format 'mdi:icon-name'.
     """
-    # Calculate the wind direction value in degrees (0 to 360)
-    direction = wind_direction_degrees % 360
-
-    # Find the closest wind direction value in the dictionary
-    closest_direction = min(
-        WIND_DIRECTIONS_ICON_MAP, key=lambda angle: abs(direction - angle)
-    )
-
-    # Handle cases where the direction does not exactly match any predefined angle
-    if abs(direction - closest_direction) > 22.5:
-        # Round the direction to the nearest 45-degree angle
-        closest_direction = round(direction / 45) * 45
-
-    # Get the icon name from the directions dictionary, using the closest wind direction value
+    closest_direction = (round((wind_direction_degrees % 360) / 45) * 45) % 360
     icon_direction = WIND_DIRECTIONS_ICON_MAP.get(closest_direction, "compass-outline")
-    # mdi:arrow-bottom-left
-
-    # Return the icon name in the format 'mdi:icon-name'
     return f"mdi:{icon_direction}"
 
 
