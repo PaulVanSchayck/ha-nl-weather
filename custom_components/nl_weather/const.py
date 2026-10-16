@@ -198,14 +198,14 @@ CONDITION_FORECAST_MAP = {
 
 # Define the wind directions and their corresponding icon names
 WIND_DIRECTIONS_ICON_MAP = {
-    0: 'arrow-down',
-    45: 'arrow-bottom-left',
-    90: 'arrow-left',
-    135: 'arrow-top-left',
-    180: 'arrow-up',
-    225: 'arrow-top-right',
-    270: 'arrow-right',
-    315: 'arrow-bottom-right',
+    0: "arrow-down",
+    45: "arrow-bottom-left",
+    90: "arrow-left",
+    135: "arrow-top-left",
+    180: "arrow-up",
+    225: "arrow-top-right",
+    270: "arrow-right",
+    315: "arrow-bottom-right",
 }
 
 
