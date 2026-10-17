@@ -6,7 +6,7 @@ import asyncio
 import io
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from random import randint
 
 from homeassistant.components.camera import Camera
@@ -199,7 +199,7 @@ class PrecipitationRadarCam(Camera):
                         time_to_image[img_time] = self._process_radar_frame(
                             buf, img_time, ref_time
                         )
-                    except (WMSException, asyncio.TimeoutError) as e:
+                    except (TimeoutError, WMSException) as e:
                         _LOGGER.warning("Error processing radar image: %s", e)
                         continue
                     except Exception:
@@ -207,7 +207,7 @@ class PrecipitationRadarCam(Camera):
                         for task in pending_tasks:
                             task.cancel()
                         break
-        except asyncio.TimeoutError:
+        except TimeoutError:
             for task in pending_tasks:
                 task.cancel()
             _LOGGER.warning(
@@ -334,7 +334,7 @@ class PrecipitationRadarCam(Camera):
         await asyncio.sleep(15 + randint(0, 10))
         self._last_modified = datetime.strptime(
             event["data"]["filename"], "RAD_NL25_RAC_FM_%Y%m%d%H%M.h5"
-        ).replace(tzinfo=timezone.utc)
+        ).replace(tzinfo=UTC)
 
     async def async_added_to_hass(self):
         self._ns.set_callback("radar_forecast", self._attr_unique_id, self._set_latest)

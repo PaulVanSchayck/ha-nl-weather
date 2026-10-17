@@ -7,10 +7,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.util import utcnow
+from homeassistant.util.dt import utcnow
 
-from . import DOMAIN
-from .const import Alert
+from .const import DOMAIN, Alert
 from .coordinator import (
     NLWeatherConfigEntry,
     NLWeatherNowcastCoordinator,
@@ -61,10 +60,17 @@ class NLWeatherAlertActiveSensor(
         )
 
     @property
-    def is_on(self):
-        return (
-            self.coordinator.data["hourly"]["forecast"][0]["alertLevel"] != Alert.NONE
-        )
+    def is_on(self) -> bool:
+        if self.coordinator.data is None:
+            return False
+
+        try:
+            return (
+                self.coordinator.data["hourly"]["forecast"][0]["alertLevel"]
+                != Alert.NONE
+            )
+        except (KeyError, IndexError, TypeError, ValueError):
+            return False
 
 
 class NLWeatherPrecipitationNowcastSensor(

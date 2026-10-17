@@ -1,12 +1,22 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
     SensorStateClass,
+)
+from homeassistant.components.weather.const import (
+    ATTR_WEATHER_CLOUD_COVERAGE,
+    ATTR_WEATHER_DEW_POINT,
+    ATTR_WEATHER_HUMIDITY,
+    ATTR_WEATHER_PRESSURE,
+    ATTR_WEATHER_TEMPERATURE,
+    ATTR_WEATHER_VISIBILITY,
+    ATTR_WEATHER_WIND_BEARING,
+    ATTR_WEATHER_WIND_GUST_SPEED,
+    ATTR_WEATHER_WIND_SPEED,
 )
 from homeassistant.components.weather.significant_change import (
     VALID_CARDINAL_DIRECTIONS,
@@ -16,6 +26,7 @@ from homeassistant.const import (
     CONF_REGION,
     DEGREE,
     PERCENTAGE,
+    EntityCategory,
     UnitOfIrradiance,
     UnitOfLength,
     UnitOfPressure,
@@ -25,56 +36,51 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from . import DOMAIN
 from .const import (
     ALERT_REGIONS,
     ATTR_WEATHER_CLOUD_CEILING,
-    ATTR_WEATHER_CLOUD_COVERAGE,
-    ATTR_WEATHER_DEW_POINT,
-    ATTR_WEATHER_HUMIDITY,
-    ATTR_WEATHER_PRESSURE,
     ATTR_WEATHER_SOLAR_RADIATION,
     ATTR_WEATHER_SUNSHINE,
-    ATTR_WEATHER_TEMPERATURE,
     ATTR_WEATHER_TEMPERATURE_GRASS,
     ATTR_WEATHER_TEMPERATURE_SOIL,
-    ATTR_WEATHER_VISIBILITY,
-    ATTR_WEATHER_WIND_BEARING,
-    ATTR_WEATHER_WIND_GUST_SPEED,
-    ATTR_WEATHER_WIND_SPEED,
+    DOMAIN,
     PARAMETER_ATTRIBUTE_MAP,
+    WIND_DIRECTIONS_ICON_MAP,
     Alert,
 )
 from .coordinator import (
+    EDRObservationData,
     NLWeatherConfigEntry,
     NLWeatherEDRCoordinator,
     NLWeatherUpdateCoordinator,
 )
+from .KNMI.app import Weather
 
 
 @dataclass(frozen=True)
 class AlertSensorDescription(SensorEntityDescription):
-    value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
-    extra_state_attributes_fn: Callable[[dict[str, Any]], dict[str, Any]] | None = (
-        field(default=None, repr=False)
+    value_fn: Callable[[Weather], object] | None = field(default=None, repr=False)
+    extra_state_attributes_fn: Callable[[Weather], dict[str, object]] | None = field(
+        default=None, repr=False
     )
 
 
 @dataclass(frozen=True)
 class ObservationSensorDescription(SensorEntityDescription):
-    value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
+    value_fn: Callable[[EDRObservationData], object] | None = field(
+        default=None, repr=False
+    )
 
 
 @dataclass(frozen=True)
 class ForecastSensorDescription(SensorEntityDescription):
-    value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
+    value_fn: Callable[[Weather], object] | None = field(default=None, repr=False)
 
 
-def _get_alerts(data: dict[str, Any]) -> list[dict[str, str]]:
+def _get_alerts(data: Weather) -> list[dict[str, str]]:
     alerts = data.get("alerts", [])
     return [
         {
@@ -88,18 +94,18 @@ def _get_alerts(data: dict[str, Any]) -> list[dict[str, str]]:
     ]
 
 
-def _get_alert_description(data: dict[str, Any]) -> str | None:
+def _get_alert_description(data: Weather) -> str | None:
     alerts = _get_alerts(data)
     if not alerts:
         return "none"
     return alerts[0]["description"]
 
 
-def _get_alert_count(data: dict[str, Any]) -> int:
+def _get_alert_count(data: Weather) -> int:
     return len(_get_alerts(data))
 
 
-def _get_alert_attributes(data: dict[str, Any]) -> dict[str, Any]:
+def _get_alert_attributes(data: Weather) -> dict[str, object]:
     alerts = _get_alerts(data)
     descriptions = [alert["description"] for alert in alerts]
     return {
@@ -111,22 +117,22 @@ def _get_alert_attributes(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _get_alert_level(data: dict[str, Any]) -> Alert:
+def _get_alert_level(data: Weather) -> Alert:
     # TODO: Is the first alert always the highest?
     try:
         return Alert(data["hourly"]["forecast"][0]["alertLevel"])
-    except (KeyError, IndexError, TypeError, ValueError):
+    except (KeyError, IndexError, TypeError, ValueError, AttributeError):
         return Alert.NONE
 
 
 def _get_observation_param(
-    data: dict[str, Any],
+    data: EDRObservationData,
     weather_attribute: str,
-) -> Any:
+) -> float | None:
     return data.get("params", {}).get(PARAMETER_ATTRIBUTE_MAP[weather_attribute])
 
 
-def _get_cloud_coverage(data: dict[str, Any]) -> float | int | None:
+def _get_cloud_coverage(data: EDRObservationData) -> float | int | None:
     okta = _get_observation_param(data, ATTR_WEATHER_CLOUD_COVERAGE)
     if okta is None:
         return None
@@ -135,29 +141,51 @@ def _get_cloud_coverage(data: dict[str, Any]) -> float | int | None:
     return round(okta / 8 * 100, 1)
 
 
-def _get_wind_direction_cardinal(data: dict[str, Any]) -> str | None:
+def _get_wind_direction_cardinal(data: EDRObservationData) -> str | None:
     degrees = _get_observation_param(data, ATTR_WEATHER_WIND_BEARING)
     if degrees is None:
         return None
-    index = int((float(degrees) + 11.25) / 22.5) % 16
+    index = int(((float(degrees) % 360) + 11.25) / 22.5) % 16
     return VALID_CARDINAL_DIRECTIONS[index]
 
 
 def _get_forecast_temperature(
     day_index: int, temp_key: str
-) -> Callable[[dict[str, Any]], Any]:
+) -> Callable[[Weather], float | None]:
     """Return a value_fn that extracts a forecast temperature.
 
     The returned callable accepts the full coordinator data dict.
     """
 
-    def _fn(data: dict[str, Any]) -> Any:
+    def _fn(data: Weather) -> float | None:
         try:
-            return data["daily"]["forecast"][day_index]["temperature"][temp_key]
-        except (KeyError, IndexError, TypeError):
+            return data["daily"]["forecast"][day_index]["temperature"][temp_key]  # type: ignore[literal-required]
+        except (KeyError, IndexError, TypeError, AttributeError):
             return None
 
     return _fn
+
+
+def _get_heat_force_index(data: Weather) -> float | None:
+    """Return current hourly heat force index from forecast data."""
+    try:
+        forecast = data["hourly"]["forecast"]
+        if isinstance(forecast, list) and forecast and isinstance(forecast[0], dict):
+            return forecast[0].get("heatIndex")
+    except (KeyError, IndexError, TypeError, AttributeError):
+        pass
+    return None
+
+
+def _get_heat_force_index_today(data: Weather) -> float | None:
+    """Return today's daily heat force index from forecast data."""
+    try:
+        forecast = data["daily"]["forecast"]
+        if isinstance(forecast, list) and forecast and isinstance(forecast[0], dict):
+            return forecast[0].get("heatIndex")
+    except (KeyError, IndexError, TypeError, AttributeError):
+        pass
+    return None
 
 
 ALERT_SENSOR_DESCRIPTIONS: list[AlertSensorDescription] = [
@@ -389,14 +417,14 @@ FORECAST_SENSOR_DESCRIPTIONS: list[ForecastSensorDescription] = [
         translation_key="heat_force_index",
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:sun-thermometer",
-        value_fn=lambda data: data["hourly"]["forecast"][0].get("heatIndex", None),
+        value_fn=_get_heat_force_index,
     ),
     ForecastSensorDescription(
         key="heat_force_index_today",
         translation_key="heat_force_index_today",
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:sun-thermometer-outline",
-        value_fn=lambda data: data["daily"]["forecast"][0].get("heatIndex", None),
+        value_fn=_get_heat_force_index_today,
     ),
 ]
 
@@ -449,24 +477,29 @@ class NLAlertSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity)
         )
         self._attr_has_entity_name = True
         self._value_fn = desc.value_fn
+        self._extra_state_attributes_fn = desc.extra_state_attributes_fn
 
     @property
-    def native_value(self):
-        if self.coordinator.data is None:
+    def native_value(self) -> object:  # type: ignore[override]
+        """Return the current sensor value."""
+        if self.coordinator.data is None or self._value_fn is None:
             return None
+
         return self._value_fn(self.coordinator.data)
 
     @property
-    def extra_state_attributes(self) -> dict[str, Any] | None:
+    def extra_state_attributes(self) -> dict[str, object] | None:  # type: ignore[override]
         if (
-            self.entity_description.extra_state_attributes_fn is None
-            or self.coordinator.data is None
+            self.coordinator.data is None
+            or self.entity_description.extra_state_attributes_fn is None
         ):
             return None
         return self.entity_description.extra_state_attributes_fn(self.coordinator.data)
 
 
 class NLObservationSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEntity):
+    """Representation of an observation sensor."""
+
     def __init__(
         self,
         coordinator: NLWeatherEDRCoordinator,
@@ -488,10 +521,28 @@ class NLObservationSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEnti
         self._value_fn = desc.value_fn
 
     @property
-    def native_value(self):
-        if self.coordinator.data is None:
+    def native_value(self) -> object:  # type: ignore[override]
+        """Return the current sensor value."""
+        if self.coordinator.data is None or self._value_fn is None:
             return None
+
         return self._value_fn(self.coordinator.data)
+
+    @property
+    def icon(self) -> str:  # type: ignore[override]
+        """Return the appropriate icon for the sensor."""
+        if (
+            self.entity_description.key == "wind_direction"
+            and self.coordinator.data is not None
+            and self._value_fn is not None
+        ):
+            value = self._value_fn(self.coordinator.data)
+            windrgr_value = safe_int(value)
+
+            if windrgr_value is not None:
+                return wind_direction_icon(windrgr_value)
+
+        return self.entity_description.icon or ""
 
 
 class NLForecastSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity):
@@ -515,10 +566,48 @@ class NLForecastSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEnti
         self._value_fn = desc.value_fn
 
     @property
-    def native_value(self):
-        if self.coordinator.data is None:
+    def native_value(self) -> object:  # type: ignore[override]
+        """Return the current sensor value."""
+        if self.coordinator.data is None or self._value_fn is None:
             return None
+
         return self._value_fn(self.coordinator.data)
+
+
+def safe_int(value: object) -> int | None:
+    """
+    Safely convert a value to an integer.
+
+    Supports:
+    - int
+    - float
+    - str (if numeric)
+
+    Returns None if conversion fails.
+    """
+    try:
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+    except (TypeError, ValueError):
+        pass
+    return None
+
+
+def wind_direction_icon(wind_direction_degrees: int) -> str:
+    """
+    Generate the icon name based on wind direction degrees.
+
+    Args:
+        wind_direction_degrees (int): Wind direction in degrees.
+
+    Returns:
+        str: The icon name in the format 'mdi:icon-name'.
+    """
+    closest_direction = (round((wind_direction_degrees % 360) / 45) * 45) % 360
+    icon_direction = WIND_DIRECTIONS_ICON_MAP.get(closest_direction, "compass-outline")
+    return f"mdi:{icon_direction}"
 
 
 class AlertRegionSensor(SensorEntity):
