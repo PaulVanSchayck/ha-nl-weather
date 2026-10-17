@@ -78,6 +78,9 @@ def test_get_heat_force_index() -> None:
     # Missing heatIndex key in forecast item
     assert _get_heat_force_index({"hourly": {"forecast": [{}]}}) is None
 
+    # Non-mapping forecast item (e.g. None)
+    assert _get_heat_force_index({"hourly": {"forecast": [None]}}) is None
+
     # Empty forecast list
     assert _get_heat_force_index({"hourly": {"forecast": []}}) is None
 
@@ -96,6 +99,9 @@ def test_get_heat_force_index_today() -> None:
 
     # Missing heatIndex key in forecast item
     assert _get_heat_force_index_today({"daily": {"forecast": [{}]}}) is None
+
+    # Non-mapping forecast item (e.g. None)
+    assert _get_heat_force_index_today({"daily": {"forecast": [None]}}) is None
 
     # Empty forecast list
     assert _get_heat_force_index_today({"daily": {"forecast": []}}) is None

@@ -121,7 +121,7 @@ def _get_alert_level(data: Weather) -> Alert:
     # TODO: Is the first alert always the highest?
     try:
         return Alert(data["hourly"]["forecast"][0]["alertLevel"])
-    except (KeyError, IndexError, TypeError, ValueError):
+    except (KeyError, IndexError, TypeError, ValueError, AttributeError):
         return Alert.NONE
 
 
@@ -160,7 +160,7 @@ def _get_forecast_temperature(
     def _fn(data: Weather) -> float | None:
         try:
             return data["daily"]["forecast"][day_index]["temperature"][temp_key]  # type: ignore[literal-required]
-        except (KeyError, IndexError, TypeError):
+        except (KeyError, IndexError, TypeError, AttributeError):
             return None
 
     return _fn
@@ -170,7 +170,7 @@ def _get_heat_force_index(data: Weather) -> float | None:
     """Return current hourly heat force index from forecast data."""
     try:
         return data["hourly"]["forecast"][0].get("heatIndex")
-    except (KeyError, IndexError, TypeError):
+    except (KeyError, IndexError, TypeError, AttributeError):
         return None
 
 
@@ -178,7 +178,7 @@ def _get_heat_force_index_today(data: Weather) -> float | None:
     """Return today's daily heat force index from forecast data."""
     try:
         return data["daily"]["forecast"][0].get("heatIndex")
-    except (KeyError, IndexError, TypeError):
+    except (KeyError, IndexError, TypeError, AttributeError):
         return None
 
 
