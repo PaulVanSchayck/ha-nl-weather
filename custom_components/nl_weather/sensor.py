@@ -166,6 +166,22 @@ def _get_forecast_temperature(
     return _fn
 
 
+def _get_heat_force_index(data: Weather) -> float | None:
+    """Return current hourly heat force index from forecast data."""
+    try:
+        return data["hourly"]["forecast"][0].get("heatIndex")
+    except (KeyError, IndexError, TypeError):
+        return None
+
+
+def _get_heat_force_index_today(data: Weather) -> float | None:
+    """Return today's daily heat force index from forecast data."""
+    try:
+        return data["daily"]["forecast"][0].get("heatIndex")
+    except (KeyError, IndexError, TypeError):
+        return None
+
+
 ALERT_SENSOR_DESCRIPTIONS: list[AlertSensorDescription] = [
     AlertSensorDescription(
         key="alert",
@@ -395,14 +411,14 @@ FORECAST_SENSOR_DESCRIPTIONS: list[ForecastSensorDescription] = [
         translation_key="heat_force_index",
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:sun-thermometer",
-        value_fn=lambda data: data["hourly"]["forecast"][0].get("heatIndex", None),
+        value_fn=_get_heat_force_index,
     ),
     ForecastSensorDescription(
         key="heat_force_index_today",
         translation_key="heat_force_index_today",
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:sun-thermometer-outline",
-        value_fn=lambda data: data["daily"]["forecast"][0].get("heatIndex", None),
+        value_fn=_get_heat_force_index_today,
     ),
 ]
 

@@ -2,6 +2,8 @@
 
 from custom_components.nl_weather.sensor import (
     _get_cloud_coverage,
+    _get_heat_force_index,
+    _get_heat_force_index_today,
     _get_wind_direction_cardinal,
     safe_int,
     wind_direction_icon,
@@ -64,3 +66,40 @@ def test_get_cloud_coverage() -> None:
     assert _get_cloud_coverage({"params": {"nhc": 8}}) == 100.0
     assert _get_cloud_coverage({"params": {"nhc": 9}}) == 100
     assert _get_cloud_coverage({"params": {}}) is None
+
+
+def test_get_heat_force_index() -> None:
+    """Test heat force index extraction from hourly forecast data."""
+    # Valid heat index
+    assert (
+        _get_heat_force_index({"hourly": {"forecast": [{"heatIndex": 24.5}]}}) == 24.5
+    )
+
+    # Missing heatIndex key in forecast item
+    assert _get_heat_force_index({"hourly": {"forecast": [{}]}}) is None
+
+    # Empty forecast list
+    assert _get_heat_force_index({"hourly": {"forecast": []}}) is None
+
+    # Missing hourly or forecast structure
+    assert _get_heat_force_index({"hourly": {}}) is None
+    assert _get_heat_force_index({}) is None
+
+
+def test_get_heat_force_index_today() -> None:
+    """Test daily heat force index extraction from daily forecast data."""
+    # Valid heat index
+    assert (
+        _get_heat_force_index_today({"daily": {"forecast": [{"heatIndex": 21.0}]}})
+        == 21.0
+    )
+
+    # Missing heatIndex key in forecast item
+    assert _get_heat_force_index_today({"daily": {"forecast": [{}]}}) is None
+
+    # Empty forecast list
+    assert _get_heat_force_index_today({"daily": {"forecast": []}}) is None
+
+    # Missing daily or forecast structure
+    assert _get_heat_force_index_today({"daily": {}}) is None
+    assert _get_heat_force_index_today({}) is None
