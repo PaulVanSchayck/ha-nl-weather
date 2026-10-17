@@ -169,17 +169,23 @@ def _get_forecast_temperature(
 def _get_heat_force_index(data: Weather) -> float | None:
     """Return current hourly heat force index from forecast data."""
     try:
-        return data["hourly"]["forecast"][0].get("heatIndex")
+        forecast = data["hourly"]["forecast"]
+        if isinstance(forecast, list) and forecast and isinstance(forecast[0], dict):
+            return forecast[0].get("heatIndex")
     except (KeyError, IndexError, TypeError, AttributeError):
-        return None
+        pass
+    return None
 
 
 def _get_heat_force_index_today(data: Weather) -> float | None:
     """Return today's daily heat force index from forecast data."""
     try:
-        return data["daily"]["forecast"][0].get("heatIndex")
+        forecast = data["daily"]["forecast"]
+        if isinstance(forecast, list) and forecast and isinstance(forecast[0], dict):
+            return forecast[0].get("heatIndex")
     except (KeyError, IndexError, TypeError, AttributeError):
-        return None
+        pass
+    return None
 
 
 ALERT_SENSOR_DESCRIPTIONS: list[AlertSensorDescription] = [
