@@ -117,12 +117,44 @@ def _get_alert_attributes(data: Weather) -> dict[str, object]:
     }
 
 
+ALERT_SEVERITY: dict[Alert, int] = {
+    Alert.NONE: 0,
+    Alert.YELLOW: 1,
+    Alert.ORANGE: 2,
+    Alert.RED: 3,
+}
+
+
 def _get_alert_level(data: Weather) -> Alert:
-    # TODO: Is the first alert always the highest?
+    highest_alert = Alert.NONE
+    highest_severity = ALERT_SEVERITY[Alert.NONE]
+
     try:
-        return Alert(data["hourly"]["forecast"][0]["alertLevel"])
-    except (KeyError, IndexError, TypeError, ValueError, AttributeError):
+        forecasts = data["hourly"]["forecast"]
+        if not isinstance(forecasts, list):
+            return Alert.NONE
+    except (KeyError, TypeError, AttributeError):
         return Alert.NONE
+
+    for item in forecasts:
+        if not isinstance(item, dict):
+            continue
+        raw_level = item.get("alertLevel")
+        if not isinstance(raw_level, str):
+            continue
+        try:
+            alert = Alert(raw_level)
+        except ValueError:
+            continue
+
+        severity = ALERT_SEVERITY.get(alert, 0)
+        if severity > highest_severity:
+            highest_severity = severity
+            highest_alert = alert
+            if highest_severity == ALERT_SEVERITY[Alert.RED]:
+                break
+
+    return highest_alert
 
 
 def _get_observation_param(

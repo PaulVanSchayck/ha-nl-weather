@@ -1,6 +1,8 @@
 """Tests for NL Weather sensor platform and helper functions."""
 
+from custom_components.nl_weather.const import Alert
 from custom_components.nl_weather.sensor import (
+    _get_alert_level,
     _get_cloud_coverage,
     _get_heat_force_index,
     _get_heat_force_index_today,
@@ -109,3 +111,52 @@ def test_get_heat_force_index_today() -> None:
     # Missing daily or forecast structure
     assert _get_heat_force_index_today({"daily": {}}) is None
     assert _get_heat_force_index_today({}) is None
+
+
+def test_get_alert_level() -> None:
+    """Test extraction of highest alert level from hourly forecast data."""
+    # First item is "none", later item is "orange" -> should return Alert.ORANGE
+    data = {
+        "hourly": {
+            "forecast": [
+                {"alertLevel": "none"},
+                {"alertLevel": "yellow"},
+                {"alertLevel": "orange"},
+                {"alertLevel": "yellow"},
+            ]
+        }
+    }
+    assert _get_alert_level(data) == Alert.ORANGE
+
+    # Contains "red" alert -> should return Alert.RED
+    data_red = {
+        "hourly": {
+            "forecast": [
+                {"alertLevel": "yellow"},
+                {"alertLevel": "red"},
+                {"alertLevel": "orange"},
+            ]
+        }
+    }
+    assert _get_alert_level(data_red) == Alert.RED
+
+    # All "none" -> should return Alert.NONE
+    data_none = {
+        "hourly": {
+            "forecast": [
+                {"alertLevel": "none"},
+                {"alertLevel": "none"},
+            ]
+        }
+    }
+    assert _get_alert_level(data_none) == Alert.NONE
+
+    # Handles empty, invalid, or missing data structures gracefully
+    assert _get_alert_level({"hourly": {"forecast": []}}) == Alert.NONE
+    assert _get_alert_level({"hourly": {"forecast": None}}) == Alert.NONE
+    assert _get_alert_level({"hourly": {}}) == Alert.NONE
+    assert _get_alert_level({}) == Alert.NONE
+    assert (
+        _get_alert_level({"hourly": {"forecast": [{"alertLevel": "invalid_level"}]}})
+        == Alert.NONE
+    )
