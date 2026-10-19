@@ -19,8 +19,8 @@ def test_alert_active_sensor_is_on_when_alert_active() -> None:
     assert sensor.is_on is True
 
 
-def test_alert_active_sensor_is_on_when_later_forecast_item_has_alert() -> None:
-    """Test is_on returns True when an alert is active in a later forecast item."""
+def test_alert_active_sensor_is_off_when_later_forecast_item_has_alert() -> None:
+    """Test is_on returns False when an alert is only active in a later forecast item."""
     coordinator = MagicMock()
     coordinator.data = {
         "hourly": {
@@ -36,7 +36,7 @@ def test_alert_active_sensor_is_on_when_later_forecast_item_has_alert() -> None:
     subentry.subentry_id = "test_subentry"
 
     sensor = NLWeatherAlertActiveSensor(coordinator, config_entry, subentry)
-    assert sensor.is_on is True
+    assert sensor.is_on is False
 
 
 def test_alert_active_sensor_is_on_when_no_alert() -> None:
