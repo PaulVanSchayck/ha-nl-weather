@@ -15,6 +15,7 @@ from .coordinator import (
     NLWeatherNowcastCoordinator,
     NLWeatherUpdateCoordinator,
 )
+from .sensor import _get_alert_level
 
 
 async def async_setup_entry(
@@ -64,13 +65,7 @@ class NLWeatherAlertActiveSensor(
         if self.coordinator.data is None:
             return False
 
-        try:
-            return (
-                self.coordinator.data["hourly"]["forecast"][0]["alertLevel"]
-                != Alert.NONE
-            )
-        except (KeyError, IndexError, TypeError, ValueError):
-            return False
+        return _get_alert_level(self.coordinator.data) != Alert.NONE
 
 
 class NLWeatherPrecipitationNowcastSensor(
