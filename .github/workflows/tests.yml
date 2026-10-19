@@ -39,7 +39,7 @@ jobs:
       - name: Verify dependency compatibility
         run: |
           python -m pip check
-          python -c "import aiohttp, aiodns, pycares; from importlib.metadata import version; print(f'aiodns={version("aiodns")}, pycares={version("pycares")}, aiohttp={version("aiohttp")}')"
+          python -c "import aiohttp, aiodns, pycares; from importlib.metadata import version; print('aiodns=' + version('aiodns') + ', pycares=' + version('pycares') + ', aiohttp=' + version('aiohttp'))"
 
       - name: Run pytest
         run: PYTHONPATH=. pytest
