@@ -1,6 +1,10 @@
 """pytest fixtures for nl_weather tests."""
 
+import sys
 from unittest.mock import MagicMock
+
+if "turbojpeg" not in sys.modules:
+    sys.modules["turbojpeg"] = MagicMock()
 
 import homeassistant.config_entries as ce
 import homeassistant.helpers.entity_platform as ep
