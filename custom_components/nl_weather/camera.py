@@ -95,7 +95,7 @@ class PrecipitationRadarCam(Camera):
     def _locations(self) -> list[Coordinate]:
         return [
             Coordinate(s.data[CONF_LATITUDE], s.data[CONF_LONGITUDE])
-            for s in self._config_entry.subentries.values()
+            for s in list(self._config_entry.subentries.values())
         ]
 
     def _add_locations_markers(self, img):
@@ -337,8 +337,22 @@ class PrecipitationRadarCam(Camera):
             event["data"]["filename"], "RAD_NL25_RAC_FM_%Y%m%d%H%M.h5"
         ).replace(tzinfo=UTC)
 
+    async def _async_on_config_entry_update(
+        self, hass: HomeAssistant, entry: NLWeatherConfigEntry
+    ) -> None:
+        """Handle config entry and subentries update."""
+        self._mark_locations = entry.options.get(CONF_MARK_LOCATIONS, True)
+        self._radar_style = RADAR_STYLES[
+            entry.options.get(CONF_RADAR_STYLE, DEFAULT_RADAR_STYLE)
+        ]
+        await self.hass.async_add_executor_job(self._load_background)
+        self._last_image_dt = None
+
     async def async_added_to_hass(self):
         self._ns.set_callback("radar_forecast", self._attr_unique_id, self._set_latest)
+        self.async_on_remove(
+            self._config_entry.add_update_listener(self._async_on_config_entry_update)
+        )
 
         # TODO: Best place to do this?
         await self.hass.async_add_executor_job(self._load_background)
