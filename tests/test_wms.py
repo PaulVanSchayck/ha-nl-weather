@@ -1,9 +1,11 @@
 """Tests for WMS API client error handling and response processing."""
 
-from unittest.mock import AsyncMock, MagicMock
+from base64 import b64encode
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from custom_components.nl_weather.config_flow import validate_wms_input
 from custom_components.nl_weather.KNMI.wms import (
     WMS,
     InvalidRequest,
@@ -57,6 +59,20 @@ async def test_wms_get_valid_binary_response() -> None:
 
 
 @pytest.mark.asyncio
+async def test_wms_get_png_with_marker_in_later_line() -> None:
+    """Test that PNG images containing 'ADAGUC Server:' in subsequent binary data are not misidentified as errors."""
+    png_data_with_later_marker = (
+        b"\x89PNG\r\n\x1a\nChunk Header\nADAGUC Server: Embedded Metadata"
+    )
+    session = _mock_session_with_response(200, png_data_with_later_marker)
+    wms = WMS(session, "dummy_token")
+
+    buf = await wms.get({})
+    assert buf.tell() == 0
+    assert buf.read() == png_data_with_later_marker
+
+
+@pytest.mark.asyncio
 async def test_wms_get_http_status_exceptions() -> None:
     """Test HTTP status code exception mapping in WMS.get."""
     session_400 = _mock_session_with_response(400, b'{"error": "bad request"}')
@@ -83,3 +99,24 @@ async def test_wms_get_http_status_exceptions() -> None:
     wms_500 = WMS(session_500, "token")
     with pytest.raises(ServerError):
         await wms_500.get({})
+
+
+@pytest.mark.asyncio
+async def test_validate_wms_input_handles_invalid_request() -> None:
+    """Test that validate_wms_input handles InvalidRequest from empty WMS probe call gracefully."""
+    valid_token = b64encode(b'{"key": "value"}').decode()
+    data = {"wms_token": valid_token}
+    mock_hass = MagicMock()
+
+    with (
+        patch("custom_components.nl_weather.config_flow.async_get_clientsession"),
+        patch("custom_components.nl_weather.config_flow.WMS") as mock_wms_cls,
+    ):
+        mock_wms_instance = MagicMock()
+        mock_wms_instance.get = AsyncMock(
+            side_effect=InvalidRequest("ADAGUC Server: Invalid parameters")
+        )
+        mock_wms_cls.return_value = mock_wms_instance
+
+        # Should complete without raising an exception
+        await validate_wms_input(mock_hass, data)

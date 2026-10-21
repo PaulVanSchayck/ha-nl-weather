@@ -67,10 +67,10 @@ class WMS:
 
             buffer = io.BytesIO(await resp.read())
 
-            if b"ADAGUC Server:" in buffer.getvalue():
-                buffer.seek(0)
-                raise InvalidRequest(buffer.read().decode("UTF-8")) from None
+            first_line = buffer.readline()
             buffer.seek(0)
+            if b"ADAGUC Server:" in first_line:
+                raise InvalidRequest(buffer.read().decode("UTF-8")) from None
 
             return buffer
 

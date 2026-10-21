@@ -11,9 +11,17 @@ from homeassistant import config_entries
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlowResult,
-    ConfigSubentryFlow,
     OptionsFlow,
 )
+
+try:
+    from homeassistant.config_entries import ConfigSubentryFlow
+except ImportError:
+
+    class ConfigSubentryFlow:  # type: ignore[no-redef]
+        """Fallback for older Home Assistant versions."""
+
+
 from homeassistant.const import (
     CONF_LATITUDE,
     CONF_LONGITUDE,
@@ -62,6 +70,9 @@ from .KNMI.notification_service import (
 # TODO: Unify KNMI API exceptions to common shared exceptions
 from .KNMI.notification_service import (
     TokenInvalid as NSTokenInvalid,
+)
+from .KNMI.wms import (
+    InvalidRequest as WMSInvalidRequest,
 )
 from .KNMI.wms import (
     RateLimitExceeded,
@@ -164,6 +175,8 @@ async def validate_wms_input(hass: HomeAssistant, data: dict) -> None:
 
     try:
         await wms.get({})
+    except WMSInvalidRequest:
+        pass
     except WMSTokenInvalid as err:
         _LOGGER.error("WMS token validation failed: %s", err)
         raise InvalidToken from err
