@@ -40,8 +40,22 @@ class EDR:
                 if e.status == 404:
                     raise NotFoundError("No data found for query") from None
                 elif e.status == 403:
-                    # TODO: Also handle quota exceeded
-                    raise TokenInvalid(json.loads(body)) from None
+                    try:
+                        payload = json.loads(body)
+                    except (json.JSONDecodeError, TypeError):
+                        payload = body
+                    if isinstance(payload, dict):
+                        msg = str(
+                            payload.get("message")
+                            or payload.get("code")
+                            or payload.get("error")
+                            or ""
+                        ).lower()
+                        if "quota" in msg:
+                            raise QuotaExceeded(payload) from None
+                    elif isinstance(payload, str) and "quota" in payload.lower():
+                        raise QuotaExceeded(payload) from None
+                    raise TokenInvalid(payload) from None
                 elif e.status >= 500:
                     raise ServerError(f"Status code: {e.status}") from None
                 raise
@@ -93,6 +107,10 @@ class NotFoundError(Exception):
 
 class TokenInvalid(Exception):
     """Exception class when token is not accepted"""
+
+
+class QuotaExceeded(TokenInvalid):
+    """Exception class when API key quota is exceeded"""
 
 
 class ServerError(Exception):
