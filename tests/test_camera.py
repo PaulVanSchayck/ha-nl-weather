@@ -1,7 +1,7 @@
 """Tests for NL Weather camera platform."""
 
-from unittest.mock import AsyncMock, MagicMock
 from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
