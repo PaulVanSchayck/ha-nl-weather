@@ -289,7 +289,7 @@ class PrecipitationRadarCam(Camera):
 
         for dim in root.findall(".//{*}Dimension[@name='time']"):
             _, end, _ = dim.text.strip().split("/")
-            return datetime.fromisoformat(end.replace("Z", "+00:00"))
+            return datetime.fromisoformat(end)
         return None
 
     async def async_camera_image(

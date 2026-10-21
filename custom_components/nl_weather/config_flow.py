@@ -1,7 +1,6 @@
 import binascii
 import json
 import logging
-from asyncio import TimeoutError
 from base64 import b64decode
 from typing import Any
 
