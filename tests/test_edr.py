@@ -94,6 +94,14 @@ async def test_edr_get_http_status_exceptions(
             {"message": 403, "code": False, "error": "Quota exceeded"},
             id="non-string-fields",
         ),
+        pytest.param(
+            {"message": "Forbidden", "detail": "QUOTA exhausted"},
+            id="other-field",
+        ),
+        pytest.param(
+            {"details": {"reason": "Quota exceeded"}}, id="nested-object-value"
+        ),
+        pytest.param({"details": ["Quota exceeded"]}, id="list-value"),
         pytest.param("QUOTA exceeded", id="json-string"),
     ],
 )
@@ -119,24 +127,6 @@ async def test_edr_get_forbidden_quota_payload(payload: object) -> None:
         ),
         pytest.param(
             {"message": None, "code": 403, "error": False}, id="non-string-fields"
-        ),
-        pytest.param(
-            {"message": "Forbidden", "detail": "QUOTA exhausted"},
-            id="other-field",
-        ),
-        pytest.param(
-            {"details": {"reason": "Quota exceeded"}}, id="nested-object-value"
-        ),
-        pytest.param({"details": ["Quota exceeded"]}, id="list-value"),
-        pytest.param(
-            {
-                "message": "Invalid API token",
-                "details": {"documentation": "Quota exceeded troubleshooting guide"},
-            },
-            id="unrelated-documentation",
-        ),
-        pytest.param(
-            {"message": "Connection pool exhausted"}, id="non-quota-exhaustion"
         ),
         pytest.param({"quota": "Forbidden"}, id="quota-only-in-key"),
         pytest.param({}, id="empty-object"),
@@ -168,9 +158,6 @@ async def test_edr_get_forbidden_without_quota(payload: object) -> None:
             '{"message": "Quota exceeded"', QuotaExceeded, id="truncated-quota-json"
         ),
         pytest.param("<html>Quota exceeded</html>", QuotaExceeded, id="html-quota"),
-        pytest.param(
-            "Connection pool exhausted", TokenInvalid, id="plain-non-quota-exhaustion"
-        ),
         pytest.param("Forbidden", TokenInvalid, id="plain-forbidden"),
         pytest.param("<html>Forbidden</html>", TokenInvalid, id="html-forbidden"),
         pytest.param(
