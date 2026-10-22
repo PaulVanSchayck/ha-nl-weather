@@ -68,3 +68,23 @@ async def test_edr_get_http_status_exceptions() -> None:
     edr_500 = EDR(session_500, "token")
     with pytest.raises(ServerError):
         await edr_500.get("")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "payload",
+    [
+        '{"message": "Forbidden", "code": "QUOTA_EXCEEDED"}',
+        '{"message": "Forbidden", "error": "quota limit reached"}',
+        '{"message": "Quota Exceeded"}',
+        "Quota Exceeded",
+    ],
+)
+async def test_edr_quota_detected_in_each_error_field(payload: str) -> None:
+    """Detect quota exhaustion even when another field contains a generic error."""
+    edr = EDR(_mock_session_with_response(403, payload), "token")
+
+    with pytest.raises(QuotaExceeded) as exc_info:
+        await edr.get("")
+
+    assert not isinstance(exc_info.value, TokenInvalid)
