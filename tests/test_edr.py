@@ -120,8 +120,12 @@ async def test_edr_get_forbidden_quota_payload(payload: object) -> None:
         pytest.param(
             {"message": None, "code": 403, "error": False}, id="non-string-fields"
         ),
-        pytest.param({"message": "Forbidden", "detail": "QUOTA exhausted"}, id="other-field"),
-        pytest.param({"details": {"reason": "Quota exceeded"}}, id="nested-object-value"),
+        pytest.param(
+            {"message": "Forbidden", "detail": "QUOTA exhausted"}, id="other-field"
+        ),
+        pytest.param(
+            {"details": {"reason": "Quota exceeded"}}, id="nested-object-value"
+        ),
         pytest.param({"details": ["Quota exceeded"]}, id="list-value"),
         pytest.param({"quota": "Forbidden"}, id="quota-only-in-key"),
         pytest.param({}, id="empty-object"),
@@ -188,7 +192,9 @@ async def test_edr_get_success_with_quota_in_payload() -> None:
 async def test_edr_ignores_quota_in_unrelated_fields() -> None:
     """Unrelated quota text must not override token error classification."""
     edr = EDR(
-        _mock_session_with_response(403, '{"message": "Forbidden", "details": "quota docs"}'),
+        _mock_session_with_response(
+            403, '{"message": "Forbidden", "details": "quota docs"}'
+        ),
         "token",
     )
     with pytest.raises(TokenInvalid) as exc_info:
