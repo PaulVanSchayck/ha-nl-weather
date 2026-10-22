@@ -45,13 +45,14 @@ class EDR:
                     except (json.JSONDecodeError, TypeError):
                         payload = body
                     if isinstance(payload, dict):
-                        msg = str(
-                            payload.get("message")
-                            or payload.get("code")
-                            or payload.get("error")
-                            or ""
-                        ).lower()
-                        if "quota" in msg:
+                        if any(
+                            isinstance(value, str) and "quota" in value.lower()
+                            for value in (
+                                payload.get("message"),
+                                payload.get("code"),
+                                payload.get("error"),
+                            )
+                        ):
                             raise QuotaExceeded(payload) from None
                     elif isinstance(payload, str) and "quota" in payload.lower():
                         raise QuotaExceeded(payload) from None
@@ -109,7 +110,7 @@ class TokenInvalid(Exception):
     """Exception class when token is not accepted"""
 
 
-class QuotaExceeded(TokenInvalid):
+class QuotaExceeded(Exception):
     """Exception class when API key quota is exceeded"""
 
 
