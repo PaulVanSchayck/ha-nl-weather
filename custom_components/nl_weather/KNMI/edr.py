@@ -39,7 +39,7 @@ class EDR:
             InvalidRequest: For HTTP 400 with a valid JSON body.
             NotFoundError: For HTTP 404.
             QuotaExceeded: For HTTP 403 containing "quota" (case insensitive) in
-                a JSON string, non-JSON body, or stringified JSON object value.
+                a JSON string, non-JSON body, or JSON object error field (message, code, or error).
             TokenInvalid: For any other HTTP 403 response.
             ServerError: For HTTP 500 or higher.
             json.JSONDecodeError: If a successful or HTTP 400 response body is
@@ -71,9 +71,7 @@ class EDR:
                             for key in ("message", "code", "error")
                             if (v := payload.get(key)) is not None
                         ).lower()
-                        if "quota" in msg or any(
-                            "quota" in str(v).lower() for v in payload.values()
-                        ):
+                        if "quota" in msg:
                             raise QuotaExceeded(payload) from None
                     elif isinstance(payload, str) and "quota" in payload.lower():
                         raise QuotaExceeded(payload) from None
