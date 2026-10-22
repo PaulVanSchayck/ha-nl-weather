@@ -19,32 +19,19 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _is_quota_error(val: object) -> bool:
+    """Recognize quota failures only in explicit API error fields."""
+    if isinstance(val, dict):
+        return any(
+            _is_quota_error(val[key])
+            for key in ("message", "code", "error")
+            if key in val and isinstance(val[key], str)
+        )
     if isinstance(val, str):
-        s = val.lower()
-        if "quota" in s:
-            if (
-                any(
-                    k in s
-                    for k in (
-                        "exceed",
-                        "exhaust",
-                        "limit",
-                        "reach",
-                        "over",
-                        "invalid_quota",
-                        "quota_exceeded",
-                    )
-                )
-                or s.strip() == "quota"
-            ):
-                return True
-        elif "exhausted" in s:
-            return True
-        return False
-    elif isinstance(val, dict):
-        return any(_is_quota_error(v) for v in val.values())
-    elif isinstance(val, list):
-        return any(_is_quota_error(v) for v in val)
+        value = val.lower()
+        return "quota" in value and (
+            any(term in value for term in ("exceed", "exhaust", "limit", "reach", "over"))
+            or value.strip() == "quota"
+        )
     return False
 
 
