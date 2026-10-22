@@ -18,6 +18,36 @@ def past_half_hour(dt: datetime) -> str:
 _LOGGER = logging.getLogger(__name__)
 
 
+def _is_quota_error(val: object) -> bool:
+    if isinstance(val, str):
+        s = val.lower()
+        if "quota" in s:
+            if (
+                any(
+                    k in s
+                    for k in (
+                        "exceed",
+                        "exhaust",
+                        "limit",
+                        "reach",
+                        "over",
+                        "invalid_quota",
+                        "quota_exceeded",
+                    )
+                )
+                or s.strip() == "quota"
+            ):
+                return True
+        elif "exhausted" in s:
+            return True
+        return False
+    elif isinstance(val, dict):
+        return any(_is_quota_error(v) for v in val.values())
+    elif isinstance(val, list):
+        return any(_is_quota_error(v) for v in val)
+    return False
+
+
 class EDR:
     _session: aiohttp.ClientSession
 
@@ -65,15 +95,7 @@ class EDR:
                         payload = json.loads(body)
                     except (json.JSONDecodeError, TypeError):
                         payload = body
-                    if isinstance(payload, dict):
-                        msg = " ".join(
-                            str(v)
-                            for key in ("message", "code", "error")
-                            if (v := payload.get(key)) is not None
-                        ).lower()
-                        if "quota" in msg:
-                            raise QuotaExceeded(payload) from None
-                    elif isinstance(payload, str) and "quota" in payload.lower():
+                    if _is_quota_error(payload):
                         raise QuotaExceeded(payload) from None
                     raise TokenInvalid(payload) from None
                 elif e.status >= 500:
