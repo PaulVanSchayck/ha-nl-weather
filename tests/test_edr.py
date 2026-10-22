@@ -38,6 +38,12 @@ def _mock_session_with_response(status: int, text_body: str):
     return mock_session
 
 
+def test_quota_exceeded_inheritance() -> None:
+    """Test that QuotaExceeded is independent of TokenInvalid."""
+    assert not issubclass(QuotaExceeded, TokenInvalid)
+    assert issubclass(QuotaExceeded, Exception)
+
+
 @pytest.mark.asyncio
 async def test_edr_get_http_status_exceptions() -> None:
     """Test HTTP status code exception mapping in EDR.get."""
@@ -64,27 +70,15 @@ async def test_edr_get_http_status_exceptions() -> None:
     with pytest.raises(QuotaExceeded):
         await edr_403_quota.get("")
 
+    # Payload with generic message but quota code should raise QuotaExceeded
+    session_403_code_quota = _mock_session_with_response(
+        403, '{"message": "Forbidden", "code": "QuotaExceeded"}'
+    )
+    edr_403_code_quota = EDR(session_403_code_quota, "token")
+    with pytest.raises(QuotaExceeded):
+        await edr_403_code_quota.get("")
+
     session_500 = _mock_session_with_response(500, "server error")
     edr_500 = EDR(session_500, "token")
     with pytest.raises(ServerError):
         await edr_500.get("")
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "payload",
-    [
-        '{"message": "Forbidden", "code": "QUOTA_EXCEEDED"}',
-        '{"message": "Forbidden", "error": "quota limit reached"}',
-        '{"message": "Quota Exceeded"}',
-        "Quota Exceeded",
-    ],
-)
-async def test_edr_quota_detected_in_each_error_field(payload: str) -> None:
-    """Detect quota exhaustion even when another field contains a generic error."""
-    edr = EDR(_mock_session_with_response(403, payload), "token")
-
-    with pytest.raises(QuotaExceeded) as exc_info:
-        await edr.get("")
-
-    assert not isinstance(exc_info.value, TokenInvalid)

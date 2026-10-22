@@ -57,7 +57,7 @@ from .const import (
     RADAR_STYLES,
     StationMode,
 )
-from .KNMI.edr import QuotaExceeded
+from .KNMI.edr import QuotaExceeded as EDRQuotaExceeded
 from .KNMI.edr import ServerError as EDRServerError
 from .KNMI.edr import TokenInvalid
 from .KNMI.notification_service import (
@@ -153,7 +153,12 @@ async def validate_edr_input(hass: HomeAssistant, data: dict) -> None:
     except TokenInvalid as err:
         _LOGGER.error("EDR API token validation failed: %s", err)
         raise InvalidToken from err
-    except (QuotaExceeded, EDRServerError, aiohttp.ClientError, TimeoutError) as err:
+    except (
+        EDRQuotaExceeded,
+        EDRServerError,
+        aiohttp.ClientError,
+        TimeoutError,
+    ) as err:
         _LOGGER.error("EDR API connection failed: %s", err)
         raise CannotConnect from err
 

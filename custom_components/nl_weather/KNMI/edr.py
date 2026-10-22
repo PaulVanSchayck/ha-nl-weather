@@ -45,13 +45,13 @@ class EDR:
                     except (json.JSONDecodeError, TypeError):
                         payload = body
                     if isinstance(payload, dict):
-                        if any(
-                            isinstance(value, str) and "quota" in value.lower()
-                            for value in (
-                                payload.get("message"),
-                                payload.get("code"),
-                                payload.get("error"),
-                            )
+                        msg = " ".join(
+                            str(v)
+                            for key in ("message", "code", "error")
+                            if (v := payload.get(key)) is not None
+                        ).lower()
+                        if "quota" in msg or any(
+                            "quota" in str(v).lower() for v in payload.values()
                         ):
                             raise QuotaExceeded(payload) from None
                     elif isinstance(payload, str) and "quota" in payload.lower():
