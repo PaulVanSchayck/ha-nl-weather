@@ -141,9 +141,14 @@ async def validate_edr_input(hass: HomeAssistant, data: dict) -> None:
         data: Configuration data containing EDR API token.
 
     Raises:
-        IncorrectToken: If token is not properly base64 encoded.
+        IncorrectToken: If token is not valid base64-encoded JSON.
         InvalidToken: If EDR API token is rejected.
-        CannotConnect: If there is a network or service issue.
+        CannotConnect: If the quota is exceeded, the request times out, or an
+            EDR server error or aiohttp client error occurs.
+        InvalidRequest: If the metadata request returns HTTP 400 with valid JSON.
+        NotFoundError: If the metadata request returns HTTP 404.
+        json.JSONDecodeError: If a successful or HTTP 400 metadata response body
+            is not valid JSON.
     """
     validate_token(data[CONF_EDR_API_TOKEN])
     edr = EDR(async_get_clientsession(hass), data[CONF_EDR_API_TOKEN])

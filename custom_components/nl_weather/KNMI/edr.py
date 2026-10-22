@@ -26,6 +26,27 @@ class EDR:
         self._token = token
 
     async def get(self, endpoint: str, params=None):
+        """Fetch JSON data from an EDR collection endpoint.
+
+        Args:
+            endpoint: Suffix appended to the collection URL; empty for metadata.
+            params: Optional query parameters for the request.
+
+        Returns:
+            The decoded JSON response body.
+
+        Raises:
+            InvalidRequest: For HTTP 400 with a valid JSON body.
+            NotFoundError: For HTTP 404.
+            QuotaExceeded: For HTTP 403 containing "quota" (case insensitive) in
+                a JSON string, non-JSON body, or stringified JSON object value.
+            TokenInvalid: For any other HTTP 403 response.
+            ServerError: For HTTP 500 or higher.
+            json.JSONDecodeError: If a successful or HTTP 400 response body is
+                not valid JSON.
+            aiohttp.ClientError: For other HTTP errors or client request failures.
+            TimeoutError: If the request times out.
+        """
         headers = {"Authorization": self._token}
         _LOGGER.debug(f"Calling EDR API endpoint {endpoint} with {params}")
         async with self._session.get(
