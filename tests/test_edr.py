@@ -1,7 +1,7 @@
 """Tests for EDR API client error handling and response processing."""
 
 import json
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
@@ -187,3 +187,35 @@ async def test_edr_get_success_with_quota_in_payload() -> None:
     session = _mock_session_with_response(200, json.dumps(payload))
 
     assert await EDR(session, "token").get("") == payload
+
+
+@pytest.mark.asyncio
+async def test_edr_ignores_quota_in_unrelated_fields() -> None:
+    """Unrelated quota text must not override token error classification."""
+    edr = EDR(
+        _mock_session_with_response(403, '{"message": "Forbidden", "details": "quota docs"}'),
+        "token",
+    )
+    with pytest.raises(TokenInvalid) as exc_info:
+        await edr.get("")
+    assert type(exc_info.value) is TokenInvalid
+
+
+@pytest.mark.asyncio
+async def test_edr_quota_config_flow_does_not_log_response(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Quota exhaustion maps to CannotConnect without logging server payload."""
+    from custom_components.nl_weather.config_flow import CannotConnect, validate_edr_input
+    from custom_components.nl_weather.const import CONF_EDR_API_TOKEN
+
+    with (
+        patch("custom_components.nl_weather.config_flow.async_get_clientsession"),
+        patch("custom_components.nl_weather.config_flow.EDR") as client,
+    ):
+        client.return_value.metadata = AsyncMock(
+            side_effect=QuotaExceeded({"message": "quota", "private": "secret-marker"})
+        )
+        with pytest.raises(CannotConnect):
+            await validate_edr_input(MagicMock(), {CONF_EDR_API_TOKEN: "e30="})
+    assert "secret-marker" not in caplog.text
