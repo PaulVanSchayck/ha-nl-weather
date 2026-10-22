@@ -156,7 +156,7 @@ async def validate_edr_input(hass: HomeAssistant, data: dict) -> None:
     try:
         await edr.metadata()
     except TokenInvalid as err:
-        _LOGGER.error("EDR API token validation failed: %s", err)
+        _LOGGER.error("EDR API token validation failed")
         raise InvalidToken from err
     except (
         EDRQuotaExceeded,
@@ -164,7 +164,7 @@ async def validate_edr_input(hass: HomeAssistant, data: dict) -> None:
         aiohttp.ClientError,
         TimeoutError,
     ) as err:
-        _LOGGER.error("EDR API connection failed: %s", err)
+        _LOGGER.error("EDR API connection failed (%s)", type(err).__name__)
         raise CannotConnect from err
 
 
