@@ -29,7 +29,10 @@ def _is_quota_error(val: object) -> bool:
     if isinstance(val, str):
         value = val.lower()
         return "quota" in value and (
-            any(term in value for term in ("exceed", "exhaust", "limit", "reach", "over"))
+            any(
+                term in value
+                for term in ("exceed", "exhaust", "limit", "reach", "over")
+            )
             or value.strip() == "quota"
         )
     return False
