@@ -75,6 +75,9 @@ from .KNMI.wms import (
     InvalidRequest as WMSInvalidRequest,
 )
 from .KNMI.wms import (
+    QuotaExceeded as WMSQuotaExceeded,
+)
+from .KNMI.wms import (
     RateLimitExceeded,
 )
 from .KNMI.wms import (
@@ -191,6 +194,7 @@ async def validate_wms_input(hass: HomeAssistant, data: dict) -> None:
         _LOGGER.error("WMS token validation failed: %s", err)
         raise InvalidToken from err
     except (
+        WMSQuotaExceeded,
         WMSServerError,
         RateLimitExceeded,
         aiohttp.ClientError,

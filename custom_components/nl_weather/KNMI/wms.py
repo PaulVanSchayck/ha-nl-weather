@@ -1,11 +1,12 @@
 import asyncio
 import io
+import json
 import logging
 import xml.etree.ElementTree as ET
 
 import aiohttp
 
-from .helpers import format_dt
+from .helpers import format_dt, is_quota_error
 
 BASE_URL = "https://api.dataplatform.knmi.nl/wms/adaguc-server"
 BASE_PARAMS = {
@@ -58,8 +59,14 @@ class WMS:
             if resp.status == 404:
                 raise NotFoundError("No data found for query") from None
             elif resp.status == 403:
-                # TODO: Also handle quota exceeded
-                raise TokenInvalid(await resp.json()) from None
+                body = await resp.text()
+                try:
+                    payload = json.loads(body)
+                except (json.JSONDecodeError, TypeError):
+                    payload = body
+                if is_quota_error(payload):
+                    raise QuotaExceeded(payload) from None
+                raise TokenInvalid(payload) from None
             elif resp.status == 429:
                 raise RateLimitExceeded("Rate limit exceeded") from None
             elif resp.status >= 500:
@@ -120,6 +127,10 @@ class NotFoundError(WMSException):
 
 class TokenInvalid(WMSException):
     """Exception class when token is not accepted"""
+
+
+class QuotaExceeded(WMSException):
+    """Exception class when API key quota is exceeded"""
 
 
 class ServerError(WMSException):

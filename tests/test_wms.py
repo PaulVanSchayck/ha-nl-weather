@@ -5,11 +5,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from custom_components.nl_weather.config_flow import validate_wms_input
+from custom_components.nl_weather.config_flow import (
+    CannotConnect,
+    validate_wms_input,
+)
 from custom_components.nl_weather.KNMI.wms import (
     WMS,
     InvalidRequest,
     NotFoundError,
+    QuotaExceeded,
     RateLimitExceeded,
     ServerError,
     TokenInvalid,
@@ -20,6 +24,7 @@ def _mock_session_with_response(status: int, body: bytes, headers: dict | None =
     mock_resp = MagicMock()
     mock_resp.status = status
     mock_resp.read = AsyncMock(return_value=body)
+    mock_resp.text = AsyncMock(return_value=body.decode("utf-8", errors="replace"))
     mock_resp.json = AsyncMock(return_value={"error": "details"})
     mock_resp.headers = headers or {}
     mock_resp.url = "https://api.dataplatform.knmi.nl/wms/adaguc-server"
@@ -90,6 +95,18 @@ async def test_wms_get_http_status_exceptions() -> None:
     with pytest.raises(TokenInvalid):
         await wms_403.get({})
 
+    session_403_quota = _mock_session_with_response(
+        403, b'{"message": "Quota exceeded"}'
+    )
+    wms_403_quota = WMS(session_403_quota, "token")
+    with pytest.raises(QuotaExceeded):
+        await wms_403_quota.get({})
+
+    session_403_quota_text = _mock_session_with_response(403, b"Daily quota exceeded")
+    wms_403_quota_text = WMS(session_403_quota_text, "token")
+    with pytest.raises(QuotaExceeded):
+        await wms_403_quota_text.get({})
+
     session_429 = _mock_session_with_response(429, b"rate limit")
     wms_429 = WMS(session_429, "token")
     with pytest.raises(RateLimitExceeded):
@@ -120,3 +137,24 @@ async def test_validate_wms_input_handles_invalid_request() -> None:
 
         # Should complete without raising an exception
         await validate_wms_input(mock_hass, data)
+
+
+@pytest.mark.asyncio
+async def test_validate_wms_input_handles_quota_exceeded() -> None:
+    """Test that validate_wms_input converts QuotaExceeded from WMS probe call to CannotConnect."""
+    valid_token = b64encode(b'{"key": "value"}').decode()
+    data = {"wms_token": valid_token}
+    mock_hass = MagicMock()
+
+    with (
+        patch("custom_components.nl_weather.config_flow.async_get_clientsession"),
+        patch("custom_components.nl_weather.config_flow.WMS") as mock_wms_cls,
+    ):
+        mock_wms_instance = MagicMock()
+        mock_wms_instance.get = AsyncMock(
+            side_effect=QuotaExceeded({"message": "Quota exceeded"})
+        )
+        mock_wms_cls.return_value = mock_wms_instance
+
+        with pytest.raises(CannotConnect):
+            await validate_wms_input(mock_hass, data)

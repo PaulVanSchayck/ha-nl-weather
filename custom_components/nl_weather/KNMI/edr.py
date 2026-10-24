@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import aiohttp
 
-from .helpers import format_dt
+from .helpers import format_dt, is_quota_error
 
 BASE_URL = "https://api.dataplatform.knmi.nl/edr/v1/collections/10-minute-in-situ-meteorological-observations"
 BBOX_NL = "-68.5,12.0,7.4,55.7"
@@ -17,35 +17,7 @@ def past_half_hour(dt: datetime) -> str:
 
 _LOGGER = logging.getLogger(__name__)
 
-
-def _is_quota_error(val: object) -> bool:
-    if isinstance(val, str):
-        s = val.lower()
-        if "quota" in s:
-            if (
-                any(
-                    k in s
-                    for k in (
-                        "exceed",
-                        "exhaust",
-                        "limit",
-                        "reach",
-                        "over",
-                        "invalid_quota",
-                        "quota_exceeded",
-                    )
-                )
-                or s.strip() == "quota"
-            ):
-                return True
-        elif "exhausted" in s:
-            return True
-        return False
-    elif isinstance(val, dict):
-        return any(_is_quota_error(v) for v in val.values())
-    elif isinstance(val, list):
-        return any(_is_quota_error(v) for v in val)
-    return False
+_is_quota_error = is_quota_error
 
 
 class EDR:

@@ -95,3 +95,34 @@ def epsg4325_to_epsg3857(coord: Coordinate) -> tuple[float, float]:
 
 def format_dt(dt: datetime) -> str:
     return dt.isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def is_quota_error(val: object) -> bool:
+    """Check if the given payload or string indicates a quota error."""
+    if isinstance(val, str):
+        s = val.lower()
+        if "quota" in s:
+            if (
+                any(
+                    k in s
+                    for k in (
+                        "exceed",
+                        "exhaust",
+                        "limit",
+                        "reach",
+                        "over",
+                        "invalid_quota",
+                        "quota_exceeded",
+                    )
+                )
+                or s.strip() == "quota"
+            ):
+                return True
+        elif "exhausted" in s:
+            return True
+        return False
+    elif isinstance(val, dict):
+        return any(is_quota_error(v) for v in val.values())
+    elif isinstance(val, list):
+        return any(is_quota_error(v) for v in val)
+    return False
