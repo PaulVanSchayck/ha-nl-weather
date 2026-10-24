@@ -107,6 +107,13 @@ async def test_wms_get_http_status_exceptions() -> None:
     with pytest.raises(QuotaExceeded):
         await wms_403_quota_text.get({})
 
+    session_403_unrelated_overview = _mock_session_with_response(
+        403, b"quota overview unavailable"
+    )
+    wms_403_unrelated = WMS(session_403_unrelated_overview, "token")
+    with pytest.raises(TokenInvalid):
+        await wms_403_unrelated.get({})
+
     session_429 = _mock_session_with_response(429, b"rate limit")
     wms_429 = WMS(session_429, "token")
     with pytest.raises(RateLimitExceeded):

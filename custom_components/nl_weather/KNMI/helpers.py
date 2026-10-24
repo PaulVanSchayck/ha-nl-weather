@@ -110,7 +110,8 @@ def is_quota_error(val: object) -> bool:
                         "exhaust",
                         "limit",
                         "reach",
-                        "over",
+                        "over quota",
+                        "over limit",
                         "invalid_quota",
                         "quota_exceeded",
                     )

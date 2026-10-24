@@ -52,7 +52,11 @@ class WMS:
             cache = resp.headers.get("adaguc-cache", "unknown")
             age = resp.headers.get("age", "unknown")
             _LOGGER.debug(
-                f"Called WMS endpoint (status: {resp.status}, cache: {cache}, age: {age}): {resp.url}"
+                "Called WMS endpoint (status: %s, cache: %s, age: %s): %s",
+                resp.status,
+                cache,
+                age,
+                resp.url,
             )
             if resp.status == 400:
                 raise InvalidRequest(await resp.json()) from None

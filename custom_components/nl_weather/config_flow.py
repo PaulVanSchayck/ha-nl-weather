@@ -191,7 +191,7 @@ async def validate_wms_input(hass: HomeAssistant, data: dict) -> None:
     except WMSInvalidRequest:
         pass
     except WMSTokenInvalid as err:
-        _LOGGER.error("WMS token validation failed: %s", err)
+        _LOGGER.error("WMS token validation failed (%s)", type(err).__name__)
         raise InvalidToken from err
     except (
         WMSQuotaExceeded,
@@ -200,7 +200,7 @@ async def validate_wms_input(hass: HomeAssistant, data: dict) -> None:
         aiohttp.ClientError,
         TimeoutError,
     ) as err:
-        _LOGGER.error("WMS API connection failed: %s", err)
+        _LOGGER.error("WMS API connection failed (%s)", type(err).__name__)
         raise CannotConnect from err
 
 
