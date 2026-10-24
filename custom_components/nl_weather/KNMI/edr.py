@@ -1,10 +1,10 @@
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import aiohttp
 
-from .helpers import format_dt
+from .helpers import format_dt, is_quota_error
 
 BASE_URL = "https://api.dataplatform.knmi.nl/edr/v1/collections/10-minute-in-situ-meteorological-observations"
 BBOX_NL = "-68.5,12.0,7.4,55.7"
@@ -17,6 +17,8 @@ def past_half_hour(dt: datetime) -> str:
 
 _LOGGER = logging.getLogger(__name__)
 
+_is_quota_error = is_quota_error
+
 
 class EDR:
     _session: aiohttp.ClientSession
@@ -26,6 +28,27 @@ class EDR:
         self._token = token
 
     async def get(self, endpoint: str, params=None):
+        """Fetch JSON data from an EDR collection endpoint.
+
+        Args:
+            endpoint: Suffix appended to the collection URL; empty for metadata.
+            params: Optional query parameters for the request.
+
+        Returns:
+            The decoded JSON response body.
+
+        Raises:
+            InvalidRequest: For HTTP 400 with a valid JSON body.
+            NotFoundError: For HTTP 404.
+            QuotaExceeded: For HTTP 403 containing "quota" (case insensitive) in
+                a JSON string, non-JSON body, or JSON object error field (message, code, or error).
+            TokenInvalid: For any other HTTP 403 response.
+            ServerError: For HTTP 500 or higher.
+            json.JSONDecodeError: If a successful or HTTP 400 response body is
+                not valid JSON.
+            aiohttp.ClientError: For other HTTP errors or client request failures.
+            TimeoutError: If the request times out.
+        """
         headers = {"Authorization": self._token}
         _LOGGER.debug(f"Calling EDR API endpoint {endpoint} with {params}")
         async with self._session.get(
@@ -40,8 +63,13 @@ class EDR:
                 if e.status == 404:
                     raise NotFoundError("No data found for query") from None
                 elif e.status == 403:
-                    # TODO: Also handle quota exceeded
-                    raise TokenInvalid(json.loads(body)) from None
+                    try:
+                        payload = json.loads(body)
+                    except (json.JSONDecodeError, TypeError):
+                        payload = body
+                    if _is_quota_error(payload):
+                        raise QuotaExceeded(payload) from None
+                    raise TokenInvalid(payload) from None
                 elif e.status >= 500:
                     raise ServerError(f"Status code: {e.status}") from None
                 raise
@@ -52,7 +80,7 @@ class EDR:
 
     async def locations(self):
         # Get current locations
-        dt = format_dt(datetime.now(timezone.utc))
+        dt = format_dt(datetime.now(UTC))
         params = {"datetime": dt, "bbox": BBOX_NL}
         return await self.get("/locations", params)
 
@@ -93,6 +121,10 @@ class NotFoundError(Exception):
 
 class TokenInvalid(Exception):
     """Exception class when token is not accepted"""
+
+
+class QuotaExceeded(Exception):
+    """Exception class when API key quota is exceeded"""
 
 
 class ServerError(Exception):

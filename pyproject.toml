@@ -1,0 +1,3 @@
+[tool.pytest.ini_options]
+# Keep imports consistent with the repository's CI invocation.
+pythonpath = ["."]

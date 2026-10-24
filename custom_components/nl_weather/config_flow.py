@@ -1,7 +1,6 @@
 import binascii
 import json
 import logging
-from asyncio import TimeoutError
 from base64 import b64decode
 from typing import Any
 
@@ -11,9 +10,17 @@ from homeassistant import config_entries
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlowResult,
-    ConfigSubentryFlow,
     OptionsFlow,
 )
+
+try:
+    from homeassistant.config_entries import ConfigSubentryFlow
+except ImportError:
+
+    class ConfigSubentryFlow:  # type: ignore[no-redef]
+        """Fallback for older Home Assistant versions."""
+
+
 from homeassistant.const import (
     CONF_LATITUDE,
     CONF_LONGITUDE,
@@ -50,6 +57,7 @@ from .const import (
     RADAR_STYLES,
     StationMode,
 )
+from .KNMI.edr import QuotaExceeded as EDRQuotaExceeded
 from .KNMI.edr import ServerError as EDRServerError
 from .KNMI.edr import TokenInvalid
 from .KNMI.notification_service import (
@@ -62,6 +70,12 @@ from .KNMI.notification_service import (
 # TODO: Unify KNMI API exceptions to common shared exceptions
 from .KNMI.notification_service import (
     TokenInvalid as NSTokenInvalid,
+)
+from .KNMI.wms import (
+    InvalidRequest as WMSInvalidRequest,
+)
+from .KNMI.wms import (
+    QuotaExceeded as WMSQuotaExceeded,
 )
 from .KNMI.wms import (
     RateLimitExceeded,
@@ -130,9 +144,14 @@ async def validate_edr_input(hass: HomeAssistant, data: dict) -> None:
         data: Configuration data containing EDR API token.
 
     Raises:
-        IncorrectToken: If token is not properly base64 encoded.
+        IncorrectToken: If token is not valid base64-encoded JSON.
         InvalidToken: If EDR API token is rejected.
-        CannotConnect: If there is a network or service issue.
+        CannotConnect: If the quota is exceeded, the request times out, or an
+            EDR server error or aiohttp client error occurs.
+        InvalidRequest: If the metadata request returns HTTP 400 with valid JSON.
+        NotFoundError: If the metadata request returns HTTP 404.
+        json.JSONDecodeError: If a successful or HTTP 400 metadata response body
+            is not valid JSON.
     """
     validate_token(data[CONF_EDR_API_TOKEN])
     edr = EDR(async_get_clientsession(hass), data[CONF_EDR_API_TOKEN])
@@ -140,10 +159,15 @@ async def validate_edr_input(hass: HomeAssistant, data: dict) -> None:
     try:
         await edr.metadata()
     except TokenInvalid as err:
-        _LOGGER.error("EDR API token validation failed: %s", err)
+        _LOGGER.error("EDR API token validation failed")
         raise InvalidToken from err
-    except (EDRServerError, aiohttp.ClientError, TimeoutError) as err:
-        _LOGGER.error("EDR API connection failed: %s", err)
+    except (
+        EDRQuotaExceeded,
+        EDRServerError,
+        aiohttp.ClientError,
+        TimeoutError,
+    ) as err:
+        _LOGGER.error("EDR API connection failed (%s)", type(err).__name__)
         raise CannotConnect from err
 
 
@@ -164,16 +188,19 @@ async def validate_wms_input(hass: HomeAssistant, data: dict) -> None:
 
     try:
         await wms.get({})
+    except WMSInvalidRequest:
+        pass
     except WMSTokenInvalid as err:
-        _LOGGER.error("WMS token validation failed: %s", err)
+        _LOGGER.error("WMS token validation failed (%s)", type(err).__name__)
         raise InvalidToken from err
     except (
+        WMSQuotaExceeded,
         WMSServerError,
         RateLimitExceeded,
         aiohttp.ClientError,
         TimeoutError,
     ) as err:
-        _LOGGER.error("WMS API connection failed: %s", err)
+        _LOGGER.error("WMS API connection failed (%s)", type(err).__name__)
         raise CannotConnect from err
 
 

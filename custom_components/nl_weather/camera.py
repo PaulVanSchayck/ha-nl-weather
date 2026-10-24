@@ -6,7 +6,7 @@ import asyncio
 import io
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from random import randint
 
 from homeassistant.components.camera import Camera
@@ -89,13 +89,14 @@ class PrecipitationRadarCam(Camera):
         ]
 
         self._mark_locations = config_entry.options.get(CONF_MARK_LOCATIONS, True)
+        self._config_entry = config_entry
 
-        # TODO: Deal with adding/removing location
-        self._locations = []
-        for s in config_entry.subentries.values():
-            self._locations.append(
-                Coordinate(s.data[CONF_LATITUDE], s.data[CONF_LONGITUDE])
-            )
+    @property
+    def _locations(self) -> list[Coordinate]:
+        return [
+            Coordinate(s.data[CONF_LATITUDE], s.data[CONF_LONGITUDE])
+            for s in list(self._config_entry.subentries.values())
+        ]
 
     def _add_locations_markers(self, img):
         draw = ImageDraw.Draw(img)
@@ -199,7 +200,7 @@ class PrecipitationRadarCam(Camera):
                         time_to_image[img_time] = self._process_radar_frame(
                             buf, img_time, ref_time
                         )
-                    except (WMSException, asyncio.TimeoutError) as e:
+                    except (TimeoutError, WMSException) as e:
                         _LOGGER.warning("Error processing radar image: %s", e)
                         continue
                     except Exception:
@@ -207,7 +208,7 @@ class PrecipitationRadarCam(Camera):
                         for task in pending_tasks:
                             task.cancel()
                         break
-        except asyncio.TimeoutError:
+        except TimeoutError:
             for task in pending_tasks:
                 task.cancel()
             _LOGGER.warning(
@@ -288,7 +289,7 @@ class PrecipitationRadarCam(Camera):
 
         for dim in root.findall(".//{*}Dimension[@name='time']"):
             _, end, _ = dim.text.strip().split("/")
-            return datetime.fromisoformat(end.replace("Z", "+00:00"))
+            return datetime.fromisoformat(end)
         return None
 
     async def async_camera_image(
@@ -334,10 +335,24 @@ class PrecipitationRadarCam(Camera):
         await asyncio.sleep(15 + randint(0, 10))
         self._last_modified = datetime.strptime(
             event["data"]["filename"], "RAD_NL25_RAC_FM_%Y%m%d%H%M.h5"
-        ).replace(tzinfo=timezone.utc)
+        ).replace(tzinfo=UTC)
+
+    async def _async_on_config_entry_update(
+        self, hass: HomeAssistant, entry: NLWeatherConfigEntry
+    ) -> None:
+        """Handle config entry and subentries update."""
+        self._mark_locations = entry.options.get(CONF_MARK_LOCATIONS, True)
+        self._radar_style = RADAR_STYLES[
+            entry.options.get(CONF_RADAR_STYLE, DEFAULT_RADAR_STYLE)
+        ]
+        await self.hass.async_add_executor_job(self._load_background)
+        self._last_image_dt = None
 
     async def async_added_to_hass(self):
         self._ns.set_callback("radar_forecast", self._attr_unique_id, self._set_latest)
+        self.async_on_remove(
+            self._config_entry.add_update_listener(self._async_on_config_entry_update)
+        )
 
         # TODO: Best place to do this?
         await self.hass.async_add_executor_job(self._load_background)

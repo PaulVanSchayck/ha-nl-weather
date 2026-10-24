@@ -14,6 +14,10 @@ from homeassistant.components.weather import (
     ATTR_CONDITION_SUNNY,
     ATTR_CONDITION_WINDY,
     ATTR_CONDITION_WINDY_VARIANT,
+    Forecast,
+    WeatherEntity,
+)
+from homeassistant.components.weather.const import (
     ATTR_WEATHER_CLOUD_COVERAGE,
     ATTR_WEATHER_DEW_POINT,
     ATTR_WEATHER_HUMIDITY,
@@ -23,8 +27,6 @@ from homeassistant.components.weather import (
     ATTR_WEATHER_WIND_BEARING,
     ATTR_WEATHER_WIND_GUST_SPEED,
     ATTR_WEATHER_WIND_SPEED,
-    Forecast,
-    WeatherEntity,
     WeatherEntityFeature,
 )
 from homeassistant.config_entries import ConfigSubentry
@@ -39,7 +41,7 @@ from homeassistant.helpers import entity_platform, sun
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.util import utcnow
+from homeassistant.util.dt import utcnow
 
 from .const import (
     ATTR_WEATHER_CONDITION,

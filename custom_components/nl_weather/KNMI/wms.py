@@ -1,11 +1,12 @@
 import asyncio
 import io
+import json
 import logging
 import xml.etree.ElementTree as ET
 
 import aiohttp
 
-from .helpers import format_dt
+from .helpers import format_dt, is_quota_error
 
 BASE_URL = "https://api.dataplatform.knmi.nl/wms/adaguc-server"
 BASE_PARAMS = {
@@ -51,15 +52,25 @@ class WMS:
             cache = resp.headers.get("adaguc-cache", "unknown")
             age = resp.headers.get("age", "unknown")
             _LOGGER.debug(
-                f"Called WMS endpoint (status: {resp.status}, cache: {cache}, age: {age}): {resp.url}"
+                "Called WMS endpoint (status: %s, cache: %s, age: %s): %s",
+                resp.status,
+                cache,
+                age,
+                resp.url,
             )
             if resp.status == 400:
                 raise InvalidRequest(await resp.json()) from None
             if resp.status == 404:
                 raise NotFoundError("No data found for query") from None
             elif resp.status == 403:
-                # TODO: Also handle quota exceeded
-                raise TokenInvalid(await resp.json()) from None
+                body = await resp.text()
+                try:
+                    payload = json.loads(body)
+                except (json.JSONDecodeError, TypeError):
+                    payload = body
+                if is_quota_error(payload):
+                    raise QuotaExceeded(payload) from None
+                raise TokenInvalid(payload) from None
             elif resp.status == 429:
                 raise RateLimitExceeded("Rate limit exceeded") from None
             elif resp.status >= 500:
@@ -67,10 +78,10 @@ class WMS:
 
             buffer = io.BytesIO(await resp.read())
 
-            # TODO: Not sure this check works
-            if b"ADAGUC Server:" in buffer.readline():
-                raise InvalidRequest(buffer.read().decode("UTF-8")) from None
+            first_line = buffer.readline()
             buffer.seek(0)
+            if b"ADAGUC Server:" in first_line:
+                raise InvalidRequest(buffer.read().decode("UTF-8")) from None
 
             return buffer
 
@@ -120,6 +131,10 @@ class NotFoundError(WMSException):
 
 class TokenInvalid(WMSException):
     """Exception class when token is not accepted"""
+
+
+class QuotaExceeded(WMSException):
+    """Exception class when API key quota is exceeded"""
 
 
 class ServerError(WMSException):
