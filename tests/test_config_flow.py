@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import aiohttp
 import pytest
+from homeassistant.config_entries import SOURCE_USER
 from homeassistant.const import (
     CONF_LATITUDE,
     CONF_LONGITUDE,
@@ -108,6 +109,7 @@ async def test_validate_edr_input_accepts_successful_probe() -> None:
 async def test_location_subentry_outside_wms_bbox_returns_error() -> None:
     """Test that location coordinates outside WMS bbox return error."""
     handler = LocationSubentryFlowHandler()
+    handler.context = {"source": SOURCE_USER}
     hass = MagicMock()
     hass.config.location_name = "Home"
     hass.config.latitude = 52.0
@@ -132,6 +134,7 @@ async def test_location_subentry_outside_wms_bbox_returns_error() -> None:
 async def test_location_subentry_inside_wms_bbox_succeeds() -> None:
     """Test that location coordinates inside WMS bbox succeed."""
     handler = LocationSubentryFlowHandler()
+    handler.context = {"source": SOURCE_USER}
     hass = MagicMock()
     hass.config.location_name = "Home"
     hass.config.latitude = 52.0
