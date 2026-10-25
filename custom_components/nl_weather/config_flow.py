@@ -17,7 +17,7 @@ try:
     from homeassistant.config_entries import ConfigSubentryFlow
 except ImportError:
 
-    class ConfigSubentryFlow:  # type: ignore[no-redef]
+    class ConfigSubentryFlow(config_entries.ConfigFlow):  # type: ignore[no-redef]
         """Fallback for older Home Assistant versions."""
 
 
@@ -55,11 +55,13 @@ from .const import (
     DEFAULT_RADAR_STYLE,
     DOMAIN,
     RADAR_STYLES,
+    WMS_BBOX_EPSG3857,
     StationMode,
 )
 from .KNMI.edr import QuotaExceeded as EDRQuotaExceeded
 from .KNMI.edr import ServerError as EDRServerError
 from .KNMI.edr import TokenInvalid
+from .KNMI.helpers import Coordinate, epsg4325_to_epsg3857
 from .KNMI.notification_service import (
     CannotConnect as NSCannotConnect,
 )
@@ -335,44 +337,56 @@ class LocationSubentryFlowHandler(ConfigSubentryFlow):
 
     async def async_step_location(self, user_input=None):
         """User flow to add a new location."""
+        errors = {}
         if user_input is not None:
-            if user_input[CONF_MODE] == StationMode.MANUAL:
-                self._data = user_input
-                return await self.async_step_manual()
-            else:
-                return self.async_create_entry(
-                    data=user_input, title=user_input[CONF_NAME]
-                )
+            x, y = epsg4325_to_epsg3857(
+                Coordinate(user_input[CONF_LATITUDE], user_input[CONF_LONGITUDE])
+            )
+            x_min, y_min, x_max, y_max = WMS_BBOX_EPSG3857
+            if not (x_min <= x <= x_max and y_min <= y <= y_max):
+                errors["base"] = "outside_wms_bbox"
+
+            if not errors:
+                if user_input[CONF_MODE] == StationMode.MANUAL:
+                    self._data = user_input
+                    return await self.async_step_manual()
+                else:
+                    return self.async_create_entry(
+                        data=user_input, title=user_input[CONF_NAME]
+                    )
 
         return self.async_show_form(
             step_id="location",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_NAME, default=self.hass.config.location_name
-                    ): str,
-                    # TODO: Should not fall outside WMS bbox
-                    vol.Required(
-                        CONF_LATITUDE, default=self.hass.config.latitude
-                    ): cv.latitude,
-                    vol.Required(
-                        CONF_LONGITUDE, default=self.hass.config.longitude
-                    ): cv.longitude,
-                    # TODO: Find region based on location
-                    vol.Required(CONF_REGION): selector(
-                        {
-                            "select": {
-                                "options": [
-                                    {"value": k, "label": v}
-                                    for k, v in ALERT_REGIONS.items()
-                                ],
-                                "mode": "dropdown",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(
+                    {
+                        vol.Required(
+                            CONF_NAME, default=self.hass.config.location_name
+                        ): str,
+                        vol.Required(
+                            CONF_LATITUDE, default=self.hass.config.latitude
+                        ): cv.latitude,
+                        vol.Required(
+                            CONF_LONGITUDE, default=self.hass.config.longitude
+                        ): cv.longitude,
+                        # TODO: Find region based on location
+                        vol.Required(CONF_REGION): selector(
+                            {
+                                "select": {
+                                    "options": [
+                                        {"value": k, "label": v}
+                                        for k, v in ALERT_REGIONS.items()
+                                    ],
+                                    "mode": "dropdown",
+                                }
                             }
-                        }
-                    ),
-                    vol.Required(CONF_MODE): vol.In([m.value for m in StationMode]),
-                }
+                        ),
+                        vol.Required(CONF_MODE): vol.In([m.value for m in StationMode]),
+                    }
+                ),
+                user_input or {},
             ),
+            errors=errors,
         )
 
     async def async_step_manual(self, user_input=None):

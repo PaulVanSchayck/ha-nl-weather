@@ -188,6 +188,7 @@
         "user": "Add location"
       },
       "error": {
+        "outside_wms_bbox": "Location falls outside the radar coverage area"
       },
       "abort": {
       }

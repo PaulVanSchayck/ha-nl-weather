@@ -188,6 +188,7 @@
         "user": "Nieuwe locatie"
       },
       "error": {
+        "outside_wms_bbox": "Locatie valt buiten het radar dekkingsgebied"
       },
       "abort": {
       }

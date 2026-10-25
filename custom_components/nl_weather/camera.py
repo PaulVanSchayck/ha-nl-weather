@@ -24,6 +24,7 @@ from .const import (
     DEFAULT_RADAR_STYLE,
     DOMAIN,
     RADAR_STYLES,
+    WMS_BBOX_EPSG3857,
     RadarStyle,
 )
 from .coordinator import NLWeatherConfigEntry
@@ -33,7 +34,7 @@ from .KNMI.wms import WMSException
 _LOGGER = logging.getLogger(__name__)
 
 # BBOX in EPSG:3857 (Web Mercator). This is (49.14, 0.0, 54,68, 8.98) in EPSG:4326
-BACKGROUND_IMAGE_BBOX = (0.0, 6300000, 1000000, 7300000)
+BACKGROUND_IMAGE_BBOX = WMS_BBOX_EPSG3857
 BACKGROUND_IMAGE_BBOX_PARAM = ",".join(map(str, BACKGROUND_IMAGE_BBOX))
 
 

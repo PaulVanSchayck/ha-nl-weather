@@ -244,6 +244,9 @@ RADAR_STYLES: dict[str, RadarStyle] = {
 
 DEFAULT_RADAR_STYLE = "light"
 
+# WMS bounding box in EPSG:3857 (xmin, ymin, xmax, ymax)
+WMS_BBOX_EPSG3857: Final = (0.0, 6300000.0, 1000000.0, 7300000.0)
+
 
 class StationMode(StrEnum):
     AUTO = "auto"

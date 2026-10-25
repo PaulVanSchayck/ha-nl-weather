@@ -5,13 +5,22 @@ from unittest.mock import MagicMock, patch
 
 import aiohttp
 import pytest
+from homeassistant.const import (
+    CONF_LATITUDE,
+    CONF_LONGITUDE,
+    CONF_MODE,
+    CONF_NAME,
+    CONF_REGION,
+)
+from homeassistant.data_entry_flow import FlowResultType
 
 from custom_components.nl_weather.config_flow import (
     CannotConnect,
     InvalidToken,
+    LocationSubentryFlowHandler,
     validate_edr_input,
 )
-from custom_components.nl_weather.const import CONF_EDR_API_TOKEN
+from custom_components.nl_weather.const import CONF_EDR_API_TOKEN, StationMode
 from custom_components.nl_weather.KNMI.edr import (
     QuotaExceeded,
     ServerError,
@@ -93,3 +102,52 @@ async def test_validate_edr_input_accepts_successful_probe() -> None:
         get_session.assert_called_once_with(hass)
         edr_class.assert_called_once_with(session, token)
         edr_class.return_value.metadata.assert_awaited_once_with()
+
+
+@pytest.mark.asyncio
+async def test_location_subentry_outside_wms_bbox_returns_error() -> None:
+    """Test that location coordinates outside WMS bbox return error."""
+    handler = LocationSubentryFlowHandler()
+    hass = MagicMock()
+    hass.config.location_name = "Home"
+    hass.config.latitude = 52.0
+    hass.config.longitude = 5.0
+    handler.hass = hass
+
+    user_input = {
+        CONF_NAME: "Far Away",
+        CONF_LATITUDE: 0.0,
+        CONF_LONGITUDE: 0.0,
+        CONF_REGION: "1",
+        CONF_MODE: StationMode.AUTO,
+    }
+
+    result = await handler.async_step_location(user_input)
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "outside_wms_bbox"}
+
+
+@pytest.mark.asyncio
+async def test_location_subentry_inside_wms_bbox_succeeds() -> None:
+    """Test that location coordinates inside WMS bbox succeed."""
+    handler = LocationSubentryFlowHandler()
+    hass = MagicMock()
+    hass.config.location_name = "Home"
+    hass.config.latitude = 52.0
+    hass.config.longitude = 5.0
+    handler.hass = hass
+
+    user_input = {
+        CONF_NAME: "Amsterdam",
+        CONF_LATITUDE: 52.37,
+        CONF_LONGITUDE: 4.89,
+        CONF_REGION: "9",
+        CONF_MODE: StationMode.AUTO,
+    }
+
+    result = await handler.async_step_location(user_input)
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "Amsterdam"
+    assert result["data"] == user_input
