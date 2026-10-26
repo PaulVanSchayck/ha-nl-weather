@@ -4,4 +4,5 @@ get_minute_forecast:
       domain: weather
       integration: nl_weather
       supported_features:
-        - 32
+        # TODO: This is a nasty hack, but using "nl_weather.NLWeatherEntityFeature.FORECAST_MINUTE" gives an error
+        - climate.ClimateEntityFeature.SWING_MODE

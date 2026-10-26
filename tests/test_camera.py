@@ -54,3 +54,32 @@ async def test_camera_config_entry_update_listener() -> None:
     assert cam._last_image_dt is None
     # Verify executor job was called to reload background
     cam.hass.async_add_executor_job.assert_called_once_with(cam._load_background)
+
+
+@pytest.mark.asyncio
+async def test_camera_async_added_to_hass() -> None:
+    """Test that async_added_to_hass sets callback, update listener, and loads background image."""
+    config_entry = MagicMock()
+    config_entry.entry_id = "test_entry"
+    config_entry.options = {}
+    config_entry.subentries = {}
+    config_entry.add_update_listener = MagicMock()
+
+    cam = PrecipitationRadarCam(config_entry)
+    cam.hass = MagicMock()
+    cam.hass.async_add_executor_job = AsyncMock(side_effect=lambda func: func())
+
+    await cam.async_added_to_hass()
+
+    # Verify notification service callback was set
+    cam._ns.set_callback.assert_called_once_with(
+        "radar_forecast", cam._attr_unique_id, cam._set_latest
+    )
+
+    # Verify update listener was registered
+    config_entry.add_update_listener.assert_called_once_with(
+        cam._async_on_config_entry_update
+    )
+
+    # Verify background image loading was called via executor job
+    cam.hass.async_add_executor_job.assert_called_once_with(cam._load_background)

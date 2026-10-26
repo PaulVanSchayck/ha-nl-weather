@@ -349,11 +349,11 @@ class PrecipitationRadarCam(Camera):
         await self.hass.async_add_executor_job(self._load_background)
         self._last_image_dt = None
 
-    async def async_added_to_hass(self):
+    async def async_added_to_hass(self) -> None:
+        """Handle entity addition to Home Assistant."""
+        await super().async_added_to_hass()
         self._ns.set_callback("radar_forecast", self._attr_unique_id, self._set_latest)
         self.async_on_remove(
             self._config_entry.add_update_listener(self._async_on_config_entry_update)
         )
-
-        # TODO: Best place to do this?
         await self.hass.async_add_executor_job(self._load_background)
