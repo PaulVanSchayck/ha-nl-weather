@@ -298,6 +298,7 @@ async def async_setup_entry(
         name=SERVICE_GET_MINUTE_FORECAST,
         schema=None,
         func="async_get_minute_forecast",
+        required_features=[NLWeatherEntityFeature.FORECAST_MINUTE],
         supports_response=SupportsResponse.ONLY,
     )
 
