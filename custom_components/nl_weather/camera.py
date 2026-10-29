@@ -115,6 +115,7 @@ class PrecipitationRadarCam(Camera):
         self._map_style = OSMMapStyle(
             config_entry.options.get(CONF_MAP_STYLE, DEFAULT_OSM_MAP_STYLE)
         )
+        self._carto_api_key = config_entry.options.get(CONF_CARTO_API_KEY)
         self._radar_style_key = config_entry.options.get(
             CONF_RADAR_STYLE, DEFAULT_RADAR_STYLE
         )
@@ -220,7 +221,7 @@ class PrecipitationRadarCam(Camera):
         )
 
         is_dark = self._radar_style_key == "dark"
-        carto_key = self._options.get(CONF_CARTO_API_KEY)
+        carto_key = self._carto_api_key
         img = await tile_manager.async_get_osm_background(
             self.hass,
             bbox,
