@@ -222,7 +222,9 @@ async def test_wind_camera_entity_image(monkeypatch):
 
     cam = WindParticlesCam(mock_entry)
     cam.hass = MagicMock()
-    cam.hass.async_add_executor_job = AsyncMock(side_effect=lambda func, *args: func(*args))
+    cam.hass.async_add_executor_job = AsyncMock(
+        side_effect=lambda func, *args: func(*args)
+    )
 
     # Set dummy base map
     cam._background_image = Image.new("RGBA", (200, 200), (30, 30, 30, 255))

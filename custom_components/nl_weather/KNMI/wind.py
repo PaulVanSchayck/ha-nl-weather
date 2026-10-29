@@ -5,9 +5,9 @@ from __future__ import annotations
 import io
 import math
 import random
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Sequence
 
 from PIL import Image, ImageDraw
 
@@ -232,7 +232,9 @@ class WindVectorGrid:
                     self.u_grid[row][col] = u_sum / w_sum
                     self.v_grid[row][col] = v_sum / w_sum
 
-    def get_velocity_at(self, px: float, py: float, width: int, height: int) -> tuple[float, float]:
+    def get_velocity_at(
+        self, px: float, py: float, width: int, height: int
+    ) -> tuple[float, float]:
         """Lookup velocity at normalized screen coordinates."""
         col = min(max(int(px / width * (self.grid_w - 1)), 0), self.grid_w - 1)
         row = min(max(int(py / height * (self.grid_h - 1)), 0), self.grid_h - 1)
@@ -270,15 +272,23 @@ class WindParticleEngine:
 
         # Scale base map to canvas size if necessary
         if base_map.size != (self.width, self.height):
-            base_bg = base_map.resize((self.width, self.height), Image.Resampling.LANCZOS).convert("RGBA")
+            base_bg = base_map.resize(
+                (self.width, self.height), Image.Resampling.LANCZOS
+            ).convert("RGBA")
         else:
             base_bg = base_map.convert("RGBA")
 
         # Spawn particles with margin around screen so incoming particles are already visible
         margin = 40
-        spawn_x = [rng.uniform(-margin, self.width + margin) for _ in range(self.n_particles)]
-        spawn_y = [rng.uniform(-margin, self.height + margin) for _ in range(self.n_particles)]
-        birth_frames = [rng.randint(0, self.n_frames - 1) for _ in range(self.n_particles)]
+        spawn_x = [
+            rng.uniform(-margin, self.width + margin) for _ in range(self.n_particles)
+        ]
+        spawn_y = [
+            rng.uniform(-margin, self.height + margin) for _ in range(self.n_particles)
+        ]
+        birth_frames = [
+            rng.randint(0, self.n_frames - 1) for _ in range(self.n_particles)
+        ]
 
         # Precompute particle paths: length n_frames + 1
         # paths[i][step] = (x, y)
@@ -292,21 +302,15 @@ class WindParticleEngine:
         for step in range(self.n_frames):
             for i in range(self.n_particles):
                 curr_x, curr_y = paths[i][step]
-                u, v_screen = self.grid.get_velocity_at(curr_x, curr_y, self.width, self.height)
+                u, v_screen = self.grid.get_velocity_at(
+                    curr_x, curr_y, self.width, self.height
+                )
                 next_x = curr_x + u * vel_scale
                 next_y = curr_y + v_screen * vel_scale
                 paths[i].append((next_x, next_y))
 
-        # Header banner text
-        header_text = None
-        if timestamp:
-            bft = speed_to_bft(self.grid.mean_speed)
-            compass = degrees_to_compass(self.grid.mean_direction)
-            dt_str = timestamp.strftime("%a %H:%M")
-            header_text = (
-                f"Wind · {dt_str} · {self.grid.mean_speed:.1f} m/s "
-                f"({self.grid.mean_direction:.0f}° {compass}, Bft {bft})"
-            )
+        # Header time text (matching precipitation radar map style)
+        header_text = timestamp.strftime("%a %H:%M") if timestamp else None
 
         frames: list[Image.Image] = []
 
@@ -337,16 +341,18 @@ class WindParticleEngine:
 
             comp = Image.alpha_composite(frame, overlay)
 
-            # Draw header badge on frame
+            # Draw time text on frame (identical to precipitation radar map style)
             if header_text:
                 draw_comp = ImageDraw.Draw(comp)
+                pos_x = round(28 * (self.width / 1024))
+                pos_y = round(28 * (self.height / 1024))
+                font_sz = max(round(45 * (self.width / 1024)), 20)
                 draw_comp.text(
-                    (24, 24),
+                    (pos_x, pos_y),
                     header_text,
                     fill=header_color,
-                    font_size=32,
-                    stroke_width=1,
-                    stroke_fill="rgb(20, 20, 20)",
+                    font_size=font_sz,
+                    stroke_width=0.8,
                 )
 
             frames.append(comp.convert("P", palette=Image.Palette.ADAPTIVE, colors=128))
