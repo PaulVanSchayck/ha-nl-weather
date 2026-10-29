@@ -221,7 +221,6 @@ class OptionsFlowHandler(OptionsFlow):
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
     MINOR_VERSION = 2
-    CONNECTION_CLASS = config_entries.CONN_CLASS_CLOUD_PUSH
     _config = None
 
     async def async_step_user(self, user_input=None):
