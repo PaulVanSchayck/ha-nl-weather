@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from math import atan2, cos, log, pi, radians, sin, sqrt, tan
+from math import atan, atan2, cos, degrees, exp, log, pi, radians, sin, sqrt, tan
 from typing import Any, Final
 
 # Earth radius constants
@@ -91,6 +91,25 @@ def epsg4325_to_epsg3857(coord: Coordinate) -> tuple[float, float]:
     x = EARTH_RADIUS_METERS * radians(coord.lon)
     y = EARTH_RADIUS_METERS * log(tan(pi / 4.0 + radians(lat) / 2.0))
     return x, y
+
+
+# Alias for corrected EPSG code naming
+epsg4326_to_epsg3857 = epsg4325_to_epsg3857
+
+
+def epsg3857_to_epsg4326(x: float, y: float) -> Coordinate:
+    """Convert EPSG:3857 meters (x, y) to a Coordinate in decimal degrees (EPSG:4326).
+
+    Args:
+        x: X coordinate in EPSG:3857 meters.
+        y: Y coordinate in EPSG:3857 meters.
+
+    Returns:
+        Coordinate object with latitude and longitude in degrees.
+    """
+    lon = degrees(x / EARTH_RADIUS_METERS)
+    lat = degrees(2.0 * atan(exp(y / EARTH_RADIUS_METERS)) - pi / 2.0)
+    return Coordinate(lat=lat, lon=lon)
 
 
 def format_dt(dt: datetime) -> str:
