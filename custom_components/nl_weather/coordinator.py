@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from math import floor
 from random import randint
 from typing import Any
@@ -171,7 +171,7 @@ class NLWeatherEDRCoordinator(DataUpdateCoordinator):
     """Base EDR Coordinator"""
 
     _latest_filename_datetime = datetime(
-        year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc
+        year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=UTC
     )
     _station_names: dict
 
@@ -262,7 +262,7 @@ class NLWeatherAutoEDRCoordinator(NLWeatherEDRCoordinator):
     async def get_coverage_datetime(self, event) -> None:
         filename_datetime = datetime.strptime(
             event["data"]["filename"], "KMDS__OPER_P___10M_OBS_L2_%Y%m%d%H%M.nc"
-        ).replace(tzinfo=timezone.utc)
+        ).replace(tzinfo=UTC)
 
         if filename_datetime < self._latest_filename_datetime:
             _LOGGER.debug(
@@ -303,7 +303,7 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
     """Coordinator that gets data for specific weather station"""
 
     _latest_filename_datetime = datetime(
-        year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc
+        year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=UTC
     )
 
     def __init__(
@@ -325,7 +325,7 @@ class NLWeatherManualEDRCoordinator(NLWeatherEDRCoordinator):
     async def get_coverage_datetime(self, event) -> None:
         filename_datetime = datetime.strptime(
             event["data"]["filename"], "KMDS__OPER_P___10M_OBS_L2_%Y%m%d%H%M.nc"
-        ).replace(tzinfo=timezone.utc)
+        ).replace(tzinfo=UTC)
 
         if filename_datetime <= self._latest_filename_datetime:
             _LOGGER.debug(
