@@ -122,6 +122,9 @@
       "heat_force_index_today": {
         "name": "Max hittekracht vandaag"
       },
+      "uv_index_today": {
+        "name": "UV index vandaag"
+      },
       "alert_region": {
         "name": "Waarschuwingsregio"
       }
