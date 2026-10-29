@@ -251,7 +251,8 @@ class WindParticleEngine:
         canvas_size: tuple[int, int] = (600, 600),
         n_particles: int = 750,
         n_frames: int = 30,
-        frame_duration_ms: int = 60,
+        frame_duration_ms: int = 70,
+        vel_scale: float = 0.85,
         seed: int = 42,
     ) -> None:
         self.grid = grid
@@ -259,6 +260,7 @@ class WindParticleEngine:
         self.n_particles = n_particles
         self.n_frames = n_frames
         self.frame_duration_ms = frame_duration_ms
+        self.vel_scale = vel_scale
         self.seed = seed
 
     def render_animation(
@@ -296,17 +298,14 @@ class WindParticleEngine:
             [(spawn_x[i], spawn_y[i])] for i in range(self.n_particles)
         ]
 
-        # Velocity scale for pleasant movement (2-4 pixels/frame)
-        vel_scale = 3.2
-
         for step in range(self.n_frames):
             for i in range(self.n_particles):
                 curr_x, curr_y = paths[i][step]
                 u, v_screen = self.grid.get_velocity_at(
                     curr_x, curr_y, self.width, self.height
                 )
-                next_x = curr_x + u * vel_scale
-                next_y = curr_y + v_screen * vel_scale
+                next_x = curr_x + u * self.vel_scale
+                next_y = curr_y + v_screen * self.vel_scale
                 paths[i].append((next_x, next_y))
 
         # Header time text (matching precipitation radar map style)
@@ -335,7 +334,15 @@ class WindParticleEngine:
                 if (y1 < 0 and y2 < 0) or (y1 > self.height and y2 > self.height):
                     continue
 
-                spd = math.hypot(x2 - x1, y2 - y1) / vel_scale
+                dx = x2 - x1
+                dy = y2 - y1
+                seg_len = math.hypot(dx, dy)
+                # Keep a subtle minimum streak length of 2.5px so slow particles remain sleek
+                if 0 < seg_len < 2.5:
+                    x2 = x1 + dx * (2.5 / seg_len)
+                    y2 = y1 + dy * (2.5 / seg_len)
+
+                spd = seg_len / self.vel_scale
                 color = speed_to_color(spd, alpha)
                 draw.line([(x1, y1), (x2, y2)], fill=color, width=2)
 

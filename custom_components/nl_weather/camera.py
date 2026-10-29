@@ -559,7 +559,8 @@ class WindParticlesCam(KNMICamera):
             canvas_size=(600, 600),
             n_particles=750,
             n_frames=30,
-            frame_duration_ms=60,
+            frame_duration_ms=70,
+            vel_scale=0.85,
         )
 
         now = dt_util.as_local(dt_util.utcnow())
