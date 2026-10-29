@@ -8,6 +8,7 @@ from .helpers import format_dt
 
 BASE_URL = "https://api.dataplatform.knmi.nl/edr/v1/collections/10-minute-in-situ-meteorological-observations"
 BBOX_NL = "-68.5,12.0,7.4,55.7"
+BBOX_EUROPEAN_NL = "3.0,50.5,7.5,54.0"
 
 
 def past_half_hour(dt: datetime) -> str:
@@ -62,16 +63,22 @@ class EDR:
     async def location(self, location, params):
         return await self.get(f"/locations/{location}", params)
 
-    async def get_cube_coverages(self, dt: datetime, parameters):
+    async def get_cube_coverages(self, dt: datetime, parameters, bbox: str = BBOX_NL):
         params = {
             "datetime": past_half_hour(dt),
             "parameter-name": ",".join(parameters),
-            "bbox": BBOX_NL,
+            "bbox": bbox,
         }
         coverage_collection = await self.cube(params)
         coverages = coverage_collection["coverages"]
         _LOGGER.debug(f"Found {len(coverages)} coverages")
         return coverages
+
+    async def get_wind_observations(self, dt: datetime | None = None):
+        """Retrieve 10-minute in-situ wind observations (dd, ff) for European NL."""
+        if dt is None:
+            dt = datetime.now(timezone.utc)
+        return await self.get_cube_coverages(dt, ["dd", "ff"], bbox=BBOX_EUROPEAN_NL)
 
     async def get_location_coverage(self, location, dt: datetime, parameters):
         params = {

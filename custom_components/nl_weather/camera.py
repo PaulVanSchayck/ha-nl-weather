@@ -1,4 +1,4 @@
-"""Provide animated GIF loops of KNMI radar images fetched from WMS."""
+"""Provide animated GIF loops of KNMI radar and wind particle images."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import time
 from datetime import UTC, datetime, timedelta
 from random import randint
 
+import aiohttp
 from homeassistant.components.camera import Camera
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
@@ -18,7 +19,6 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 from PIL import Image, ImageDraw
-from PIL.ImageFile import ImageFile
 
 from .const import (
     CONF_CARTO_API_KEY,
@@ -44,6 +44,7 @@ from .const import (
     RadarStyle,
 )
 from .coordinator import NLWeatherConfigEntry
+from .KNMI.edr import InvalidRequest, NotFoundError, ServerError, TokenInvalid
 from .KNMI.helpers import Coordinate, epsg4325_to_epsg3857
 from .KNMI.osm import (
     OSMTileManager,
@@ -52,6 +53,7 @@ from .KNMI.osm import (
     calculate_weighted_center,
     get_known_zones,
 )
+from .KNMI.wind import WindParticleEngine, WindVectorGrid, parse_edr_wind_coverages
 from .KNMI.wms import WMSException
 
 _LOGGER = logging.getLogger(__name__)
@@ -66,49 +68,34 @@ async def async_setup_entry(
     config_entry: NLWeatherConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    async_add_entities([PrecipitationRadarCam(config_entry)])
+    """Set up NL Weather camera entities."""
+    async_add_entities(
+        [
+            PrecipitationRadarCam(config_entry),
+            WindParticlesCam(config_entry),
+        ]
+    )
 
 
-class PrecipitationRadarCam(Camera):
-    """A camera component producing animated radar-imagery GIFs.
-
-    Rain radar imagery camera based on image URL taken from [0].
-
-    [0]: https://dataplatform.knmi.nl/dataset/radar-forecast-2-0
-    """
+class KNMICamera(Camera):
+    """Base camera component for KNMI map imagery with static or OSM background."""
 
     _radar_style: RadarStyle
-    _background_image: ImageFile
+    _background_image: Image.Image | None = None
     _last_image: bytes | None = None
     _last_image_dt: datetime | None = None
     _last_modified: datetime | None = None
-    _loading = False
-    _mark_locations = True
+    _loading: bool = False
+    _mark_locations: bool = True
     _locations: list[Coordinate]
     _radar_bbox: tuple[float, float, float, float]
     _radar_bbox_param: str
+    _background_mtime: float | None = None
 
     def __init__(self, config_entry: NLWeatherConfigEntry) -> None:
+        """Initialize common KNMI camera configuration."""
         super().__init__()
-
-        # Condition that guards the loading indicator.
-        # Ensures that only one reader can cause an http request at the same
-        # time, and that all readers are notified after this request completes.
         self._condition = asyncio.Condition()
-
-        self._attr_unique_id = f"{config_entry.entry_id}_precipitation_radar"
-
-        self._attr_device_info = DeviceInfo(
-            name="Neerslagradar",
-            entry_type=DeviceEntryType.SERVICE,
-            identifiers={(DOMAIN, f"{config_entry.entry_id}_precipitation_radar")},
-            manufacturer="KNMI.nl",
-            configuration_url="https://www.knmi.nl",
-        )
-        self._attr_translation_key = "precipitation_radar"
-
-        self._ns = config_entry.runtime_data.notification_service
-        self._wms = config_entry.runtime_data.wms
         self._config_entry = config_entry
 
         self._map_provider = config_entry.options.get(
@@ -134,7 +121,6 @@ class PrecipitationRadarCam(Camera):
 
         self._radar_bbox = BACKGROUND_IMAGE_BBOX
         self._radar_bbox_param = BACKGROUND_IMAGE_BBOX_PARAM
-        self._background_mtime: float | None = None
 
         # Subentry locations
         self._locations = []
@@ -178,6 +164,7 @@ class PrecipitationRadarCam(Camera):
         return img
 
     async def async_load_background(self) -> None:
+        """Load or update base map background (OSM or static)."""
         if self._map_provider == MapProvider.STATIC:
             self._radar_bbox = BACKGROUND_IMAGE_BBOX
             self._radar_bbox_param = BACKGROUND_IMAGE_BBOX_PARAM
@@ -251,14 +238,8 @@ class PrecipitationRadarCam(Camera):
         except OSError:
             self._background_mtime = time.time()
 
-    def __needs_refresh(self) -> bool:
-        if self._last_modified is None or self._last_image_dt is None:
-            return True
-
-        return self._last_modified > self._last_image_dt
-
-    async def __retrieve_radar_image(self, ref_time) -> bool:
-        """Retrieve new radar image and return whether this succeeded."""
+    async def async_ensure_background(self) -> None:
+        """Ensure base background map is loaded and fresh."""
         if self._map_provider == MapProvider.OSM:
             now = time.time()
             if (
@@ -267,6 +248,44 @@ class PrecipitationRadarCam(Camera):
                 or (now - self._background_mtime) >= OSM_CACHE_TTL_SECONDS
             ):
                 await self.async_load_background()
+        elif self._background_image is None:
+            await self.async_load_background()
+
+
+class PrecipitationRadarCam(KNMICamera):
+    """A camera component producing animated radar-imagery GIFs.
+
+    Rain radar imagery camera based on image URL taken from [0].
+
+    [0]: https://dataplatform.knmi.nl/dataset/radar-forecast-2-0
+    """
+
+    def __init__(self, config_entry: NLWeatherConfigEntry) -> None:
+        """Initialize precipitation radar camera."""
+        super().__init__(config_entry)
+
+        self._attr_unique_id = f"{config_entry.entry_id}_precipitation_radar"
+        self._attr_device_info = DeviceInfo(
+            name="Neerslagradar",
+            entry_type=DeviceEntryType.SERVICE,
+            identifiers={(DOMAIN, f"{config_entry.entry_id}_precipitation_radar")},
+            manufacturer="KNMI.nl",
+            configuration_url="https://www.knmi.nl",
+        )
+        self._attr_translation_key = "precipitation_radar"
+
+        self._ns = config_entry.runtime_data.notification_service
+        self._wms = config_entry.runtime_data.wms
+
+    def __needs_refresh(self) -> bool:
+        if self._last_modified is None or self._last_image_dt is None:
+            return True
+
+        return self._last_modified > self._last_image_dt
+
+    async def __retrieve_radar_image(self, ref_time) -> bool:
+        """Retrieve new radar image and return whether this succeeded."""
+        await self.async_ensure_background()
 
         time_to_image = await self._fetch_radar_frames(ref_time)
 
@@ -419,6 +438,7 @@ class PrecipitationRadarCam(Camera):
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
+        """Return bytes of animated radar imagery GIF."""
         if not self.__needs_refresh():
             return self._last_image
 
@@ -462,6 +482,152 @@ class PrecipitationRadarCam(Camera):
         ).replace(tzinfo=UTC)
 
     async def async_added_to_hass(self):
+        """Register radar callbacks and load background."""
         self._ns.set_callback("radar_forecast", self._attr_unique_id, self._set_latest)
+        await self.async_load_background()
 
+
+class WindParticlesCam(KNMICamera):
+    """A camera component producing animated particle wind loops from KNMI EDR observations."""
+
+    def __init__(self, config_entry: NLWeatherConfigEntry) -> None:
+        """Initialize wind particles camera."""
+        super().__init__(config_entry)
+
+        self._attr_unique_id = f"{config_entry.entry_id}_wind_particles"
+        self._attr_device_info = DeviceInfo(
+            name="Windkaart",
+            entry_type=DeviceEntryType.SERVICE,
+            identifiers={(DOMAIN, f"{config_entry.entry_id}_wind_particles")},
+            manufacturer="KNMI.nl",
+            configuration_url="https://www.knmi.nl",
+        )
+        self._attr_translation_key = "wind_particles"
+
+        self._edr = config_entry.runtime_data.edr
+        self._ns = config_entry.runtime_data.notification_service
+
+    def __needs_refresh(self) -> bool:
+        if self._last_image is None or self._last_image_dt is None:
+            return True
+
+        if self._last_modified and self._last_modified > self._last_image_dt:
+            return True
+
+        # Refresh every 10 minutes matching KNMI 10-minute in-situ observations cadence
+        return (dt_util.utcnow() - self._last_image_dt) >= timedelta(minutes=10)
+
+    async def _retrieve_wind_image(self) -> bool:
+        """Retrieve wind observations and render seamless particle animation GIF."""
+        await self.async_ensure_background()
+
+        if self._background_image is None:
+            _LOGGER.warning("No background image loaded for wind particles camera")
+            return False
+
+        try:
+            coverages = await self._edr.get_wind_observations()
+        except (
+            aiohttp.ClientError,
+            asyncio.TimeoutError,
+            ServerError,
+            NotFoundError,
+            TokenInvalid,
+            InvalidRequest,
+            KeyError,
+        ) as e:
+            _LOGGER.warning("Error fetching wind observations from EDR: %s", e)
+            if self._last_image:
+                return True
+            return self._error_image("Unable to fetch wind data from KNMI EDR")
+
+        observations = parse_edr_wind_coverages(coverages)
+        if not observations:
+            _LOGGER.warning("No valid wind observations returned from EDR")
+            if self._last_image:
+                return True
+            return self._error_image("No wind observations available")
+
+        grid = WindVectorGrid(
+            observations,
+            self._radar_bbox,
+            grid_w=40,
+            grid_h=40,
+        )
+        engine = WindParticleEngine(
+            grid,
+            canvas_size=(600, 600),
+            n_particles=750,
+            n_frames=30,
+            frame_duration_ms=60,
+        )
+
+        now = dt_util.as_local(dt_util.utcnow())
+        header_color = self._radar_style.time_past_color
+
+        self._last_image = await self.hass.async_add_executor_job(
+            engine.render_animation,
+            self._background_image,
+            now,
+            header_color,
+        )
+        self._last_image_dt = dt_util.utcnow()
+        return True
+
+    def _error_image(self, message: str) -> bool:
+        with io.BytesIO() as output:
+            img = (
+                self._background_image.copy()
+                if self._background_image
+                else Image.new("RGBA", (600, 600), (30, 30, 30, 255))
+            )
+            draw = ImageDraw.Draw(img)
+            draw.text(
+                (24, 24),
+                message,
+                fill="red",
+                font_size=28,
+                stroke_width=1,
+            )
+            img.save(output, format="GIF")
+            self._last_image = output.getvalue()
+
+        return True
+
+    async def async_camera_image(
+        self, width: int | None = None, height: int | None = None
+    ) -> bytes | None:
+        """Return bytes of animated wind particles GIF."""
+        if not self.__needs_refresh():
+            return self._last_image
+
+        async with self._condition:
+            while self._loading:
+                _LOGGER.debug("Wind camera already loading - waiting for notification")
+                await self._condition.wait()
+
+            if not self.__needs_refresh():
+                return self._last_image
+
+            self._loading = True
+
+        try:
+            await self._retrieve_wind_image()
+            return self._last_image
+        finally:
+            async with self._condition:
+                self._loading = False
+                self._condition.notify_all()
+
+    async def _set_latest(self, event):
+        """Notification callback when new in-situ observation file arrives."""
+        self._last_modified = dt_util.utcnow()
+
+    async def async_added_to_hass(self):
+        """Register notification callback and load base map background."""
+        self._ns.set_callback(
+            "10-minute-in-situ-meteorological-observations",
+            self._attr_unique_id,
+            self._set_latest,
+        )
         await self.async_load_background()

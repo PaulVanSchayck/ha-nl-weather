@@ -3,6 +3,9 @@
     "camera": {
       "precipitation_radar": {
         "name": "Precipitation Radar"
+      },
+      "wind_particles": {
+        "name": "Wind Map"
       }
     },
     "weather":{
