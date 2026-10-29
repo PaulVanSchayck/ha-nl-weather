@@ -6,6 +6,7 @@ import asyncio
 import io
 import logging
 import os
+import time
 from datetime import UTC, datetime, timedelta
 from random import randint
 
@@ -35,6 +36,7 @@ from .const import (
     DEFAULT_RADAR_STYLE,
     DEFAULT_ZOOM_LEVEL,
     DOMAIN,
+    OSM_CACHE_TTL_SECONDS,
     RADAR_STYLES,
     CenterMode,
     MapProvider,
@@ -132,6 +134,7 @@ class PrecipitationRadarCam(Camera):
 
         self._radar_bbox = BACKGROUND_IMAGE_BBOX
         self._radar_bbox_param = BACKGROUND_IMAGE_BBOX_PARAM
+        self._background_mtime: float | None = None
 
         # Subentry locations
         self._locations = []
@@ -238,6 +241,15 @@ class PrecipitationRadarCam(Camera):
             )
 
         self._background_image = img
+        bg_cache_path = tile_manager._get_background_cache_path(
+            bbox, osm_size, zoom, self._map_style.value, is_dark, carto_key
+        )
+        try:
+            self._background_mtime = await asyncio.to_thread(
+                os.path.getmtime, bg_cache_path
+            )
+        except OSError:
+            self._background_mtime = time.time()
 
     def __needs_refresh(self) -> bool:
         if self._last_modified is None or self._last_image_dt is None:
@@ -247,6 +259,15 @@ class PrecipitationRadarCam(Camera):
 
     async def __retrieve_radar_image(self, ref_time) -> bool:
         """Retrieve new radar image and return whether this succeeded."""
+        if self._map_provider == MapProvider.OSM:
+            now = time.time()
+            if (
+                self._background_image is None
+                or self._background_mtime is None
+                or (now - self._background_mtime) >= OSM_CACHE_TTL_SECONDS
+            ):
+                await self.async_load_background()
+
         time_to_image = await self._fetch_radar_frames(ref_time)
 
         if not time_to_image:

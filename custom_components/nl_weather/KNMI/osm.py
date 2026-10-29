@@ -8,6 +8,7 @@ import io
 import logging
 import math
 import os
+import time
 
 import aiohttp
 from homeassistant.config_entries import ConfigEntry
@@ -19,6 +20,7 @@ from ..const import (
     DEFAULT_ZOOM_MARGIN,
     MINIMALIST_DARK_TILE_URL,
     MINIMALIST_LIGHT_TILE_URL,
+    OSM_CACHE_TTL_SECONDS,
     STANDARD_OSM_TILE_URL,
     OSMMapStyle,
 )
@@ -191,8 +193,18 @@ def _read_file_sync(path: str) -> bytes | None:
 
 
 def _write_file_sync(path: str, data: bytes) -> None:
-    with open(path, "wb") as f:
-        f.write(data)
+    try:
+        with open(path, "wb") as f:
+            f.write(data)
+    except OSError:
+        pass
+
+
+def _touch_file_sync(path: str) -> None:
+    try:
+        os.utime(path, None)
+    except OSError:
+        pass
 
 
 class OSMTileManager:
@@ -223,14 +235,26 @@ class OSMTileManager:
         os.makedirs(tile_dir, exist_ok=True)
         return os.path.join(tile_dir, f"{ty}.png")
 
-    async def _fetch_tile(self, url: str, tile_cache_path: str) -> bytes | None:
+    async def _fetch_tile(
+        self,
+        url: str,
+        tile_cache_path: str,
+        cache_ttl: int = OSM_CACHE_TTL_SECONDS,
+    ) -> bytes | None:
         cached_data = await asyncio.to_thread(_read_file_sync, tile_cache_path)
         if cached_data is not None:
-            return cached_data
+            try:
+                mtime = await asyncio.to_thread(os.path.getmtime, tile_cache_path)
+                if time.time() - mtime < cache_ttl:
+                    return cached_data
+            except OSError:
+                return cached_data
 
         async with self._semaphore:
             headers = {"User-Agent": USER_AGENT}
             try:
+                if self._session is None:
+                    raise aiohttp.ClientError("No active HTTP session")
                 async with self._session.get(url, headers=headers) as resp:
                     if resp.status == 200:
                         data = await resp.read()
@@ -239,8 +263,16 @@ class OSMTileManager:
                     _LOGGER.warning(
                         "Failed to fetch tile %s (HTTP %s)", url, resp.status
                     )
-            except (aiohttp.ClientError, TimeoutError, OSError) as err:
+            except (aiohttp.ClientError, TimeoutError, OSError, AttributeError) as err:
                 _LOGGER.warning("Error fetching tile %s: %s", url, err)
+
+        if cached_data is not None:
+            _LOGGER.debug(
+                "Preserving existing cached tile for %s after fetch failure", url
+            )
+            await asyncio.to_thread(_touch_file_sync, tile_cache_path)
+            return cached_data
+
         return None
 
     def _stitch_and_crop(
@@ -299,17 +331,30 @@ class OSMTileManager:
         style: OSMMapStyle,
         dark: bool,
         carto_api_key: str | None = None,
+        cache_ttl: int = OSM_CACHE_TTL_SECONDS,
     ) -> Image.Image:
-        """Fetch, stitch, and cache the background map image for the given BBOX."""
+        """Fetch, stitch, and cache the background map image for the given BBOX.
+
+        The background is cached for a week (cache_ttl). If fetching a new map
+        fails, the existing cached background is preserved and returned.
+        """
         bg_cache_path = self._get_background_cache_path(
             bbox, size, zoom, style.value, dark, carto_api_key
         )
 
         cached_bg = await asyncio.to_thread(os.path.exists, bg_cache_path)
         if cached_bg:
-            return await hass.async_add_executor_job(
-                lambda: Image.open(bg_cache_path).convert("RGBA")
-            )
+            try:
+                mtime = await asyncio.to_thread(os.path.getmtime, bg_cache_path)
+                age = time.time() - mtime
+                if age < cache_ttl:
+                    return await hass.async_add_executor_job(
+                        lambda: Image.open(bg_cache_path).convert("RGBA")
+                    )
+            except OSError:
+                return await hass.async_add_executor_job(
+                    lambda: Image.open(bg_cache_path).convert("RGBA")
+                )
 
         xmin, ymin, xmax, ymax = bbox
         txmin, tymax = tile_coordinates(xmin, ymin, zoom)
@@ -340,30 +385,63 @@ class OSMTileManager:
         async def fetch_indexed(tx: int, ty: int):
             url = url_template.format(z=zoom, x=tx, y=ty)
             path = self._get_tile_cache_path(cache_style_key, zoom, tx, ty)
-            data = await self._fetch_tile(url, path)
+            data = await self._fetch_tile(url, path, cache_ttl=cache_ttl)
             return (tx, ty), data
 
         for tx in range(txmin, txmax + 1):
             for ty in range(tymin, tymax + 1):
                 tasks.append(asyncio.create_task(fetch_indexed(tx, ty)))
 
-        results = await asyncio.gather(*tasks)
-        tiles_dict = dict(results)
+        try:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            tiles_dict: dict[tuple[int, int], bytes] = {}
+            for r in results:
+                if isinstance(r, Exception) or not isinstance(r, tuple):
+                    continue
+                (tx, ty), data = r
+                if data is not None:
+                    tiles_dict[(tx, ty)] = data
 
-        def generate_and_save():
-            img = self._stitch_and_crop(
-                tiles_dict,
-                txmin,
-                txmax,
-                tymin,
-                tymax,
-                bbox,
-                size,
-                zoom,
-                effective_style,
-                dark,
-            )
-            img.save(bg_cache_path, format="PNG")
-            return img
+            total_tiles_needed = (txmax - txmin + 1) * (tymax - tymin + 1)
+            if cached_bg and len(tiles_dict) < total_tiles_needed:
+                _LOGGER.warning(
+                    "Failed to fetch updated tiles for OSM background (retrieved %d/%d);"
+                    " keeping existing cached background",
+                    len(tiles_dict),
+                    total_tiles_needed,
+                )
+                await asyncio.to_thread(_touch_file_sync, bg_cache_path)
+                return await hass.async_add_executor_job(
+                    lambda: Image.open(bg_cache_path).convert("RGBA")
+                )
 
-        return await hass.async_add_executor_job(generate_and_save)
+            def generate_and_save():
+                img = self._stitch_and_crop(
+                    tiles_dict,
+                    txmin,
+                    txmax,
+                    tymin,
+                    tymax,
+                    bbox,
+                    size,
+                    zoom,
+                    effective_style,
+                    dark,
+                )
+                img.save(bg_cache_path, format="PNG")
+                return img
+
+            return await hass.async_add_executor_job(generate_and_save)
+
+        except Exception as err:
+            if cached_bg:
+                _LOGGER.warning(
+                    "Error updating OSM background (%s); keeping existing cached"
+                    " background",
+                    err,
+                )
+                await asyncio.to_thread(_touch_file_sync, bg_cache_path)
+                return await hass.async_add_executor_job(
+                    lambda: Image.open(bg_cache_path).convert("RGBA")
+                )
+            raise

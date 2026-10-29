@@ -275,6 +275,8 @@ MINIMALIST_DARK_TILE_URL: Final = (
     "https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png"
 )
 STANDARD_OSM_TILE_URL: Final = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+OSM_BACKGROUND_CACHE_TTL: Final = timedelta(days=7)
+OSM_CACHE_TTL_SECONDS: Final = int(OSM_BACKGROUND_CACHE_TTL.total_seconds())
 
 
 class NLWeatherEntityFeature(IntFlag):
