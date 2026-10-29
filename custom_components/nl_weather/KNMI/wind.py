@@ -166,6 +166,55 @@ def parse_edr_wind_coverages(coverages: list[dict]) -> list[WindObservation]:
     return observations
 
 
+def create_app_target_wind_observation(
+    station_id: str,
+    lat: float,
+    lon: float,
+    wind_data: dict | None,
+) -> WindObservation | None:
+    """Create a WindObservation from KNMI App API wind data at target location."""
+    if not wind_data or not isinstance(wind_data, dict):
+        return None
+
+    speed_kmh = wind_data.get("speed")
+    direction = wind_data.get("degree")
+    if speed_kmh is None or direction is None:
+        return None
+
+    try:
+        speed_ms = float(speed_kmh) / 3.6
+        direction_deg = float(direction)
+        lat_f = float(lat)
+        lon_f = float(lon)
+    except (ValueError, TypeError):
+        return None
+
+    # Filter out invalid coordinates outside Netherlands region
+    if not (2.0 <= lon_f <= 8.0 and 50.0 <= lat_f <= 56.0):
+        return None
+
+    rad = math.radians(direction_deg)
+    # Wind direction is meteorological (from which wind blows)
+    # u is eastward component (dx/dt): -speed * sin(rad)
+    # v is northward component (dy/dt): -speed * cos(rad)
+    u = -speed_ms * math.sin(rad)
+    v = -speed_ms * math.cos(rad)
+
+    mx, my = epsg4325_to_epsg3857(Coordinate(lat=lat_f, lon=lon_f))
+
+    return WindObservation(
+        station_id=station_id,
+        lon=lon_f,
+        lat=lat_f,
+        x=mx,
+        y=my,
+        speed=speed_ms,
+        direction=direction_deg,
+        u=u,
+        v=v,
+    )
+
+
 class WindVectorGrid:
     """2D spatial grid of wind vectors interpolated via Inverse Distance Weighting."""
 

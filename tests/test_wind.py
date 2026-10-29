@@ -12,6 +12,7 @@ from custom_components.nl_weather.KNMI.wind import (
     WindObservation,
     WindParticleEngine,
     WindVectorGrid,
+    create_app_target_wind_observation,
     degrees_to_compass,
     parse_edr_wind_coverages,
     speed_to_bft,
@@ -110,6 +111,58 @@ def test_parse_edr_wind_coverages():
     # Wind FROM 270 (West) blows TOWARDS East: u = +10, v = 0
     assert pytest.approx(obs.u, abs=1e-3) == 10.0
     assert pytest.approx(obs.v, abs=1e-3) == 0.0
+
+
+def test_create_app_target_wind_observation():
+    """Test creating WindObservation from App API wind dictionary."""
+    # Speed is in km/h: 36 km/h = 10 m/s
+    wind_data = {
+        "source": "W",
+        "degree": 270.0,
+        "speed": 36.0,
+        "gusts": 50,
+        "beaufort": 5,
+    }
+    obs = create_app_target_wind_observation(
+        station_id="app_target_1",
+        lat=52.37,
+        lon=4.89,
+        wind_data=wind_data,
+    )
+    assert obs is not None
+    assert obs.station_id == "app_target_1"
+    assert pytest.approx(obs.speed, abs=1e-2) == 10.0
+    assert obs.direction == 270.0
+    # From West (270) -> blows East (u = +10, v = 0)
+    assert pytest.approx(obs.u, abs=1e-2) == 10.0
+    assert pytest.approx(obs.v, abs=1e-2) == 0.0
+    assert obs.lat == 52.37
+    assert obs.lon == 4.89
+    assert obs.x > 0
+    assert obs.y > 0
+
+    # Test invalid / missing values
+    assert create_app_target_wind_observation("app_target_1", 52.37, 4.89, None) is None
+    assert create_app_target_wind_observation("app_target_1", 52.37, 4.89, {}) is None
+    assert (
+        create_app_target_wind_observation(
+            "app_target_1", 52.37, 4.89, {"speed": None, "degree": 180}
+        )
+        is None
+    )
+    assert (
+        create_app_target_wind_observation(
+            "app_target_1", 52.37, 4.89, {"speed": 20, "degree": "invalid"}
+        )
+        is None
+    )
+    # Coordinates outside NL
+    assert (
+        create_app_target_wind_observation(
+            "app_target_1", 12.0, -68.0, {"speed": 20, "degree": 180}
+        )
+        is None
+    )
 
 
 def test_wind_vector_grid_interpolation():
@@ -320,3 +373,162 @@ async def test_hybrid_camera_entity_image():
     assert img_bytes[:4] == b"GIF8"
     assert cam._attr_unique_id == "test_entry_hybrid_weather"
     assert cam._attr_translation_key == "hybrid_weather"
+
+
+@pytest.mark.asyncio
+async def test_wind_camera_mixes_app_target_wind():
+    """Test that WindParticlesCam mixes in local App API target observation."""
+    mock_edr = MagicMock()
+    mock_edr.get_wind_observations = AsyncMock(
+        return_value=[
+            {
+                "eumetnet:locationId": "06240",
+                "domain": {"axes": {"x": {"values": [4.79]}, "y": {"values": [52.31]}}},
+                "ranges": {"dd": {"values": [180.0]}, "ff": {"values": [5.0]}},
+            }
+        ]
+    )
+
+    mock_subentry = MagicMock()
+    mock_subentry.data = {
+        "latitude": 52.37,
+        "longitude": 4.89,
+    }
+
+    mock_app_coord = MagicMock()
+    mock_app_coord.data = {
+        "wind": {
+            "speed": 21.6,  # 6.0 m/s
+            "degree": 270.0,
+        }
+    }
+
+    mock_entry = MagicMock()
+    mock_entry.entry_id = "test_entry"
+    mock_entry.options = {}
+    mock_entry.subentries = {"sub_1": mock_subentry}
+    mock_entry.runtime_data.edr = mock_edr
+    mock_entry.runtime_data.app_coordinators = {"sub_1": mock_app_coord}
+    mock_entry.runtime_data.notification_service.set_callback = MagicMock()
+
+    cam = WindParticlesCam(mock_entry)
+    cam.hass = MagicMock()
+    cam.hass.async_add_executor_job = AsyncMock(
+        side_effect=lambda func, *args: func(*args)
+    )
+    cam._background_image = Image.new("RGBA", (200, 200), (30, 30, 30, 255))
+    cam._radar_bbox = (0.0, 6300000, 1000000, 7300000)
+    cam.async_ensure_background = AsyncMock()
+
+    target_obs = cam._get_target_wind_observations()
+    assert len(target_obs) == 1
+    assert target_obs[0].station_id == "app_target_sub_1"
+    assert pytest.approx(target_obs[0].speed, abs=0.1) == 6.0
+    assert target_obs[0].direction == 270.0
+
+    img_bytes = await cam.async_camera_image()
+    assert img_bytes is not None
+    assert img_bytes[:4] == b"GIF8"
+
+
+@pytest.mark.asyncio
+async def test_wind_camera_edr_failure_fallback_to_app_target():
+    """Test that WindParticlesCam recovers and renders when EDR fails but App API target data is available."""
+    from custom_components.nl_weather.KNMI.edr import ServerError
+
+    mock_edr = MagicMock()
+    mock_edr.get_wind_observations = AsyncMock(side_effect=ServerError("KNMI EDR down"))
+
+    mock_subentry = MagicMock()
+    mock_subentry.data = {
+        "latitude": 52.37,
+        "longitude": 4.89,
+    }
+
+    mock_app_coord = MagicMock()
+    mock_app_coord.data = {
+        "hourly": {
+            "forecast": [
+                {
+                    "wind": {
+                        "speed": 18.0,  # 5.0 m/s
+                        "degree": 90.0,
+                    }
+                }
+            ]
+        }
+    }
+
+    mock_entry = MagicMock()
+    mock_entry.entry_id = "test_entry"
+    mock_entry.options = {}
+    mock_entry.subentries = {"sub_1": mock_subentry}
+    mock_entry.runtime_data.edr = mock_edr
+    mock_entry.runtime_data.app_coordinators = {"sub_1": mock_app_coord}
+    mock_entry.runtime_data.notification_service.set_callback = MagicMock()
+
+    cam = WindParticlesCam(mock_entry)
+    cam.hass = MagicMock()
+    cam.hass.async_add_executor_job = AsyncMock(
+        side_effect=lambda func, *args: func(*args)
+    )
+    cam._background_image = Image.new("RGBA", (200, 200), (30, 30, 30, 255))
+    cam._radar_bbox = (0.0, 6300000, 1000000, 7300000)
+    cam.async_ensure_background = AsyncMock()
+
+    img_bytes = await cam.async_camera_image()
+    assert img_bytes is not None
+    assert img_bytes[:4] == b"GIF8"
+
+
+@pytest.mark.asyncio
+async def test_hybrid_camera_mixes_app_target_wind():
+    """Test HybridWeatherCam mixes in App API target observations with radar reflectivity."""
+    from custom_components.nl_weather.camera import HybridWeatherCam
+
+    mock_edr = MagicMock()
+    mock_edr.get_wind_observations = AsyncMock(return_value=[])
+
+    mock_wms = MagicMock()
+    radar_buf = io.BytesIO()
+    Image.new("RGBA", (200, 200), (0, 0, 0, 0)).save(radar_buf, format="PNG")
+    mock_wms.radar_forecast_image = AsyncMock(return_value=radar_buf)
+
+    mock_subentry = MagicMock()
+    mock_subentry.data = {
+        "latitude": 52.37,
+        "longitude": 4.89,
+    }
+
+    mock_app_coord = MagicMock()
+    mock_app_coord.data = {
+        "wind": {
+            "speed": 14.4,  # 4.0 m/s
+            "degree": 180.0,
+        }
+    }
+
+    mock_entry = MagicMock()
+    mock_entry.entry_id = "test_entry"
+    mock_entry.options = {}
+    mock_entry.subentries = {"sub_1": mock_subentry}
+    mock_entry.runtime_data.edr = mock_edr
+    mock_entry.runtime_data.wms = mock_wms
+    mock_entry.runtime_data.app_coordinators = {"sub_1": mock_app_coord}
+    mock_entry.runtime_data.notification_service.set_callback = MagicMock()
+
+    cam = HybridWeatherCam(mock_entry)
+    cam.hass = MagicMock()
+    cam.hass.async_add_executor_job = AsyncMock(
+        side_effect=lambda func, *args: func(*args)
+    )
+    cam._background_image = Image.new("RGBA", (200, 200), (30, 30, 30, 255))
+    cam._radar_bbox = (0.0, 6300000, 1000000, 7300000)
+    cam.async_ensure_background = AsyncMock()
+    cam._latest_radar_datetime = AsyncMock(
+        return_value=datetime(2026, 10, 29, 14, 0, tzinfo=timezone.utc)
+    )
+
+    img_bytes = await cam.async_camera_image()
+    assert img_bytes is not None
+    assert img_bytes[:4] == b"GIF8"

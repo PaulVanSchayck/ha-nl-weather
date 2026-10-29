@@ -56,7 +56,13 @@ from .KNMI.osm import (
     calculate_weighted_center,
     get_known_zones,
 )
-from .KNMI.wind import WindParticleEngine, WindVectorGrid, parse_edr_wind_coverages
+from .KNMI.wind import (
+    WindObservation,
+    WindParticleEngine,
+    WindVectorGrid,
+    create_app_target_wind_observation,
+    parse_edr_wind_coverages,
+)
 from .KNMI.wms import WMSException
 
 _LOGGER = logging.getLogger(__name__)
@@ -273,6 +279,45 @@ class KNMICamera(Camera):
             _, end, _ = dim.text.strip().split("/")
             return datetime.fromisoformat(end.replace("Z", "+00:00"))
         return None
+
+    def _get_target_wind_observations(self) -> list[WindObservation]:
+        """Extract wind observations from configured App API target coordinators."""
+        target_observations: list[WindObservation] = []
+        runtime_data = getattr(self._config_entry, "runtime_data", None)
+        if not runtime_data:
+            return target_observations
+
+        app_coordinators = getattr(runtime_data, "app_coordinators", {})
+        if not app_coordinators:
+            return target_observations
+
+        subentries = getattr(self._config_entry, "subentries", {})
+        for subentry_id, subentry in subentries.items():
+            coord = app_coordinators.get(subentry_id)
+            if not coord or not coord.data:
+                continue
+
+            wind_data = coord.data.get("wind")
+            if not wind_data and "hourly" in coord.data:
+                hourly = coord.data.get("hourly", {}).get("forecast", [])
+                if hourly and isinstance(hourly[0], dict):
+                    wind_data = hourly[0].get("wind")
+
+            lat = subentry.data.get(CONF_LATITUDE)
+            lon = subentry.data.get(CONF_LONGITUDE)
+            if lat is None or lon is None:
+                continue
+
+            target_obs = create_app_target_wind_observation(
+                station_id=f"app_target_{subentry_id}",
+                lat=lat,
+                lon=lon,
+                wind_data=wind_data,
+            )
+            if target_obs:
+                target_observations.append(target_obs)
+
+        return target_observations
 
 
 class PrecipitationRadarCam(KNMICamera):
@@ -534,8 +579,10 @@ class WindParticlesCam(KNMICamera):
             _LOGGER.warning("No background image loaded for wind particles camera")
             return False
 
+        observations = []
         try:
             coverages = await self._edr.get_wind_observations()
+            observations = parse_edr_wind_coverages(coverages)
         except (
             aiohttp.ClientError,
             asyncio.TimeoutError,
@@ -546,13 +593,12 @@ class WindParticlesCam(KNMICamera):
             KeyError,
         ) as e:
             _LOGGER.warning("Error fetching wind observations from EDR: %s", e)
-            if self._last_image:
-                return True
-            return self._error_image("Unable to fetch wind data from KNMI EDR")
 
-        observations = parse_edr_wind_coverages(coverages)
+        # Mix in hyper-local target wind observations from the KNMI App API
+        observations.extend(self._get_target_wind_observations())
+
         if not observations:
-            _LOGGER.warning("No valid wind observations returned from EDR")
+            _LOGGER.warning("No valid wind observations returned from EDR or App API")
             if self._last_image:
                 return True
             return self._error_image("No wind observations available")
@@ -714,6 +760,9 @@ class HybridWeatherCam(KNMICamera):
             _LOGGER.warning(
                 "Could not fetch wind observations for hybrid camera: %s", e
             )
+
+        # Mix in hyper-local target wind observations from the KNMI App API
+        observations.extend(self._get_target_wind_observations())
 
         if not observations and radar_img is None:
             if self._last_image:
