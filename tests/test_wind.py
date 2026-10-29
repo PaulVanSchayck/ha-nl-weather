@@ -239,3 +239,84 @@ async def test_wind_camera_entity_image(monkeypatch):
     assert img_bytes[:4] == b"GIF8"
     assert cam._attr_unique_id == "test_entry_wind_particles"
     assert cam._attr_translation_key == "wind_particles"
+
+
+@pytest.mark.asyncio
+async def test_camera_async_setup_entry_selection():
+    """Test camera platform async_setup_entry maps selection."""
+    from custom_components.nl_weather.camera import async_setup_entry
+
+    mock_entry = MagicMock()
+    mock_entry.entry_id = "test_entry"
+    mock_entry.subentries = {}
+    mock_entry.runtime_data = MagicMock()
+
+    # Test all three enabled
+    mock_entry.options = {"enabled_maps": ["precipitation", "wind", "hybrid"]}
+    added_entities = []
+    await async_setup_entry(
+        MagicMock(), mock_entry, lambda ents: added_entities.extend(ents)
+    )
+    assert len(added_entities) == 3
+    keys = [e._attr_translation_key for e in added_entities]
+    assert "precipitation_radar" in keys
+    assert "wind_particles" in keys
+    assert "hybrid_weather" in keys
+
+    # Test only hybrid
+    mock_entry.options = {"enabled_maps": ["hybrid"]}
+    added_entities.clear()
+    await async_setup_entry(
+        MagicMock(), mock_entry, lambda ents: added_entities.extend(ents)
+    )
+    assert len(added_entities) == 1
+    assert added_entities[0]._attr_translation_key == "hybrid_weather"
+
+
+@pytest.mark.asyncio
+async def test_hybrid_camera_entity_image():
+    """Test HybridWeatherCam entity image generation with mock EDR and WMS."""
+    from custom_components.nl_weather.camera import HybridWeatherCam
+
+    mock_edr = MagicMock()
+    mock_edr.get_wind_observations = AsyncMock(
+        return_value=[
+            {
+                "eumetnet:locationId": "06240",
+                "domain": {"axes": {"x": {"values": [4.79]}, "y": {"values": [52.31]}}},
+                "ranges": {"dd": {"values": [220.0]}, "ff": {"values": [4.5]}},
+            }
+        ]
+    )
+
+    mock_wms = MagicMock()
+    radar_buf = io.BytesIO()
+    Image.new("RGBA", (200, 200), (0, 0, 0, 0)).save(radar_buf, format="PNG")
+    mock_wms.radar_forecast_image = AsyncMock(return_value=radar_buf)
+
+    mock_entry = MagicMock()
+    mock_entry.entry_id = "test_entry"
+    mock_entry.options = {}
+    mock_entry.subentries = {}
+    mock_entry.runtime_data.edr = mock_edr
+    mock_entry.runtime_data.wms = mock_wms
+    mock_entry.runtime_data.notification_service.set_callback = MagicMock()
+
+    cam = HybridWeatherCam(mock_entry)
+    cam.hass = MagicMock()
+    cam.hass.async_add_executor_job = AsyncMock(
+        side_effect=lambda func, *args: func(*args)
+    )
+    cam._background_image = Image.new("RGBA", (200, 200), (30, 30, 30, 255))
+    cam._radar_bbox = (0.0, 6300000, 1000000, 7300000)
+    cam.async_ensure_background = AsyncMock()
+    cam._latest_radar_datetime = AsyncMock(
+        return_value=datetime(2026, 10, 29, 14, 0, tzinfo=timezone.utc)
+    )
+
+    img_bytes = await cam.async_camera_image()
+
+    assert img_bytes is not None
+    assert img_bytes[:4] == b"GIF8"
+    assert cam._attr_unique_id == "test_entry_hybrid_weather"
+    assert cam._attr_translation_key == "hybrid_weather"

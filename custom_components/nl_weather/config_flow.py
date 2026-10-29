@@ -32,6 +32,7 @@ from homeassistant.helpers.selector import (
     SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
+    SelectSelectorMode,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
@@ -46,6 +47,7 @@ from .const import (
     CONF_CENTER_LONGITUDE,
     CONF_CENTER_MODE,
     CONF_EDR_API_TOKEN,
+    CONF_ENABLED_MAPS,
     CONF_MAP_PROVIDER,
     CONF_MAP_STYLE,
     CONF_MARK_LOCATIONS,
@@ -55,6 +57,7 @@ from .const import (
     CONF_WMS_TOKEN,
     CONF_ZOOM_LEVEL,
     DEFAULT_CENTER_MODE,
+    DEFAULT_ENABLED_MAPS,
     DEFAULT_MAP_PROVIDER,
     DEFAULT_OSM_MAP_STYLE,
     DEFAULT_RADAR_STYLE,
@@ -63,6 +66,7 @@ from .const import (
     RADAR_STYLES,
     CenterMode,
     MapProvider,
+    MapType,
     OSMMapStyle,
     StationMode,
 )
@@ -107,6 +111,16 @@ DATA_SCHEMA = vol.Schema(
 
 OPTIONS_SCHEMA = vol.Schema(
     {
+        vol.Required(CONF_ENABLED_MAPS, default=DEFAULT_ENABLED_MAPS): SelectSelector(
+            SelectSelectorConfig(
+                options=[
+                    SelectOptionDict(value=m.value, label=m.value) for m in MapType
+                ],
+                multiple=True,
+                mode=SelectSelectorMode.LIST,
+                translation_key="map_types",
+            ),
+        ),
         vol.Required(CONF_MAP_PROVIDER, default=DEFAULT_MAP_PROVIDER): SelectSelector(
             SelectSelectorConfig(
                 options=[

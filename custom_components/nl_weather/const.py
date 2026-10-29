@@ -48,6 +48,7 @@ CONF_ZOOM_LEVEL: Final = "zoom_level"
 CONF_CENTER_MODE: Final = "center_mode"
 CONF_CENTER_LATITUDE: Final = "center_latitude"
 CONF_CENTER_LONGITUDE: Final = "center_longitude"
+CONF_ENABLED_MAPS: Final = "enabled_maps"
 
 # https://www.knmi.nl/kennis-en-datacentrum/publicatie/handboek-waarnemingen
 # Tabel 6: Beschrijving weercodegenerator
@@ -267,6 +268,16 @@ class CenterMode(StrEnum):
 DEFAULT_CENTER_MODE = CenterMode.AUTO
 DEFAULT_ZOOM_LEVEL = "auto"
 DEFAULT_ZOOM_MARGIN = 0.50
+
+
+class MapType(StrEnum):
+    PRECIPITATION = "precipitation"
+    WIND = "wind"
+    HYBRID = "hybrid"
+
+
+DEFAULT_ENABLED_MAPS: Final = [MapType.PRECIPITATION.value, MapType.WIND.value]
+
 
 MINIMALIST_LIGHT_TILE_URL: Final = (
     "https://basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}.png"

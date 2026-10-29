@@ -25,12 +25,14 @@ from .const import (
     CONF_CENTER_LATITUDE,
     CONF_CENTER_LONGITUDE,
     CONF_CENTER_MODE,
+    CONF_ENABLED_MAPS,
     CONF_MAP_PROVIDER,
     CONF_MAP_STYLE,
     CONF_MARK_LOCATIONS,
     CONF_RADAR_STYLE,
     CONF_ZOOM_LEVEL,
     DEFAULT_CENTER_MODE,
+    DEFAULT_ENABLED_MAPS,
     DEFAULT_MAP_PROVIDER,
     DEFAULT_OSM_MAP_STYLE,
     DEFAULT_RADAR_STYLE,
@@ -40,6 +42,7 @@ from .const import (
     RADAR_STYLES,
     CenterMode,
     MapProvider,
+    MapType,
     OSMMapStyle,
     RadarStyle,
 )
@@ -69,12 +72,17 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up NL Weather camera entities."""
-    async_add_entities(
-        [
-            PrecipitationRadarCam(config_entry),
-            WindParticlesCam(config_entry),
-        ]
-    )
+    enabled_maps = config_entry.options.get(CONF_ENABLED_MAPS, DEFAULT_ENABLED_MAPS)
+    entities: list[Camera] = []
+
+    if MapType.PRECIPITATION.value in enabled_maps:
+        entities.append(PrecipitationRadarCam(config_entry))
+    if MapType.WIND.value in enabled_maps:
+        entities.append(WindParticlesCam(config_entry))
+    if MapType.HYBRID.value in enabled_maps:
+        entities.append(HybridWeatherCam(config_entry))
+
+    async_add_entities(entities)
 
 
 class KNMICamera(Camera):
@@ -251,6 +259,21 @@ class KNMICamera(Camera):
         elif self._background_image is None:
             await self.async_load_background()
 
+    async def _latest_radar_datetime(self) -> datetime | None:
+        """Get the latest available radar image datetime from WMS GetCapabilities."""
+        wms = getattr(self, "_wms", None) or self._config_entry.runtime_data.wms
+        try:
+            tree = await wms.get_capabilities_radar()
+        except (WMSException, aiohttp.ClientError, asyncio.TimeoutError) as e:
+            _LOGGER.warning("Cannot GetCapabilities from WMS: %s", e)
+            return None
+
+        root = tree.getroot()
+        for dim in root.findall(".//{*}Dimension[@name='time']"):
+            _, end, _ = dim.text.strip().split("/")
+            return datetime.fromisoformat(end.replace("Z", "+00:00"))
+        return None
+
 
 class PrecipitationRadarCam(KNMICamera):
     """A camera component producing animated radar-imagery GIFs.
@@ -420,20 +443,6 @@ class PrecipitationRadarCam(KNMICamera):
 
         _LOGGER.debug("Stored image")
 
-    async def __latest_image_datetime(self):
-        # Get the latest available image from a GetCapabilities call
-        try:
-            tree = await self._wms.get_capabilities_radar()
-        except WMSException as e:
-            _LOGGER.warning("Cannot GetCapabilities from WMS: %s", e)
-            return None
-
-        root = tree.getroot()
-
-        for dim in root.findall(".//{*}Dimension[@name='time']"):
-            _, end, _ = dim.text.strip().split("/")
-            return datetime.fromisoformat(end)
-        return None
 
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
@@ -444,7 +453,7 @@ class PrecipitationRadarCam(KNMICamera):
 
         if self._last_modified is None:
             # No event received yet
-            self._last_modified = await self.__latest_image_datetime()
+            self._last_modified = await self._latest_radar_datetime()
             if self._last_modified is None:
                 return None
 
@@ -629,6 +638,199 @@ class WindParticlesCam(KNMICamera):
         self._ns.set_callback(
             "10-minute-in-situ-meteorological-observations",
             self._attr_unique_id,
+            self._set_latest,
+        )
+        await self.async_load_background()
+
+
+class HybridWeatherCam(KNMICamera):
+    """A camera component producing hybrid precipitation radar and wind particle animations."""
+
+    def __init__(self, config_entry: NLWeatherConfigEntry) -> None:
+        """Initialize hybrid weather camera."""
+        super().__init__(config_entry)
+
+        self._attr_unique_id = f"{config_entry.entry_id}_hybrid_weather"
+        self._attr_device_info = DeviceInfo(
+            name="Hybride kaart",
+            entry_type=DeviceEntryType.SERVICE,
+            identifiers={(DOMAIN, f"{config_entry.entry_id}_hybrid_weather")},
+            manufacturer="KNMI.nl",
+            configuration_url="https://www.knmi.nl",
+        )
+        self._attr_translation_key = "hybrid_weather"
+
+        self._wms = config_entry.runtime_data.wms
+        self._edr = config_entry.runtime_data.edr
+        self._ns = config_entry.runtime_data.notification_service
+
+    def __needs_refresh(self) -> bool:
+        if self._last_image is None or self._last_image_dt is None:
+            return True
+
+        if self._last_modified and self._last_modified > self._last_image_dt:
+            return True
+
+        return (dt_util.utcnow() - self._last_image_dt) >= timedelta(minutes=10)
+
+    async def _retrieve_hybrid_image(self) -> bool:
+        """Retrieve latest radar frame and wind observations, compositing into animated GIF."""
+        await self.async_ensure_background()
+
+        if self._background_image is None:
+            _LOGGER.warning("No background image loaded for hybrid camera")
+            return False
+
+        ref_time = await self._latest_radar_datetime()
+        if ref_time is None:
+            ref_time = dt_util.utcnow()
+
+        radar_img = None
+        try:
+            radar_buf = await self._wms.radar_forecast_image(
+                ref_time,
+                ref_time,
+                (600, 600),
+                self._radar_bbox_param,
+                self._radar_style.wms_style,
+            )
+            radar_img = Image.open(radar_buf, formats=["PNG"]).convert("RGBA")
+        except (WMSException, aiohttp.ClientError, asyncio.TimeoutError) as e:
+            _LOGGER.warning("Could not fetch radar image for hybrid camera: %s", e)
+
+        observations = []
+        try:
+            coverages = await self._edr.get_wind_observations()
+            observations = parse_edr_wind_coverages(coverages)
+        except (
+            aiohttp.ClientError,
+            asyncio.TimeoutError,
+            ServerError,
+            NotFoundError,
+            TokenInvalid,
+            InvalidRequest,
+            KeyError,
+        ) as e:
+            _LOGGER.warning(
+                "Could not fetch wind observations for hybrid camera: %s", e
+            )
+
+        if not observations and radar_img is None:
+            if self._last_image:
+                return True
+            return self._error_image("No radar or wind observations available")
+
+        # Resize base map to 600x600 for performance and composite radar layer
+        base_map = self._background_image.resize(
+            (600, 600), Image.Resampling.LANCZOS
+        ).convert("RGBA")
+        if radar_img:
+            if radar_img.size != base_map.size:
+                radar_img = radar_img.resize(base_map.size)
+            base_composite = Image.alpha_composite(base_map, radar_img)
+            radar_img.close()
+        else:
+            base_composite = base_map
+
+        now = dt_util.as_local(ref_time)
+        header_color = self._radar_style.time_past_color
+
+        if observations:
+            grid = WindVectorGrid(
+                observations,
+                self._radar_bbox,
+                grid_w=40,
+                grid_h=40,
+            )
+            engine = WindParticleEngine(
+                grid,
+                canvas_size=(600, 600),
+                n_particles=750,
+                n_frames=30,
+                frame_duration_ms=70,
+                vel_scale=0.85,
+            )
+            self._last_image = await self.hass.async_add_executor_job(
+                engine.render_animation,
+                base_composite,
+                now,
+                header_color,
+            )
+        else:
+            with io.BytesIO() as out:
+                draw_comp = ImageDraw.Draw(base_composite)
+                draw_comp.text(
+                    (16, 16),
+                    now.strftime("%a %H:%M"),
+                    fill=header_color,
+                    font_size=26,
+                    stroke_width=0.8,
+                )
+                base_composite.save(out, format="GIF")
+                self._last_image = out.getvalue()
+
+        self._last_image_dt = dt_util.utcnow()
+        return True
+
+    def _error_image(self, message: str) -> bool:
+        with io.BytesIO() as output:
+            img = (
+                self._background_image.copy()
+                if self._background_image
+                else Image.new("RGBA", (600, 600), (30, 30, 30, 255))
+            )
+            draw = ImageDraw.Draw(img)
+            draw.text(
+                (24, 24),
+                message,
+                fill="red",
+                font_size=28,
+                stroke_width=1,
+            )
+            img.save(output, format="GIF")
+            self._last_image = output.getvalue()
+
+        return True
+
+    async def async_camera_image(
+        self, width: int | None = None, height: int | None = None
+    ) -> bytes | None:
+        """Return bytes of animated hybrid radar + wind particle GIF."""
+        if not self.__needs_refresh():
+            return self._last_image
+
+        async with self._condition:
+            while self._loading:
+                _LOGGER.debug(
+                    "Hybrid camera already loading - waiting for notification"
+                )
+                await self._condition.wait()
+
+            if not self.__needs_refresh():
+                return self._last_image
+
+            self._loading = True
+
+        try:
+            await self._retrieve_hybrid_image()
+            return self._last_image
+        finally:
+            async with self._condition:
+                self._loading = False
+                self._condition.notify_all()
+
+    async def _set_latest(self, event):
+        """Notification callback when new data arrives."""
+        self._last_modified = dt_util.utcnow()
+
+    async def async_added_to_hass(self):
+        """Register callbacks and load base map background."""
+        self._ns.set_callback(
+            "radar_forecast", f"{self._attr_unique_id}_radar", self._set_latest
+        )
+        self._ns.set_callback(
+            "10-minute-in-situ-meteorological-observations",
+            f"{self._attr_unique_id}_wind",
             self._set_latest,
         )
         await self.async_load_background()

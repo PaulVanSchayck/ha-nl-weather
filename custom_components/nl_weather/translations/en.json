@@ -6,6 +6,9 @@
       },
       "wind_particles": {
         "name": "Wind Map"
+      },
+      "hybrid_weather": {
+        "name": "Hybrid Map"
       }
     },
     "weather":{
@@ -203,6 +206,7 @@
     "step": {
       "init": {
         "data": {
+          "enabled_maps": "Weather maps",
           "map_provider": "Map background provider",
           "radar_style": "Radar color theme",
           "map_style": "OSM map style",
@@ -214,6 +218,7 @@
           "center_longitude": "Custom center longitude"
         },
         "data_description": {
+          "enabled_maps": "Select which weather map cameras to create: Precipitation Radar, Wind Particles, or Hybrid (Radar + Wind)",
           "map_provider": "Choose between the default static map of the Netherlands or dynamic OpenStreetMap",
           "radar_style": "Select the color style used for the radar image",
           "map_style": "Minimalist style is recommended for weather radar overlays",
@@ -228,6 +233,13 @@
     }
   },
   "selector": {
+    "map_types": {
+      "options": {
+        "precipitation": "Precipitation Map",
+        "wind": "Wind Map",
+        "hybrid": "Hybrid Map"
+      }
+    },
     "map_provider": {
       "options": {
         "static": "Static map (Netherlands)",

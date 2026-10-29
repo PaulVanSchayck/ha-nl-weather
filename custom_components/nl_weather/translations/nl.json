@@ -6,6 +6,9 @@
       },
       "wind_particles": {
         "name": "Windkaart"
+      },
+      "hybrid_weather": {
+        "name": "Hybride kaart"
       }
     },
     "weather":{
@@ -203,6 +206,7 @@
     "step": {
       "init": {
         "data": {
+          "enabled_maps": "Weerkaarten",
           "map_provider": "Kaartachtergrond",
           "radar_style": "Kleurenthema van radar",
           "map_style": "OSM kaartstijl",
@@ -214,6 +218,7 @@
           "center_longitude": "Aangepaste lengtegraad"
         },
         "data_description": {
+          "enabled_maps": "Selecteer welke weerkaartcamera's moeten worden aangemaakt: Neerslagradar, Windkaart of Hybride (Radar + Wind)",
           "map_provider": "Kies tussen de standaard statische kaart van Nederland of dynamische OpenStreetMap",
           "radar_style": "Kies welke kleurstijl wordt gebruikt voor de radarafbeelding.",
           "map_style": "Minimalistische stijl wordt aanbevolen voor neerslagradars",
@@ -228,6 +233,13 @@
     }
   },
   "selector": {
+    "map_types": {
+      "options": {
+        "precipitation": "Neerslagradar",
+        "wind": "Windkaart",
+        "hybrid": "Hybride kaart (Radar + Wind)"
+      }
+    },
     "map_provider": {
       "options": {
         "static": "Statische kaart (Nederland)",
