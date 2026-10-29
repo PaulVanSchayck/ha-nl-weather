@@ -153,12 +153,12 @@ OPTIONS_SCHEMA = vol.Schema(
         ),
         vol.Optional(CONF_CENTER_LATITUDE): NumberSelector(
             NumberSelectorConfig(
-                min=-90.0, max=90.0, step=0.0001, mode=NumberSelectorMode.BOX
+                min=-90.0, max=90.0, step="any", mode=NumberSelectorMode.BOX
             )
         ),
         vol.Optional(CONF_CENTER_LONGITUDE): NumberSelector(
             NumberSelectorConfig(
-                min=-180.0, max=180.0, step=0.0001, mode=NumberSelectorMode.BOX
+                min=-180.0, max=180.0, step="any", mode=NumberSelectorMode.BOX
             )
         ),
     }
