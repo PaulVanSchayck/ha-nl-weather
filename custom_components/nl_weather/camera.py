@@ -20,6 +20,7 @@ from PIL import Image, ImageDraw
 from PIL.ImageFile import ImageFile
 
 from .const import (
+    CONF_CARTO_API_KEY,
     CONF_CENTER_LATITUDE,
     CONF_CENTER_LONGITUDE,
     CONF_CENTER_MODE,
@@ -219,8 +220,15 @@ class PrecipitationRadarCam(Camera):
         )
 
         is_dark = self._radar_style_key == "dark"
+        carto_key = self._options.get(CONF_CARTO_API_KEY)
         img = await tile_manager.async_get_osm_background(
-            self.hass, bbox, osm_size, zoom, self._map_style, is_dark
+            self.hass,
+            bbox,
+            osm_size,
+            zoom,
+            self._map_style,
+            is_dark,
+            carto_api_key=carto_key,
         )
 
         if self._mark_locations:

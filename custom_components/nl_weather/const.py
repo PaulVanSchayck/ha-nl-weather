@@ -43,6 +43,7 @@ CONF_STATION: Final = "station"
 CONF_MODE: Final = "mode"
 CONF_MAP_PROVIDER: Final = "map_provider"
 CONF_MAP_STYLE: Final = "map_style"
+CONF_CARTO_API_KEY: Final = "carto_api_key"
 CONF_ZOOM_LEVEL: Final = "zoom_level"
 CONF_CENTER_MODE: Final = "center_mode"
 CONF_CENTER_LATITUDE: Final = "center_latitude"
@@ -255,7 +256,7 @@ class OSMMapStyle(StrEnum):
     STANDARD = "standard"
 
 
-DEFAULT_OSM_MAP_STYLE = OSMMapStyle.MINIMALIST
+DEFAULT_OSM_MAP_STYLE = OSMMapStyle.STANDARD
 
 
 class CenterMode(StrEnum):
@@ -268,10 +269,10 @@ DEFAULT_ZOOM_LEVEL = "auto"
 DEFAULT_ZOOM_MARGIN = 0.50
 
 MINIMALIST_LIGHT_TILE_URL: Final = (
-    "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+    "https://basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}.png"
 )
 MINIMALIST_DARK_TILE_URL: Final = (
-    "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+    "https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png"
 )
 STANDARD_OSM_TILE_URL: Final = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 

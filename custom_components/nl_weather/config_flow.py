@@ -41,6 +41,7 @@ from homeassistant.helpers.selector import (
 from . import EDR, WMS
 from .const import (
     ALERT_REGIONS,
+    CONF_CARTO_API_KEY,
     CONF_CENTER_LATITUDE,
     CONF_CENTER_LONGITUDE,
     CONF_CENTER_MODE,
@@ -129,6 +130,9 @@ OPTIONS_SCHEMA = vol.Schema(
                 ],
                 translation_key="map_style",
             ),
+        ),
+        vol.Optional(CONF_CARTO_API_KEY): TextSelector(
+            TextSelectorConfig(type=TextSelectorType.PASSWORD)
         ),
         vol.Required(CONF_MARK_LOCATIONS, default=True): BooleanSelector(),
         vol.Required(CONF_ZOOM_LEVEL, default=DEFAULT_ZOOM_LEVEL): SelectSelector(

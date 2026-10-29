@@ -241,3 +241,24 @@ def test_get_known_zones():
     assert (52.3676, 4.9041, 250.0) in zones
     assert (52.0907, 5.1214, 100.0) in zones
     assert (51.9244, 4.4777, 100.0) in zones
+
+
+def test_carto_api_key_cache_path():
+    """Test that carto_api_key changes cache path."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        mgr = OSMTileManager(None, tmpdir)
+        bbox = (100.0, 200.0, 300.0, 400.0)
+        size = (765, 765)
+
+        path_no_key = mgr._get_background_cache_path(
+            bbox, size, 10, "minimalist", False, carto_api_key=None
+        )
+        path_with_key1 = mgr._get_background_cache_path(
+            bbox, size, 10, "minimalist", False, carto_api_key="key1"
+        )
+        path_with_key2 = mgr._get_background_cache_path(
+            bbox, size, 10, "minimalist", False, carto_api_key="key2"
+        )
+
+        assert path_no_key != path_with_key1
+        assert path_with_key1 != path_with_key2

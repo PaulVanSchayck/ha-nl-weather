@@ -212,8 +212,9 @@ class OSMTileManager:
         zoom: int,
         style: str,
         dark: bool,
+        carto_api_key: str | None = None,
     ) -> str:
-        key_str = f"{style}_{dark}_{zoom}_{bbox[0]:.1f}_{bbox[1]:.1f}_{bbox[2]:.1f}_{bbox[3]:.1f}_{size[0]}_{size[1]}"
+        key_str = f"{style}_{dark}_{carto_api_key or ''}_{zoom}_{bbox[0]:.1f}_{bbox[1]:.1f}_{bbox[2]:.1f}_{bbox[3]:.1f}_{size[0]}_{size[1]}"
         hash_digest = hashlib.sha256(key_str.encode()).hexdigest()[:16]
         return os.path.join(self._cache_dir, f"bg_{hash_digest}.png")
 
@@ -297,10 +298,11 @@ class OSMTileManager:
         zoom: int,
         style: OSMMapStyle,
         dark: bool,
+        carto_api_key: str | None = None,
     ) -> Image.Image:
         """Fetch, stitch, and cache the background map image for the given BBOX."""
         bg_cache_path = self._get_background_cache_path(
-            bbox, size, zoom, style.value, dark
+            bbox, size, zoom, style.value, dark, carto_api_key
         )
 
         cached_bg = await asyncio.to_thread(os.path.exists, bg_cache_path)
@@ -313,11 +315,22 @@ class OSMTileManager:
         txmin, tymax = tile_coordinates(xmin, ymin, zoom)
         txmax, tymin = tile_coordinates(xmax, ymax, zoom)
 
+        effective_style = style
         if style == OSMMapStyle.MINIMALIST:
-            url_template = (
-                MINIMALIST_DARK_TILE_URL if dark else MINIMALIST_LIGHT_TILE_URL
-            )
-            cache_style_key = "minimalist_dark" if dark else "minimalist_light"
+            if carto_api_key:
+                base_url = (
+                    MINIMALIST_DARK_TILE_URL if dark else MINIMALIST_LIGHT_TILE_URL
+                )
+                url_template = f"{base_url}?key={carto_api_key}"
+                cache_style_key = "minimalist_dark" if dark else "minimalist_light"
+            else:
+                _LOGGER.info(
+                    "Minimalist map style selected but no Carto API key provided; "
+                    "falling back to transformed OpenStreetMap tiles"
+                )
+                url_template = STANDARD_OSM_TILE_URL
+                cache_style_key = "standard"
+                effective_style = OSMMapStyle.STANDARD
         else:
             url_template = STANDARD_OSM_TILE_URL
             cache_style_key = "standard"
@@ -347,7 +360,7 @@ class OSMTileManager:
                 bbox,
                 size,
                 zoom,
-                style,
+                effective_style,
                 dark,
             )
             img.save(bg_cache_path, format="PNG")
