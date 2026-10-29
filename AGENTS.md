@@ -143,7 +143,8 @@ ha-nl-weather/
   - Global options:
     - `map_provider`: `static` (default) or `osm` (OpenStreetMap).
     - `radar_style`: `light` or `dark`.
-    - `map_style`: `minimalist` (OpenMapTiles / Positron & Dark Matter) or `standard` (OSM).
+    - `map_style`: `standard` (default OSM) or `minimalist` (Carto Positron & Dark Matter).
+    - `carto_api_key`: optional free API key from `carto.com/basemaps/apikey` for minimalist style.
     - `mark_locations`: boolean (default True).
     - `zoom_level`: `auto` (fits all known zones with 50% margin) or fixed integer levels `6` through `14`.
     - `center_mode`: `auto` (weighted center of all known zones) or `custom`.
