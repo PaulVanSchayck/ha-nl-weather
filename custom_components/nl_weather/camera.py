@@ -690,22 +690,9 @@ class WindParticlesCam(KNMICamera):
         if wind_time is None:
             wind_time = dt_util.utcnow()
 
-        base_map = self._background_image.resize(
+        base_composite = self._background_image.resize(
             (600, 600), Image.Resampling.LANCZOS
         ).convert("RGBA")
-
-        if wind_speed_img:
-            if wind_speed_img.size != base_map.size:
-                wind_speed_img = wind_speed_img.resize(
-                    base_map.size, Image.Resampling.LANCZOS
-                )
-            # Composite translucent wind speed heatmap layer onto base map
-            r, g, b, a = wind_speed_img.split()
-            a = a.point(lambda p: int(p * 0.55))
-            wind_trans = Image.merge("RGBA", (r, g, b, a))
-            base_composite = Image.alpha_composite(base_map, wind_trans)
-        else:
-            base_composite = base_map
 
         observations = []
         try:
