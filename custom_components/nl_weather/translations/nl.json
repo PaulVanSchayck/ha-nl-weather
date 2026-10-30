@@ -200,17 +200,63 @@
     "step": {
       "init": {
         "data": {
+          "map_provider": "Kaartachtergrond",
           "radar_style": "Kleurenthema van radar",
-          "mark_locations": "Markeer locaties"
+          "map_style": "OSM kaartstijl",
+          "carto_api_key": "Carto API-sleutel",
+          "mark_locations": "Markeer locaties",
+          "zoom_level": "Zoomniveau",
+          "center_mode": "Kaartmiddelpunt",
+          "center_latitude": "Aangepaste breedtegraad",
+          "center_longitude": "Aangepaste lengtegraad"
         },
         "data_description": {
+          "map_provider": "Kies tussen de standaard statische kaart van Nederland of dynamische OpenStreetMap",
           "radar_style": "Kies welke kleurstijl wordt gebruikt voor de radarafbeelding.",
-          "mark_locations": "Markeer de thuislocatie op de radarafbeelding"
+          "map_style": "Minimalistische stijl wordt aanbevolen voor neerslagradars",
+          "carto_api_key": "Optionele gratis API-sleutel van carto.com/basemaps/apikey voor minimalistische rastertegels",
+          "mark_locations": "Markeer geconfigureerde locaties en zones op de radarafbeelding",
+          "zoom_level": "Automatische zoom omvat alle bekende zones met 50% marge, of kies een vast zoomniveau",
+          "center_mode": "Centreer op het gewogen middelpunt van alle bekende zones of stel aangepaste coördinaten in",
+          "center_latitude": "Breedtegraad in decimale graden (bijv. 52.1326)",
+          "center_longitude": "Lengtegraad in decimale graden (bijv. 5.2913)"
         }
       }
     }
   },
   "selector": {
+    "map_provider": {
+      "options": {
+        "static": "Statische kaart (Nederland)",
+        "osm": "OpenStreetMap"
+      }
+    },
+    "map_style": {
+      "options": {
+        "minimalist": "Minimalistisch (OpenMapTiles / Positron & Dark Matter)",
+        "standard": "Standaard OSM"
+      }
+    },
+    "center_mode": {
+      "options": {
+        "auto": "Automatisch (gewogen middelpunt van alle bekende zones)",
+        "custom": "Aangepaste coördinaten"
+      }
+    },
+    "zoom_level": {
+      "options": {
+        "auto": "Automatisch (alle bekende zones met 50% marge)",
+        "6": "6 - Benelux",
+        "7": "7 - Nederland",
+        "8": "8 - Regionaal (Breed)",
+        "9": "9 - Regionaal",
+        "10": "10 - Sub-regionaal",
+        "11": "11 - Stedelijk gebied",
+        "12": "12 - Stad",
+        "13": "13 - Dorp / Wijk",
+        "14": "14 - Buurt"
+      }
+    },
     "radar_style": {
       "options": {
         "light": "Licht",

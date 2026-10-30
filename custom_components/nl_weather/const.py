@@ -41,6 +41,13 @@ CONF_RADAR_STYLE: Final = "radar_style"
 CONF_MARK_LOCATIONS: Final = "mark_locations"
 CONF_STATION: Final = "station"
 CONF_MODE: Final = "mode"
+CONF_MAP_PROVIDER: Final = "map_provider"
+CONF_MAP_STYLE: Final = "map_style"
+CONF_CARTO_API_KEY: Final = "carto_api_key"
+CONF_ZOOM_LEVEL: Final = "zoom_level"
+CONF_CENTER_MODE: Final = "center_mode"
+CONF_CENTER_LATITUDE: Final = "center_latitude"
+CONF_CENTER_LONGITUDE: Final = "center_longitude"
 
 # https://www.knmi.nl/kennis-en-datacentrum/publicatie/handboek-waarnemingen
 # Tabel 6: Beschrijving weercodegenerator
@@ -234,6 +241,42 @@ DEFAULT_RADAR_STYLE = "light"
 class StationMode(StrEnum):
     AUTO = "auto"
     MANUAL = "manual"
+
+
+class MapProvider(StrEnum):
+    STATIC = "static"
+    OSM = "osm"
+
+
+DEFAULT_MAP_PROVIDER = MapProvider.STATIC
+
+
+class OSMMapStyle(StrEnum):
+    MINIMALIST = "minimalist"
+    STANDARD = "standard"
+
+
+DEFAULT_OSM_MAP_STYLE = OSMMapStyle.STANDARD
+
+
+class CenterMode(StrEnum):
+    AUTO = "auto"
+    CUSTOM = "custom"
+
+
+DEFAULT_CENTER_MODE = CenterMode.AUTO
+DEFAULT_ZOOM_LEVEL = "auto"
+DEFAULT_ZOOM_MARGIN = 0.50
+
+MINIMALIST_LIGHT_TILE_URL: Final = (
+    "https://basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}.png"
+)
+MINIMALIST_DARK_TILE_URL: Final = (
+    "https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png"
+)
+STANDARD_OSM_TILE_URL: Final = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+OSM_BACKGROUND_CACHE_TTL: Final = timedelta(days=7)
+OSM_CACHE_TTL_SECONDS: Final = int(OSM_BACKGROUND_CACHE_TTL.total_seconds())
 
 
 class NLWeatherEntityFeature(IntFlag):
