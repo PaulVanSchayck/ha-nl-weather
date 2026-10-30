@@ -77,7 +77,7 @@ class EDR:
     async def get_wind_observations(self, dt: datetime | None = None):
         """Retrieve 10-minute in-situ wind observations (dd, ff) for European NL."""
         if dt is None:
-            dt = datetime.now(timezone.utc)
+            dt = datetime.now(UTC)
         return await self.get_cube_coverages(dt, ["dd", "ff"], bbox=BBOX_EUROPEAN_NL)
 
     async def get_location_coverage(self, location, dt: datetime, parameters):

@@ -270,14 +270,14 @@ class KNMICamera(Camera):
         wms = getattr(self, "_wms", None) or self._config_entry.runtime_data.wms
         try:
             tree = await wms.get_capabilities_radar()
-        except (WMSException, aiohttp.ClientError, asyncio.TimeoutError) as e:
+        except (TimeoutError, WMSException, aiohttp.ClientError) as e:
             _LOGGER.warning("Cannot GetCapabilities from WMS: %s", e)
             return None
 
         root = tree.getroot()
         for dim in root.findall(".//{*}Dimension[@name='time']"):
             _, end, _ = dim.text.strip().split("/")
-            return datetime.fromisoformat(end.replace("Z", "+00:00"))
+            return datetime.fromisoformat(end)
         return None
 
     async def _latest_wind_datetime(self) -> datetime | None:
@@ -286,9 +286,9 @@ class KNMICamera(Camera):
         try:
             tree = await wms.get_capabilities_wind()
         except (
+            TimeoutError,
             WMSException,
             aiohttp.ClientError,
-            asyncio.TimeoutError,
             TypeError,
             AttributeError,
         ) as e:
@@ -299,7 +299,7 @@ class KNMICamera(Camera):
         for dim in root.findall(".//{*}Dimension[@name='time']"):
             times = dim.text.strip().split("/")
             if len(times) >= 2:
-                return datetime.fromisoformat(times[1].replace("Z", "+00:00"))
+                return datetime.fromisoformat(times[1])
         return None
 
     async def _retrieve_wind_speed_raster(
@@ -328,9 +328,9 @@ class KNMICamera(Camera):
                 img = Image.open(wind_buf, formats=["PNG"]).convert("RGBA")
                 return img, None, wind_time
             except (
+                TimeoutError,
                 WMSException,
                 aiohttp.ClientError,
-                asyncio.TimeoutError,
                 TypeError,
                 AttributeError,
                 KeyError,
@@ -352,9 +352,7 @@ class KNMICamera(Camera):
                 legend_steps = meas.get("legend", {}).get("steps", [])
                 time_str = meas.get("time")
                 wind_dt = (
-                    datetime.fromisoformat(time_str.replace("Z", "+00:00"))
-                    if time_str
-                    else dt_util.utcnow()
+                    datetime.fromisoformat(time_str) if time_str else dt_util.utcnow()
                 )
                 if detail_url:
                     session = async_get_clientsession(self.hass)
@@ -366,8 +364,8 @@ class KNMICamera(Camera):
                         return img, legend_steps, wind_dt
                 return None, legend_steps, wind_dt
             except (
+                TimeoutError,
                 aiohttp.ClientError,
-                asyncio.TimeoutError,
                 TypeError,
                 AttributeError,
                 KeyError,
@@ -589,7 +587,6 @@ class PrecipitationRadarCam(KNMICamera):
 
         _LOGGER.debug("Stored image")
 
-
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
@@ -699,8 +696,8 @@ class WindParticlesCam(KNMICamera):
             coverages = await self._edr.get_wind_observations()
             observations = parse_edr_wind_coverages(coverages)
         except (
+            TimeoutError,
             aiohttp.ClientError,
-            asyncio.TimeoutError,
             ServerError,
             NotFoundError,
             TokenInvalid,
@@ -860,7 +857,7 @@ class HybridWeatherCam(KNMICamera):
                 self._radar_style.wms_style,
             )
             radar_img = Image.open(radar_buf, formats=["PNG"]).convert("RGBA")
-        except (WMSException, aiohttp.ClientError, asyncio.TimeoutError) as e:
+        except (TimeoutError, WMSException, aiohttp.ClientError) as e:
             _LOGGER.warning("Could not fetch radar image for hybrid camera: %s", e)
 
         observations = []
@@ -868,8 +865,8 @@ class HybridWeatherCam(KNMICamera):
             coverages = await self._edr.get_wind_observations()
             observations = parse_edr_wind_coverages(coverages)
         except (
+            TimeoutError,
             aiohttp.ClientError,
-            asyncio.TimeoutError,
             ServerError,
             NotFoundError,
             TokenInvalid,

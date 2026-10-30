@@ -1,7 +1,7 @@
 """Tests for wind observation parsing, vector grid interpolation, and particle simulation."""
 
 import io
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -231,7 +231,7 @@ def test_wind_particle_engine_rendering():
     base = Image.new("RGBA", (200, 200), (20, 20, 20, 255))
     gif_bytes = engine.render_animation(
         base,
-        timestamp=datetime(2026, 10, 29, 10, 0, tzinfo=timezone.utc),
+        timestamp=datetime(2026, 10, 29, 10, 0, tzinfo=UTC),
     )
 
     assert isinstance(gif_bytes, bytes)
@@ -366,7 +366,7 @@ async def test_hybrid_camera_entity_image():
     cam._radar_bbox = (0.0, 6300000, 1000000, 7300000)
     cam.async_ensure_background = AsyncMock()
     cam._latest_radar_datetime = AsyncMock(
-        return_value=datetime(2026, 10, 29, 14, 0, tzinfo=timezone.utc)
+        return_value=datetime(2026, 10, 29, 14, 0, tzinfo=UTC)
     )
 
     img_bytes = await cam.async_camera_image()
@@ -528,7 +528,7 @@ async def test_hybrid_camera_mixes_app_target_wind():
     cam._radar_bbox = (0.0, 6300000, 1000000, 7300000)
     cam.async_ensure_background = AsyncMock()
     cam._latest_radar_datetime = AsyncMock(
-        return_value=datetime(2026, 10, 29, 14, 0, tzinfo=timezone.utc)
+        return_value=datetime(2026, 10, 29, 14, 0, tzinfo=UTC)
     )
 
     img_bytes = await cam.async_camera_image()
@@ -642,7 +642,7 @@ async def test_wind_camera_with_wms_speed_raster():
     cam._radar_bbox = (0.0, 6300000, 1000000, 7300000)
     cam.async_ensure_background = AsyncMock()
     cam._latest_wind_datetime = AsyncMock(
-        return_value=datetime(2026, 10, 30, 11, 20, tzinfo=timezone.utc)
+        return_value=datetime(2026, 10, 30, 11, 20, tzinfo=UTC)
     )
 
     img_bytes = await cam.async_camera_image()
@@ -678,7 +678,7 @@ async def test_wms_wind_speed_image_unmasked_vs_masked():
     wms = WMS(mock_session, "dummy_token")
     wms.get = AsyncMock(return_value=io.BytesIO(b"dummy_png"))
 
-    dt = datetime(2026, 10, 30, 11, 40, tzinfo=timezone.utc)
+    dt = datetime(2026, 10, 30, 11, 40, tzinfo=UTC)
 
     # 1. Default / unmasked -> windspeed_mean
     await wms.wind_speed_image(
@@ -722,7 +722,7 @@ async def test_retrieve_wind_speed_raster_priority_and_fallback():
 
     cam = WindParticlesCam(mock_entry)
     cam._latest_wind_datetime = AsyncMock(
-        return_value=datetime(2026, 10, 30, 11, 40, tzinfo=timezone.utc)
+        return_value=datetime(2026, 10, 30, 11, 40, tzinfo=UTC)
     )
 
     # Priority: WMS is called, App API is NOT called
