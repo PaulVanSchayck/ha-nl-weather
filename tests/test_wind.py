@@ -667,3 +667,78 @@ async def test_app_windspeed_measurements():
     app.get.assert_awaited_once_with(
         "measurements/windspeed", {"unit": "kilometerPerHour"}
     )
+
+
+@pytest.mark.asyncio
+async def test_wms_wind_speed_image_unmasked_vs_masked():
+    """Test WMS wind_speed_image layer selection (windspeed_mean vs windspeed_mean_masked)."""
+    from custom_components.nl_weather.KNMI.wms import WMS
+
+    mock_session = MagicMock()
+    wms = WMS(mock_session, "dummy_token")
+    wms.get = AsyncMock(return_value=io.BytesIO(b"dummy_png"))
+
+    dt = datetime(2026, 10, 30, 11, 40, tzinfo=timezone.utc)
+
+    # 1. Default / unmasked -> windspeed_mean
+    await wms.wind_speed_image(
+        dt, (600, 600), "0.0,6300000,1000000,7300000", masked=False
+    )
+    params_unmasked = wms.get.call_args[0][0]
+    assert params_unmasked["LAYERS"] == "windspeed_mean"
+    assert params_unmasked["DATASET"] == "high_resolution_weather_maps"
+
+    # 2. Masked -> windspeed_mean_masked
+    await wms.wind_speed_image(
+        dt, (600, 600), "0.0,6300000,1000000,7300000", masked=True
+    )
+    params_masked = wms.get.call_args[0][0]
+    assert params_masked["LAYERS"] == "windspeed_mean_masked"
+    assert params_masked["DATASET"] == "high_resolution_weather_maps"
+
+
+@pytest.mark.asyncio
+async def test_retrieve_wind_speed_raster_priority_and_fallback():
+    """Test that _retrieve_wind_speed_raster prioritizes WMS and falls back to App API."""
+    from custom_components.nl_weather.KNMI.wms import WMSException
+
+    mock_entry = MagicMock()
+    mock_entry.entry_id = "test_entry"
+    mock_entry.options = {}
+    mock_entry.subentries = {}
+
+    mock_wms = MagicMock()
+    wind_buf = io.BytesIO()
+    Image.new("RGBA", (200, 200), (108, 212, 140, 255)).save(wind_buf, format="PNG")
+    mock_wms.wind_speed_image = AsyncMock(return_value=wind_buf)
+
+    mock_app = MagicMock()
+    mock_app.windspeed_measurements = AsyncMock()
+
+    mock_entry.runtime_data.wms = mock_wms
+    mock_entry.runtime_data.app = mock_app
+    mock_entry.runtime_data.edr = MagicMock()
+    mock_entry.runtime_data.notification_service.set_callback = MagicMock()
+
+    cam = WindParticlesCam(mock_entry)
+    cam._latest_wind_datetime = AsyncMock(
+        return_value=datetime(2026, 10, 30, 11, 40, tzinfo=timezone.utc)
+    )
+
+    # Priority: WMS is called, App API is NOT called
+    img, legend, _ = await cam._retrieve_wind_speed_raster(masked=False)
+    assert img is not None
+    assert legend is None
+    mock_wms.wind_speed_image.assert_awaited_once()
+    mock_app.windspeed_measurements.assert_not_awaited()
+
+    # Fallback: WMS fails with WMSException -> App API is called
+    mock_wms.wind_speed_image.side_effect = WMSException("Rate limit")
+    mock_app.windspeed_measurements.return_value = {
+        "time": "2026-10-30T11:40:00Z",
+        "legend": {"steps": [{"value": 10, "color": "#00FF00"}]},
+        "links": {},
+    }
+    _img2, legend2, _dt2 = await cam._retrieve_wind_speed_raster(masked=False)
+    mock_app.windspeed_measurements.assert_awaited_once()
+    assert legend2 == [{"value": 10, "color": "#00FF00"}]

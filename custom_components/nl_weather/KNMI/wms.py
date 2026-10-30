@@ -125,7 +125,7 @@ class WMS:
         size: tuple[int, int],
         bbox: str,
         style: str = "windspeed_0_10",
-        masked: bool = True,
+        masked: bool = False,
     ) -> io.BytesIO:
         """Fetch 10m surface wind speed raster image from high_resolution_weather_maps."""
         params = BASE_PARAMS.copy()

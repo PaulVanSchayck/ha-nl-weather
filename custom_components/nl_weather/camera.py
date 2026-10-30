@@ -304,13 +304,44 @@ class KNMICamera(Camera):
 
     async def _retrieve_wind_speed_raster(
         self,
+        masked: bool = False,
     ) -> tuple[Image.Image | None, list[dict] | None, datetime | None]:
         """Retrieve 10m surface wind speed raster image and dynamic legend steps.
 
-        Queries KNMI App API (https://api.app.knmi.cloud/measurements/windspeed?unit=kilometerPerHour)
-        for dynamic scale image and legend, falling back to WMS high_resolution_weather_maps
-        for custom bounding boxes.
+        Prioritizes WMS high_resolution_weather_maps (windspeed_mean or windspeed_mean_masked)
+        projected natively in EPSG:3857 for pixel-perfect alignment with both static
+        and OSM basemaps, falling back to KNMI App API.
         """
+        wms = getattr(self, "_wms", None) or getattr(
+            self._config_entry.runtime_data, "wms", None
+        )
+        if wms:
+            wind_time = await self._latest_wind_datetime() or dt_util.utcnow()
+            try:
+                wind_buf = await wms.wind_speed_image(
+                    wind_time,
+                    (600, 600),
+                    self._radar_bbox_param,
+                    style="windspeed_0_10",
+                    masked=masked,
+                )
+                img = Image.open(wind_buf, formats=["PNG"]).convert("RGBA")
+                return img, None, wind_time
+            except (
+                WMSException,
+                aiohttp.ClientError,
+                asyncio.TimeoutError,
+                TypeError,
+                AttributeError,
+                KeyError,
+                ValueError,
+                OSError,
+            ) as e:
+                _LOGGER.debug(
+                    "Could not fetch wind speed raster from WMS (falling back to App API): %s",
+                    e,
+                )
+
         app = getattr(self, "_app", None) or getattr(
             self._config_entry.runtime_data, "app", None
         )
@@ -333,6 +364,7 @@ class KNMICamera(Camera):
                         img_data = await resp.read()
                         img = Image.open(io.BytesIO(img_data)).convert("RGBA")
                         return img, legend_steps, wind_dt
+                return None, legend_steps, wind_dt
             except (
                 aiohttp.ClientError,
                 asyncio.TimeoutError,
@@ -343,33 +375,9 @@ class KNMICamera(Camera):
                 OSError,
             ) as e:
                 _LOGGER.debug(
-                    "Could not fetch wind speed from App API (falling back to WMS): %s",
+                    "Could not fetch wind speed from App API: %s",
                     e,
                 )
-
-        wms = getattr(self, "_wms", None) or getattr(
-            self._config_entry.runtime_data, "wms", None
-        )
-        if wms:
-            wind_time = await self._latest_wind_datetime() or dt_util.utcnow()
-            try:
-                wind_buf = await wms.wind_speed_image(
-                    wind_time,
-                    (600, 600),
-                    self._radar_bbox_param,
-                    style="windspeed_0_10",
-                    masked=True,
-                )
-                img = Image.open(wind_buf, formats=["PNG"]).convert("RGBA")
-                return img, None, wind_time
-            except (
-                WMSException,
-                aiohttp.ClientError,
-                asyncio.TimeoutError,
-                TypeError,
-                AttributeError,
-            ) as e:
-                _LOGGER.debug("Could not fetch wind speed raster from WMS: %s", e)
 
         return None, None, dt_util.utcnow()
 
