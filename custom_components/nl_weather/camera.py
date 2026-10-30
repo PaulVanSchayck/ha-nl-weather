@@ -280,6 +280,99 @@ class KNMICamera(Camera):
             return datetime.fromisoformat(end.replace("Z", "+00:00"))
         return None
 
+    async def _latest_wind_datetime(self) -> datetime | None:
+        """Get the latest available wind image datetime from WMS GetCapabilities."""
+        wms = getattr(self, "_wms", None) or self._config_entry.runtime_data.wms
+        try:
+            tree = await wms.get_capabilities_wind()
+        except (
+            WMSException,
+            aiohttp.ClientError,
+            asyncio.TimeoutError,
+            TypeError,
+            AttributeError,
+        ) as e:
+            _LOGGER.debug("Cannot GetCapabilities for wind from WMS: %s", e)
+            return None
+
+        root = tree.getroot()
+        for dim in root.findall(".//{*}Dimension[@name='time']"):
+            times = dim.text.strip().split("/")
+            if len(times) >= 2:
+                return datetime.fromisoformat(times[1].replace("Z", "+00:00"))
+        return None
+
+    async def _retrieve_wind_speed_raster(
+        self,
+    ) -> tuple[Image.Image | None, list[dict] | None, datetime | None]:
+        """Retrieve 10m surface wind speed raster image and dynamic legend steps.
+
+        Queries KNMI App API (https://api.app.knmi.cloud/measurements/windspeed?unit=kilometerPerHour)
+        for dynamic scale image and legend, falling back to WMS high_resolution_weather_maps
+        for custom bounding boxes.
+        """
+        app = getattr(self, "_app", None) or getattr(
+            self._config_entry.runtime_data, "app", None
+        )
+        if app:
+            try:
+                meas = await app.windspeed_measurements(unit="kilometerPerHour")
+                detail_url = meas.get("links", {}).get("detail")
+                legend_steps = meas.get("legend", {}).get("steps", [])
+                time_str = meas.get("time")
+                wind_dt = (
+                    datetime.fromisoformat(time_str.replace("Z", "+00:00"))
+                    if time_str
+                    else dt_util.utcnow()
+                )
+                if detail_url:
+                    session = async_get_clientsession(self.hass)
+                    async with session.get(
+                        detail_url, headers={"User-Agent": "Mozilla/5.0"}
+                    ) as resp:
+                        img_data = await resp.read()
+                        img = Image.open(io.BytesIO(img_data)).convert("RGBA")
+                        return img, legend_steps, wind_dt
+            except (
+                aiohttp.ClientError,
+                asyncio.TimeoutError,
+                TypeError,
+                AttributeError,
+                KeyError,
+                ValueError,
+                OSError,
+            ) as e:
+                _LOGGER.debug(
+                    "Could not fetch wind speed from App API (falling back to WMS): %s",
+                    e,
+                )
+
+        wms = getattr(self, "_wms", None) or getattr(
+            self._config_entry.runtime_data, "wms", None
+        )
+        if wms:
+            wind_time = await self._latest_wind_datetime() or dt_util.utcnow()
+            try:
+                wind_buf = await wms.wind_speed_image(
+                    wind_time,
+                    (600, 600),
+                    self._radar_bbox_param,
+                    style="windspeed_0_10",
+                    masked=True,
+                )
+                img = Image.open(wind_buf, formats=["PNG"]).convert("RGBA")
+                return img, None, wind_time
+            except (
+                WMSException,
+                aiohttp.ClientError,
+                asyncio.TimeoutError,
+                TypeError,
+                AttributeError,
+            ) as e:
+                _LOGGER.debug("Could not fetch wind speed raster from WMS: %s", e)
+
+        return None, None, dt_util.utcnow()
+
     def _get_target_wind_observations(self) -> list[WindObservation]:
         """Extract wind observations from configured App API target coordinators."""
         target_observations: list[WindObservation] = []
@@ -558,7 +651,9 @@ class WindParticlesCam(KNMICamera):
         )
         self._attr_translation_key = "wind_particles"
 
+        self._app = config_entry.runtime_data.app
         self._edr = config_entry.runtime_data.edr
+        self._wms = config_entry.runtime_data.wms
         self._ns = config_entry.runtime_data.notification_service
 
     def __needs_refresh(self) -> bool:
@@ -579,6 +674,31 @@ class WindParticlesCam(KNMICamera):
             _LOGGER.warning("No background image loaded for wind particles camera")
             return False
 
+        (
+            wind_speed_img,
+            legend_steps,
+            wind_time,
+        ) = await self._retrieve_wind_speed_raster()
+        if wind_time is None:
+            wind_time = dt_util.utcnow()
+
+        base_map = self._background_image.resize(
+            (600, 600), Image.Resampling.LANCZOS
+        ).convert("RGBA")
+
+        if wind_speed_img:
+            if wind_speed_img.size != base_map.size:
+                wind_speed_img = wind_speed_img.resize(
+                    base_map.size, Image.Resampling.LANCZOS
+                )
+            # Composite translucent wind speed heatmap layer onto base map
+            r, g, b, a = wind_speed_img.split()
+            a = a.point(lambda p: int(p * 0.55))
+            wind_trans = Image.merge("RGBA", (r, g, b, a))
+            base_composite = Image.alpha_composite(base_map, wind_trans)
+        else:
+            base_composite = base_map
+
         observations = []
         try:
             coverages = await self._edr.get_wind_observations()
@@ -597,7 +717,7 @@ class WindParticlesCam(KNMICamera):
         # Mix in hyper-local target wind observations from the KNMI App API
         observations.extend(self._get_target_wind_observations())
 
-        if not observations:
+        if not observations and wind_speed_img is None:
             _LOGGER.warning("No valid wind observations returned from EDR or App API")
             if self._last_image:
                 return True
@@ -609,6 +729,9 @@ class WindParticlesCam(KNMICamera):
             grid_w=40,
             grid_h=40,
         )
+        if wind_speed_img:
+            grid.apply_speed_raster(wind_speed_img, legend_steps=legend_steps)
+
         engine = WindParticleEngine(
             grid,
             canvas_size=(600, 600),
@@ -618,12 +741,12 @@ class WindParticlesCam(KNMICamera):
             vel_scale=0.85,
         )
 
-        now = dt_util.as_local(dt_util.utcnow())
+        now = dt_util.as_local(wind_time)
         header_color = self._radar_style.time_past_color
 
         self._last_image = await self.hass.async_add_executor_job(
             engine.render_animation,
-            self._background_image,
+            base_composite,
             now,
             header_color,
         )
@@ -706,6 +829,7 @@ class HybridWeatherCam(KNMICamera):
         )
         self._attr_translation_key = "hybrid_weather"
 
+        self._app = config_entry.runtime_data.app
         self._wms = config_entry.runtime_data.wms
         self._edr = config_entry.runtime_data.edr
         self._ns = config_entry.runtime_data.notification_service
@@ -784,6 +908,8 @@ class HybridWeatherCam(KNMICamera):
         now = dt_util.as_local(ref_time)
         header_color = self._radar_style.time_past_color
 
+        wind_speed_img, legend_steps, _ = await self._retrieve_wind_speed_raster()
+
         if observations:
             grid = WindVectorGrid(
                 observations,
@@ -791,6 +917,8 @@ class HybridWeatherCam(KNMICamera):
                 grid_w=40,
                 grid_h=40,
             )
+            if wind_speed_img:
+                grid.apply_speed_raster(wind_speed_img, legend_steps=legend_steps)
             engine = WindParticleEngine(
                 grid,
                 canvas_size=(600, 600),

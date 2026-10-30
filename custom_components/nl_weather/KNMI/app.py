@@ -42,6 +42,10 @@ class App:
         params = {"location": radar_cell_id, "time": date}
         return await self.get("precipitation/graph", params)
 
+    async def windspeed_measurements(self, unit: str = "kilometerPerHour"):
+        params = {"unit": unit}
+        return await self.get("measurements/windspeed", params)
+
 
 class AppException(Exception):
     """Base App Exception"""

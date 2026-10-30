@@ -86,6 +86,70 @@ def speed_to_color(speed_ms: float, alpha: int) -> tuple[int, int, int, int]:
     return (255, 90, 60, alpha)
 
 
+# Sampled color control points for KNMI WMS windspeed_0_10 (0..10 m/s)
+WMS_WINDSPEED_COLOR_RAMP: Sequence[tuple[int, int, int, float]] = (
+    (247, 247, 247, 10.0),
+    (141, 8, 111, 9.37),
+    (144, 29, 99, 8.92),
+    (146, 45, 85, 8.47),
+    (149, 58, 76, 8.02),
+    (150, 69, 66, 7.57),
+    (152, 85, 56, 7.12),
+    (153, 97, 48, 6.67),
+    (155, 113, 39, 6.22),
+    (157, 129, 30, 5.76),
+    (156, 144, 28, 5.31),
+    (153, 161, 35, 4.86),
+    (146, 177, 53, 4.41),
+    (132, 193, 83, 3.96),
+    (121, 201, 107, 3.51),
+    (108, 212, 140, 3.06),
+    (97, 221, 171, 2.61),
+    (97, 229, 199, 2.16),
+    (114, 236, 225, 1.70),
+    (149, 241, 243, 1.25),
+    (178, 242, 253, 0.80),
+    (210, 248, 254, 0.30),
+)
+
+
+def decode_wms_wind_speed_color(
+    r: int, g: int, b: int, max_speed: float = 10.0
+) -> float:
+    """Decode an RGB pixel from KNMI WMS windspeed heatmap to speed in m/s."""
+    best_dist = 999999
+    best_val = 0.0
+    for cr, cg, cb, val in WMS_WINDSPEED_COLOR_RAMP:
+        dist = (r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2
+        if dist < best_dist:
+            best_dist = dist
+            best_val = val
+    if max_speed != 10.0:
+        return best_val * (max_speed / 10.0)
+    return best_val
+
+
+def decode_app_wind_speed_color(
+    r: int, g: int, b: int, legend_steps: Sequence[dict]
+) -> float:
+    """Decode an RGB pixel using KNMI App API dynamic legend steps to m/s."""
+    best_dist = 999999
+    best_spd = 0.0
+    for step in legend_steps:
+        color_hex = step.get("color", "").lstrip("#")
+        if len(color_hex) != 6:
+            continue
+        cr = int(color_hex[0:2], 16)
+        cg = int(color_hex[2:4], 16)
+        cb = int(color_hex[4:6], 16)
+        val = float(step.get("value", 0)) / 3.6  # convert km/h to m/s
+        dist = (r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2
+        if dist < best_dist:
+            best_dist = dist
+            best_spd = val
+    return best_spd
+
+
 @dataclass(slots=True)
 class WindObservation:
     """Single meteorological station wind observation."""
@@ -280,6 +344,47 @@ class WindVectorGrid:
                 if w_sum > 0:
                     self.u_grid[row][col] = u_sum / w_sum
                     self.v_grid[row][col] = v_sum / w_sum
+
+    def apply_speed_raster(
+        self,
+        speed_img: Image.Image,
+        max_speed: float = 10.0,
+        legend_steps: Sequence[dict] | None = None,
+    ) -> int:
+        """Modulate vector speeds across the grid using a high-resolution WMS/App wind speed raster.
+
+        Preserves the exact direction from the EDR station wind field.
+        Cells where the raster is masked (transparent) retain their interpolated EDR speeds.
+        Returns the number of modulated cells.
+        """
+        img = speed_img.convert("RGBA") if speed_img.mode != "RGBA" else speed_img
+        img_w, img_h = img.size
+        modulated = 0
+
+        for row in range(self.grid_h):
+            py = int((row / max(self.grid_h - 1, 1)) * (img_h - 1))
+            for col in range(self.grid_w):
+                px = int((col / max(self.grid_w - 1, 1)) * (img_w - 1))
+                r, g, b, a = img.getpixel((px, py))
+                if a < 30:
+                    continue
+
+                if legend_steps:
+                    raster_spd = decode_app_wind_speed_color(r, g, b, legend_steps)
+                else:
+                    raster_spd = decode_wms_wind_speed_color(r, g, b, max_speed)
+
+                u = self.u_grid[row][col]
+                v = self.v_grid[row][col]
+                cur_spd = math.hypot(u, v)
+                if cur_spd > 1e-4:
+                    self.u_grid[row][col] = (u / cur_spd) * raster_spd
+                    self.v_grid[row][col] = (v / cur_spd) * raster_spd
+                else:
+                    self.u_grid[row][col] = raster_spd
+                modulated += 1
+
+        return modulated
 
     def get_velocity_at(
         self, px: float, py: float, width: int, height: int

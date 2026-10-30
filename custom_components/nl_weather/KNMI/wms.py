@@ -109,6 +109,35 @@ class WMS:
         params["BBOX"] = bbox
         return await self.get(params)
 
+    async def get_capabilities_wind(self) -> ET.ElementTree:
+        """Fetch GetCapabilities for high_resolution_weather_maps."""
+        params = {
+            "SERVICE": "WMS",
+            "DATASET": "high_resolution_weather_maps",
+            "REQUEST": "GetCapabilities",
+        }
+        buf = await self.get(params)
+        return ET.parse(buf)
+
+    async def wind_speed_image(
+        self,
+        time,
+        size: tuple[int, int],
+        bbox: str,
+        style: str = "windspeed_0_10",
+        masked: bool = True,
+    ) -> io.BytesIO:
+        """Fetch 10m surface wind speed raster image from high_resolution_weather_maps."""
+        params = BASE_PARAMS.copy()
+        params["TIME"] = format_dt(time)
+        params["DATASET"] = "high_resolution_weather_maps"
+        params["LAYERS"] = "windspeed_mean_masked" if masked else "windspeed_mean"
+        params["STYLES"] = style
+        params["WIDTH"] = size[0]
+        params["HEIGHT"] = size[1]
+        params["BBOX"] = bbox
+        return await self.get(params)
+
 
 class WMSException(Exception):
     """Base WMS Exception"""

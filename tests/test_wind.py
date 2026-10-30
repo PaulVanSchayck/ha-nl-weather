@@ -13,6 +13,8 @@ from custom_components.nl_weather.KNMI.wind import (
     WindParticleEngine,
     WindVectorGrid,
     create_app_target_wind_observation,
+    decode_app_wind_speed_color,
+    decode_wms_wind_speed_color,
     degrees_to_compass,
     parse_edr_wind_coverages,
     speed_to_bft,
@@ -532,3 +534,136 @@ async def test_hybrid_camera_mixes_app_target_wind():
     img_bytes = await cam.async_camera_image()
     assert img_bytes is not None
     assert img_bytes[:4] == b"GIF8"
+
+
+def test_decode_wms_wind_speed_color():
+    """Test decoding RGB color pixels to wind speed values in m/s."""
+    # Near calm: (210, 248, 254) -> ~0.30 m/s
+    assert pytest.approx(decode_wms_wind_speed_color(210, 248, 254), abs=0.2) == 0.30
+    # Gentle: (97, 221, 171) -> ~2.61 m/s
+    assert pytest.approx(decode_wms_wind_speed_color(97, 221, 171), abs=0.2) == 2.61
+    # Fresh: (153, 161, 35) -> ~4.86 m/s
+    assert pytest.approx(decode_wms_wind_speed_color(153, 161, 35), abs=0.2) == 4.86
+    # Strong: (144, 29, 99) -> ~8.92 m/s
+    assert pytest.approx(decode_wms_wind_speed_color(144, 29, 99), abs=0.2) == 8.92
+
+    # Scale with max_speed = 35.0
+    val_scaled = decode_wms_wind_speed_color(153, 161, 35, max_speed=35.0)
+    assert pytest.approx(val_scaled, abs=1.0) == 4.86 * 3.5
+
+
+def test_decode_app_wind_speed_color():
+    """Test decoding RGB pixel via App API dynamic legend steps."""
+    legend_steps = [
+        {"value": 0, "color": "#262054"},
+        {"value": 18, "color": "#1B8A50"},  # 18 km/h = 5.0 m/s
+        {"value": 36, "color": "#FFE602"},  # 36 km/h = 10.0 m/s
+    ]
+    # Exact green match -> 5.0 m/s
+    spd = decode_app_wind_speed_color(0x1B, 0x8A, 0x50, legend_steps)
+    assert pytest.approx(spd, abs=0.01) == 5.0
+
+    # Yellow match -> 10.0 m/s
+    spd_yellow = decode_app_wind_speed_color(0xFF, 0xE6, 0x02, legend_steps)
+    assert pytest.approx(spd_yellow, abs=0.01) == 10.0
+
+
+def test_grid_apply_speed_raster():
+    """Test modulating IDW direction vectors with high-resolution speed raster."""
+    obs = WindObservation(
+        station_id="1",
+        lon=4.8,
+        lat=52.3,
+        x=534335.0,
+        y=6854652.0,
+        speed=4.0,
+        direction=270.0,  # From West -> East (u = 4, v = 0)
+        u=4.0,
+        v=0.0,
+    )
+    bbox = (530000.0, 6850000.0, 550000.0, 6880000.0)
+    grid = WindVectorGrid([obs], bbox, grid_w=4, grid_h=4)
+
+    assert pytest.approx(grid.u_grid[0][0], abs=0.1) == 4.0
+    assert pytest.approx(grid.v_grid[0][0], abs=0.1) == 0.0
+
+    # Create dummy speed raster: half masked, half 8.92 m/s color (144, 29, 99)
+    raster = Image.new("RGBA", (4, 4), (0, 0, 0, 0))
+    # Fill bottom right with strong wind color
+    raster.putpixel((3, 3), (144, 29, 99, 255))
+
+    modulated = grid.apply_speed_raster(raster, max_speed=10.0)
+    assert modulated == 1
+
+    # Unmasked cell should now have ~8.92 m/s speed while keeping direction (u > 0, v = 0)
+    assert pytest.approx(grid.u_grid[3][3], abs=0.3) == 8.92
+    assert pytest.approx(grid.v_grid[3][3], abs=0.1) == 0.0
+
+    # Transparent cell should retain original EDR speed (4.0 m/s)
+    assert pytest.approx(grid.u_grid[0][0], abs=0.1) == 4.0
+
+
+@pytest.mark.asyncio
+async def test_wind_camera_with_wms_speed_raster():
+    """Test WindParticlesCam retrieving and applying WMS wind speed raster."""
+    mock_edr = MagicMock()
+    mock_edr.get_wind_observations = AsyncMock(
+        return_value=[
+            {
+                "eumetnet:locationId": "06240",
+                "domain": {"axes": {"x": {"values": [4.79]}, "y": {"values": [52.31]}}},
+                "ranges": {"dd": {"values": [270.0]}, "ff": {"values": [5.0]}},
+            }
+        ]
+    )
+
+    mock_wms = MagicMock()
+    # Mock wind speed raster image
+    wind_buf = io.BytesIO()
+    wind_img = Image.new("RGBA", (200, 200), (108, 212, 140, 255))  # ~3.06 m/s
+    wind_img.save(wind_buf, format="PNG")
+    mock_wms.wind_speed_image = AsyncMock(return_value=wind_buf)
+    mock_wms.get_capabilities_wind = AsyncMock()
+
+    mock_entry = MagicMock()
+    mock_entry.entry_id = "test_entry"
+    mock_entry.options = {}
+    mock_entry.subentries = {}
+    mock_entry.runtime_data.edr = mock_edr
+    mock_entry.runtime_data.wms = mock_wms
+    mock_entry.runtime_data.notification_service.set_callback = MagicMock()
+
+    cam = WindParticlesCam(mock_entry)
+    cam.hass = MagicMock()
+    cam.hass.async_add_executor_job = AsyncMock(
+        side_effect=lambda func, *args: func(*args)
+    )
+    cam._background_image = Image.new("RGBA", (200, 200), (30, 30, 30, 255))
+    cam._radar_bbox = (0.0, 6300000, 1000000, 7300000)
+    cam.async_ensure_background = AsyncMock()
+    cam._latest_wind_datetime = AsyncMock(
+        return_value=datetime(2026, 10, 30, 11, 20, tzinfo=timezone.utc)
+    )
+
+    img_bytes = await cam.async_camera_image()
+    assert img_bytes is not None
+    assert img_bytes[:4] == b"GIF8"
+    mock_wms.wind_speed_image.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_app_windspeed_measurements():
+    """Test KNMI App API windspeed_measurements method."""
+    from custom_components.nl_weather.KNMI.app import App
+
+    mock_session = MagicMock()
+    app = App(mock_session)
+    app.get = AsyncMock(
+        return_value={"time": "2026-10-30T10:50:00Z", "legend": {"steps": []}}
+    )
+
+    data = await app.windspeed_measurements(unit="kilometerPerHour")
+    assert "legend" in data
+    app.get.assert_awaited_once_with(
+        "measurements/windspeed", {"unit": "kilometerPerHour"}
+    )
