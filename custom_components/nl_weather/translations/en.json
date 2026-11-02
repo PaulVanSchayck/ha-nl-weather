@@ -1,5 +1,10 @@
 {
   "entity": {
+    "image": {
+      "weather_alert_map": {
+        "name": "Weather warnings map"
+      }
+    },
     "camera": {
       "precipitation_radar": {
         "name": "Precipitation Radar"

@@ -27,7 +27,7 @@ from .const import (
     RadarStyle,
 )
 from .coordinator import NLWeatherConfigEntry
-from .KNMI.helpers import Coordinate, epsg4325_to_epsg3857
+from .KNMI.helpers import Coordinate, add_location_markers
 from .KNMI.wms import WMSException
 
 _LOGGER = logging.getLogger(__name__)
@@ -97,31 +97,6 @@ class PrecipitationRadarCam(Camera):
                 Coordinate(s.data[CONF_LATITUDE], s.data[CONF_LONGITUDE])
             )
 
-    def _add_locations_markers(self, img):
-        draw = ImageDraw.Draw(img)
-        for location in self._locations:
-            # Convert from lat lon in degrees to x y in meters
-            x, y = epsg4325_to_epsg3857(location)
-            # Calculate position on image.
-            y_img = (
-                img.size[0]
-                / (BACKGROUND_IMAGE_BBOX[3] - BACKGROUND_IMAGE_BBOX[1])
-                * (y - BACKGROUND_IMAGE_BBOX[1])
-            )
-            x_img = (
-                img.size[1]
-                / (BACKGROUND_IMAGE_BBOX[2] - BACKGROUND_IMAGE_BBOX[0])
-                * (x - BACKGROUND_IMAGE_BBOX[0])
-            )
-            # Image is downwards from y so flip
-            y_img = img.size[0] - y_img
-
-            draw.circle(
-                (x_img, y_img), 10, None, self._radar_style.marker_color, width=2
-            )
-
-        return img
-
     def _load_background(self):
         path = os.path.join(
             os.path.dirname(__file__), self._radar_style.background_image
@@ -131,7 +106,12 @@ class PrecipitationRadarCam(Camera):
             img = Image.open(f, formats=["PNG"]).convert("RGBA")
 
         if self._mark_locations:
-            img = self._add_locations_markers(img)
+            img = add_location_markers(
+                img,
+                self._locations,
+                self._radar_style.marker_color,
+                BACKGROUND_IMAGE_BBOX,
+            )
 
         self._background_image = img
 

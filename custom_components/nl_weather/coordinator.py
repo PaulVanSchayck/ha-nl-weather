@@ -15,11 +15,13 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import utcnow
 
 from .const import (
+    APP_ALERTS_API_SCAN_INTERVAL,
     APP_FORECAST_API_SCAN_INTERVAL,
     APP_NOWCAST_API_SCAN_INTERVAL,
     CONF_STATION,
     PARAMETER_ATTRIBUTE_MAP,
 )
+from .KNMI.alerts import Alert, parse_alerts
 from .KNMI.app import App, AppException
 from .KNMI.edr import EDR, NotFoundError, ServerError
 from .KNMI.grid_definitions import GridDefinitions, GridManager
@@ -45,6 +47,7 @@ class RuntimeData:
     app_coordinators: dict[str, NLWeatherUpdateCoordinator]
     nowcast_coordinators: dict[str, NLWeatherNowcastCoordinator]
     edr_coordinators: dict[str, NLWeatherEDRCoordinator]
+    alerts_coordinator: NLWeatherAlertsCoordinator | None = None
 
 
 type NLWeatherConfigEntry = ConfigEntry[RuntimeData]
@@ -165,6 +168,28 @@ class NLWeatherNowcastCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
             raise UpdateFailed(
                 f"Error while retrieving precipitation nowcast: {err}"
             ) from err
+
+
+class NLWeatherAlertsCoordinator(DataUpdateCoordinator[list[Alert]]):
+    """Coordinator for regional weather alerts."""
+
+    def __init__(self, hass: HomeAssistant, entry: NLWeatherConfigEntry) -> None:
+        super().__init__(
+            hass,
+            _LOGGER,
+            config_entry=entry,
+            name=f"NL Weather KNMI App API regional alerts coordinator for {entry.title}",
+            always_update=False,
+            update_interval=APP_ALERTS_API_SCAN_INTERVAL,
+        )
+        self._api = entry.runtime_data.app
+
+    async def _async_update_data(self) -> list[Alert]:
+        try:
+            snapshot = await self._api.alerts_regional()
+        except AppException as err:
+            raise UpdateFailed(f"Error while retrieving alerts: {err}") from err
+        return parse_alerts(snapshot, utcnow())
 
 
 class NLWeatherEDRCoordinator(DataUpdateCoordinator):
