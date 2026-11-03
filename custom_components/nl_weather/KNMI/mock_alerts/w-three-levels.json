@@ -1,39 +1,21 @@
 {
-  "publicationType": "manual",
-  "events": [
+  "warnings": [
     {
-      "eventId": "urn:knmi:warning-event:cb5c6170",
-      "messageId": "urn:knmi:message:cb5c6170-v1",
-      "version": 1,
-      "type": "W",
-      "status": "actual",
-      "phenomenon": "wind",
-      "timeWindow": {
-        "onset": "2026-06-24T16:00:00Z",
-        "expires": "2026-06-25T04:00:00Z"
-      },
-      "texts": {
-        "nl": {
-          "headline": "Waarschuwing voor zware windstoten",
-          "conciseSummary": "Een stormdepressie trekt over het land.",
-          "detailedSummary": "In de avond trekt de kern van de stormdepressie over het midden van het land. Vooral in kustgebieden en rond het IJsselmeer kunnen de zwaarste windstoten voorkomen."
-        },
-        "en": {
-          "headline": "Warning for severe wind gusts",
-          "conciseSummary": "A storm depression is crossing the country.",
-          "detailedSummary": "During the evening, the core of the storm depression will move across the centre of the country. The strongest wind gusts are expected mainly in coastal areas and around the IJsselmeer."
-        }
-      },
-      "areas": [
+      "id": "3425b57d-fbe2-5be0-bf5a-359f4729db14",
+      "weatherType": 1369,
+      "onset": "2026-06-24T16:00:00Z",
+      "expires": "2026-06-25T04:00:00Z",
+      "headline": "Waarschuwing voor zware windstoten",
+      "description": "In de avond trekt de kern van de stormdepressie over het midden van het land. Vooral in kustgebieden en rond het IJsselmeer kunnen de zwaarste windstoten voorkomen.",
+      "detailedDescription": "Hier komt nog een uitgebreidere tekst over de stormdepressie van vanavond. Aan de kust en rond het IJsselmeer zijn windstoten van meer dan 120 km/u mogelijk. Bomen kunnen omwaaien en het treinverkeer kan ernstig verstoord raken.",
+      "mapImageAccessibilityDescription": "Waarschuwing met drie niveaus, van code geel via code oranje tot code rood.",
+      "parts": [
         {
-          "areaId": "urn:knmi:warning:cb5c6170-yellow",
-          "level": "yellow",
-          "certainty": "likely",
-          "timeWindow": {
-            "onset": "2026-06-24T16:00:00Z",
-            "expires": "2026-06-25T04:00:00Z"
-          },
-          "geometry": {
+          "id": "0e381ca0-5d6c-5a97-aa90-85dc28436e7f",
+          "color": "yellow",
+          "onset": "2026-06-24T16:00:00Z",
+          "expires": "2026-06-25T04:00:00Z",
+          "area": {
             "type": "Polygon",
             "coordinates": [
               [
@@ -64,23 +46,15 @@
             "nl": {
               "impact": "Buitenactiviteiten kunnen hinder ondervinden van zware windstoten.",
               "instruction": "Zet losse voorwerpen vast en wees alert onderweg."
-            },
-            "en": {
-              "impact": "Outdoor activities may be hindered by strong wind gusts.",
-              "instruction": "Secure loose objects and remain alert while travelling."
             }
-          },
-          "responseType": "prepare"
+          }
         },
         {
-          "areaId": "urn:knmi:warning:cb5c6170-orange",
-          "level": "orange",
-          "certainty": "possible",
-          "timeWindow": {
-            "onset": "2026-06-24T16:00:00Z",
-            "expires": "2026-06-25T04:00:00Z"
-          },
-          "geometry": {
+          "id": "713df45e-d108-584e-8d89-9266c697f0ed",
+          "color": "orange",
+          "onset": "2026-06-24T16:00:00Z",
+          "expires": "2026-06-25T04:00:00Z",
+          "area": {
             "type": "Polygon",
             "coordinates": [
               [
@@ -111,23 +85,15 @@
             "nl": {
               "impact": "Er is kans op schade en verkeershinder door zeer zware windstoten.",
               "instruction": "Mijd indien mogelijk open gebieden en stel niet-noodzakelijke verplaatsingen uit."
-            },
-            "en": {
-              "impact": "Damage and traffic disruption are possible due to very strong wind gusts.",
-              "instruction": "Avoid open areas if possible and postpone non-essential travel."
             }
-          },
-          "responseType": "avoid"
+          }
         },
         {
-          "areaId": "urn:knmi:warning:cb5c6170-red",
-          "level": "red",
-          "certainty": "observed",
-          "timeWindow": {
-            "onset": "2026-06-24T16:00:00Z",
-            "expires": "2026-06-25T04:00:00Z"
-          },
-          "geometry": {
+          "id": "8f65e0cb-219e-5a0e-9eee-d586212823d5",
+          "color": "red",
+          "onset": "2026-06-24T16:00:00Z",
+          "expires": "2026-06-25T04:00:00Z",
+          "area": {
             "type": "Polygon",
             "coordinates": [
               [
@@ -158,13 +124,8 @@
             "nl": {
               "impact": "Gevaarlijke situaties en grote schade zijn waarschijnlijk door uitzonderlijk zware windstoten.",
               "instruction": "Blijf binnen en volg aanwijzingen van de autoriteiten."
-            },
-            "en": {
-              "impact": "Dangerous situations and major damage are likely due to exceptionally strong wind gusts.",
-              "instruction": "Stay indoors and follow instructions from the authorities."
             }
-          },
-          "responseType": "shelter"
+          }
         }
       ]
     }

@@ -1,4 +1,4 @@
-"""Parsing of KNMI local warnings."""
+"""Parsing of KNMI nationwide alerts."""
 
 from __future__ import annotations
 
@@ -12,9 +12,12 @@ LEVEL_SEVERITY = {"yellow": 1, "orange": 2, "red": 3}
 
 @dataclass
 class Alert:
-    event_id: str
-    phenomenon: str
+    warning_id: str
+    weather_type: int
+    headline: str
     level: str
+    onset: datetime | None
+    expires: datetime | None
     # Each polygon is a list of rings of (lon, lat); the first ring is the exterior
     polygons: list[list[list[tuple[float, float]]]]
 
@@ -22,17 +25,18 @@ class Alert:
     def severity(self) -> int:
         return LEVEL_SEVERITY[self.level]
 
+    def is_active(self, now: datetime) -> bool:
+        if self.onset is not None and self.onset > now:
+            return False
+        return self.expires is None or self.expires > now
+
 
 def _parse_dt(value: str) -> datetime:
     return datetime.fromisoformat(value)
 
 
-def _is_active(window: dict[str, str] | None, now: datetime) -> bool:
-    if not window:
-        return True
-    if "onset" in window and _parse_dt(window["onset"]) > now:
-        return False
-    return not ("expires" in window and _parse_dt(window["expires"]) <= now)
+def _parse_optional_dt(value: str | None) -> datetime | None:
+    return _parse_dt(value) if value else None
 
 
 def _polygons(geometry: dict[str, Any]) -> list[list[list[tuple[float, float]]]]:
@@ -45,22 +49,28 @@ def _polygons(geometry: dict[str, Any]) -> list[list[list[tuple[float, float]]]]
     return [[[(p[0], p[1]) for p in ring] for ring in poly] for poly in raw]
 
 
-def parse_alerts(snapshot: dict[str, Any], now: datetime) -> list[Alert]:
-    """Return currently active alert areas, most severe first."""
+def parse_alerts(snapshot: dict[str, Any]) -> list[Alert]:
+    """Return all warning parts, most severe first. Use Alert.is_active to filter.
+
+    The snapshot is {"warnings": [...]}. Each warning has parts with their own
+    color, time window and area.
+    """
     alerts: list[Alert] = []
-    for event in snapshot.get("events", []):
-        if event.get("status") != "actual" or event.get("phenomenon") == "test":
-            continue
-        for area in event.get("areas", []):
-            if area.get("level") not in LEVEL_SEVERITY:
+    for warning in snapshot["warnings"]:
+        for part in warning.get("parts", []):
+            if part.get("color") not in LEVEL_SEVERITY:
                 continue
-            if not _is_active(area.get("timeWindow") or event.get("timeWindow"), now):
-                continue
-            polygons = _polygons(area["geometry"])
+            polygons = _polygons(part["area"])
             if polygons:
                 alerts.append(
                     Alert(
-                        event["eventId"], event["phenomenon"], area["level"], polygons
+                        part["id"],
+                        warning["weatherType"],
+                        warning.get("headline", ""),
+                        part["color"],
+                        _parse_optional_dt(part.get("onset", warning.get("onset"))),
+                        _parse_optional_dt(part.get("expires", warning.get("expires"))),
+                        polygons,
                     )
                 )
     alerts.sort(key=lambda a: a.severity, reverse=True)

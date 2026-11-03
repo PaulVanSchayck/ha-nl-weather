@@ -171,14 +171,14 @@ class NLWeatherNowcastCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
 
 
 class NLWeatherAlertsCoordinator(DataUpdateCoordinator[list[Alert]]):
-    """Coordinator for regional weather alerts."""
+    """Coordinator for nationwide weather alerts."""
 
     def __init__(self, hass: HomeAssistant, entry: NLWeatherConfigEntry) -> None:
         super().__init__(
             hass,
             _LOGGER,
             config_entry=entry,
-            name=f"NL Weather KNMI App API regional alerts coordinator for {entry.title}",
+            name=f"NL Weather KNMI App API nationwide alerts coordinator for {entry.title}",
             always_update=False,
             update_interval=APP_ALERTS_API_SCAN_INTERVAL,
         )
@@ -186,10 +186,10 @@ class NLWeatherAlertsCoordinator(DataUpdateCoordinator[list[Alert]]):
 
     async def _async_update_data(self) -> list[Alert]:
         try:
-            snapshot = await self._api.alerts_regional()
+            snapshot = await self._api.alerts_nationwide()
         except AppException as err:
             raise UpdateFailed(f"Error while retrieving alerts: {err}") from err
-        return parse_alerts(snapshot, utcnow())
+        return parse_alerts(snapshot)
 
 
 class NLWeatherEDRCoordinator(DataUpdateCoordinator):

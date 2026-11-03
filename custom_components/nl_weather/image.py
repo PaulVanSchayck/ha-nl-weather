@@ -121,9 +121,10 @@ class WeatherAlertsImage(ImageEntity):
             self._background = Image.open(f, formats=["PNG"]).convert("RGBA")
 
     async def _render(self) -> None:
-        alerts = self._coordinator.data
-        if alerts is None:
+        if self._coordinator.data is None:
             return
+        now = utcnow()
+        alerts = [a for a in self._coordinator.data if a.is_active(now)]
         self._image = await self.hass.async_add_executor_job(
             render_alerts,
             self._background,
