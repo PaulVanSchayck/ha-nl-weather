@@ -9,7 +9,7 @@ from random import randint
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
-from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME, CONF_REGION
+from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import utcnow
@@ -75,7 +75,6 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             subentry.data[CONF_LATITUDE],
             subentry.data[CONF_LONGITUDE],
         )
-        self._region = subentry.data[CONF_REGION]
 
     async def _async_setup(self) -> None:
         # Calculate grid cells for this location
@@ -87,12 +86,12 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_update_data(self) -> dict[str, Any]:
         """Obtain the latest data from KNMI App API."""
         try:
-            summary = await self._api.weather(self._forecast_cell, self._region)
+            summary = await self._api.weather(self._forecast_cell)
 
             # Fetch all individual days
             for daily_forecast in summary["daily"]["forecast"]:
                 day_detail = await self._api.weather_detail(
-                    self._forecast_cell, self._region, daily_forecast["date"]
+                    self._forecast_cell, daily_forecast["date"]
                 )
                 # Augment the summary data with daily data
                 daily_forecast["precipitation"]["chance"] = day_detail[
@@ -137,7 +136,6 @@ class NLWeatherNowcastCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
             subentry.data[CONF_LATITUDE],
             subentry.data[CONF_LONGITUDE],
         )
-        self._region = subentry.data[CONF_REGION]
 
     async def _async_setup(self) -> None:
         grid_manager = GridManager.default()

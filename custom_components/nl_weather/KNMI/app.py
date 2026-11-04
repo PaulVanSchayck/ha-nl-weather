@@ -52,12 +52,12 @@ class App:
                 raise
             return json.loads(body)
 
-    async def weather(self, cell_id, region):
-        params = {"location": cell_id, "region": region}
+    async def weather(self, cell_id):
+        params = {"location": cell_id}
         return await self.get("weather", params)
 
-    async def weather_detail(self, cell_id, region, date):
-        params = {"location": cell_id, "region": region, "date": date}
+    async def weather_detail(self, cell_id, date):
+        params = {"location": cell_id, "date": date}
         return await self.get("weather/detail", params)
 
     async def alerts_nationwide(self):
