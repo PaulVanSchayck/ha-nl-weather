@@ -4,11 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import StrEnum
 from itertools import pairwise
 from typing import Any
 
-# Higher is more severe
-LEVEL_SEVERITY = {"yellow": 1, "orange": 2, "red": 3}
+
+class AlertLevel(StrEnum):
+    NONE = "none"
+    YELLOW = "yellow"
+    ORANGE = "orange"
+    RED = "red"
 
 
 @dataclass
@@ -16,7 +21,7 @@ class Alert:
     warning_id: str
     weather_type: int
     headline: str
-    level: str
+    level: AlertLevel
     onset: datetime | None
     expires: datetime | None
     # Each polygon is a list of rings of (lon, lat); the first ring is the exterior
@@ -38,7 +43,7 @@ class Alert:
 
     @property
     def severity(self) -> int:
-        return LEVEL_SEVERITY[self.level]
+        return list(AlertLevel).index(self.level)
 
     def is_active(self, now: datetime) -> bool:
         if self.onset is not None and self.onset > now:
@@ -99,8 +104,6 @@ def parse_alerts(snapshot: dict[str, Any]) -> list[Alert]:
     alerts: list[Alert] = []
     for warning in snapshot["warnings"]:
         for part in warning.get("parts", []):
-            if part.get("color") not in LEVEL_SEVERITY:
-                continue
             polygons = _polygons(part["area"])
             if polygons:
                 alerts.append(
@@ -108,7 +111,7 @@ def parse_alerts(snapshot: dict[str, Any]) -> list[Alert]:
                         part["id"],
                         warning["weatherType"],
                         warning.get("headline", ""),
-                        part["color"],
+                        AlertLevel(part.get("color")),
                         _parse_optional_dt(part.get("onset", warning.get("onset"))),
                         _parse_optional_dt(part.get("expires", warning.get("expires"))),
                         polygons,

@@ -20,6 +20,7 @@ from .const import (
     CONF_RADAR_STYLE,
     DEFAULT_RADAR_STYLE,
     DOMAIN,
+    LEVEL_COLORS,
     RADAR_STYLES,
 )
 from .coordinator import NLWeatherConfigEntry
@@ -28,12 +29,6 @@ from .KNMI.helpers import Coordinate, add_location_markers, lonlat_to_pixel
 
 _LOGGER = logging.getLogger(__name__)
 
-# RGB per warning level
-LEVEL_COLORS = {
-    "yellow": (255, 204, 0),
-    "orange": (255, 120, 0),
-    "red": (220, 0, 0),
-}
 FILL_ALPHA = 100
 OUTLINE_WIDTH = 3
 

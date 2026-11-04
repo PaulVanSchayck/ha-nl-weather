@@ -48,7 +48,6 @@ from .const import (
     ATTR_WEATHER_WIND_GUST_SPEED,
     ATTR_WEATHER_WIND_SPEED,
     PARAMETER_ATTRIBUTE_MAP,
-    Alert,
 )
 from .coordinator import (
     NLWeatherAlertsCoordinator,
@@ -56,17 +55,14 @@ from .coordinator import (
     NLWeatherEDRCoordinator,
     NLWeatherUpdateCoordinator,
 )
-from .KNMI.alerts import Alert as AlertWarning
-from .KNMI.alerts import get_active_alerts
+from .KNMI.alerts import Alert, AlertLevel, get_active_alerts
 
 
 @dataclass(frozen=True)
 class AlertSensorDescription(SensorEntityDescription):
-    value_fn: Callable[[list[AlertWarning]], Any] | None = field(
+    value_fn: Callable[[list[Alert]], Any] | None = field(default=None, repr=False)
+    extra_state_attributes_fn: Callable[[list[Alert]], dict[str, Any]] | None = field(
         default=None, repr=False
-    )
-    extra_state_attributes_fn: Callable[[list[AlertWarning]], dict[str, Any]] | None = (
-        field(default=None, repr=False)
     )
 
 
@@ -80,10 +76,10 @@ class ForecastSensorDescription(SensorEntityDescription):
     value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
 
 
-def _get_alerts(alerts: list[AlertWarning]) -> list[dict[str, Any]]:
+def _get_alerts(alerts: list[Alert]) -> list[dict[str, Any]]:
     return [
         {
-            "code": Alert(alert.level).value,
+            "code": alert.level.value,
             "description": alert.description,
             "headline": alert.headline,
             "onset": alert.onset.isoformat() if alert.onset else None,
@@ -94,18 +90,18 @@ def _get_alerts(alerts: list[AlertWarning]) -> list[dict[str, Any]]:
     ]
 
 
-def _get_alert_description(alerts: list[AlertWarning]) -> str | None:
+def _get_alert_description(alerts: list[Alert]) -> str | None:
     items = _get_alerts(alerts)
     if not items:
         return "none"
     return items[0]["description"]
 
 
-def _get_alert_count(alerts: list[AlertWarning]) -> int:
+def _get_alert_count(alerts: list[Alert]) -> int:
     return len(_get_alerts(alerts))
 
 
-def _get_alert_attributes(alerts: list[AlertWarning]) -> dict[str, Any]:
+def _get_alert_attributes(alerts: list[Alert]) -> dict[str, Any]:
     items = _get_alerts(alerts)
     return {
         "alert_count": len(items),
@@ -116,9 +112,9 @@ def _get_alert_attributes(alerts: list[AlertWarning]) -> dict[str, Any]:
     }
 
 
-def _get_alert_level(alerts: list[AlertWarning]) -> Alert:
+def _get_alert_level(alerts: list[Alert]) -> AlertLevel:
     # Alerts are sorted most severe first
-    return Alert(alerts[0].level) if alerts else Alert.NONE
+    return alerts[0].level if alerts else AlertLevel.NONE
 
 
 def _get_observation_param(
@@ -182,7 +178,7 @@ ALERT_SENSOR_DESCRIPTIONS: list[AlertSensorDescription] = [
         translation_key="weather_alert_level",
         icon="mdi:alert-box",
         device_class=SensorDeviceClass.ENUM,
-        options=[a.value for a in Alert],
+        options=[a.value for a in AlertLevel],
         value_fn=_get_alert_level,
     ),
 ]
@@ -466,7 +462,7 @@ class NLAlertSensor(CoordinatorEntity[NLWeatherAlertsCoordinator], SensorEntity)
         return self.coordinator.data is not None
 
     @property
-    def active_alerts(self) -> list[AlertWarning]:
+    def active_alerts(self) -> list[Alert]:
         """Active alerts at this location, most severe first.
 
         Only re-evaluated on coordinator updates, so an alert can start or

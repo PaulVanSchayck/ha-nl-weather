@@ -177,11 +177,11 @@ CONDITION_FORECAST_MAP = {
 }
 
 
-class Alert(StrEnum):
-    NONE = "none"
-    YELLOW = "yellow"
-    ORANGE = "orange"
-    RED = "red"
+LEVEL_COLORS: dict[str, tuple[int, int, int]] = {
+    "yellow": (255, 204, 0),
+    "orange": (255, 120, 0),
+    "red": (220, 0, 0),
+}
 
 
 @dataclass
