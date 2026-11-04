@@ -2,7 +2,7 @@
   "entity": {
     "image": {
       "weather_alert_map": {
-        "name": "Weather warnings map"
+        "name": "Warnings map"
       }
     },
     "camera": {
@@ -20,16 +20,16 @@
     },
     "sensor": {
       "weather_alert": {
-        "name": "Alerts",
+        "name": "Warnings",
         "state": {
           "none": "None"
         }
       },
       "weather_alert_count": {
-        "name": "Alert count"
+        "name": "Warnings count"
       },
       "weather_alert_level": {
-        "name": "Alert level",
+        "name": "Warning level",
         "state": {
           "orange": "Orange",
           "yellow": "Yellow",
@@ -133,7 +133,7 @@
     },
     "binary_sensor": {
       "weather_alert_active": {
-        "name": "Alert active"
+        "name": "Warning active"
       },
       "precipitation_nowcast": {
         "name": "Precipitation forecasted"
