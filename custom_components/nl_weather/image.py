@@ -123,20 +123,14 @@ class WeatherAlertsImage(ImageEntity):
     async def _render(self) -> None:
         if self._coordinator.data is None:
             return
-        now = utcnow()
-        alerts = [a for a in self._coordinator.data if a.is_active(now)]
         self._image = await self.hass.async_add_executor_job(
             render_alerts,
             self._background,
-            alerts,
+            self._coordinator.data,
             self._locations,
             self._style.marker_color,
         )
         self._attr_image_last_updated = utcnow()
-        self._attr_extra_state_attributes = {
-            "warnings": len(alerts),
-            "highest_level": alerts[0].level if alerts else None,
-        }
         self.async_write_ha_state()
 
     @callback
