@@ -85,7 +85,7 @@ A form is shown where you can enter your API keys for:
 To start receiving weather observations and forecasts, add a location: 
 **Settings → Devices & services → NL Weather → Add location**
 
-Enter (or modify) the GPS coordinates of your location. The region you set will determine for which region you will receive weather alerts.
+Enter (or modify) the GPS coordinates of your location. Weather alerts are shown when the coordinates of your location lie inside the area of an active KNMI warning.
 
 ## Usage
 
@@ -136,7 +136,7 @@ Available observation sensors depend on the selected weather station. Airport st
 
 ### Rendering weather alerts
 
-The weather alert sensor exposes the first active alert as its state. All active alerts are also available in the `alerts` attribute as dictionaries with `code` and `description`.
+The weather alert sensor exposes the first active alert as its state. All active alerts at your location (most severe first) are also available in the `alerts` attribute as dictionaries with `code`, `description`, `headline`, `onset` and `expires`. The `headline` attribute holds the headline of the most severe alert.
 
 This markdown card renders every active alert as a separate Home Assistant alert block:
 

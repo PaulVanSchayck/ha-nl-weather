@@ -3,6 +3,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntityDescription,
 )
 from homeassistant.config_entries import ConfigSubentry
+from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -10,12 +11,12 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import utcnow
 
 from . import DOMAIN
-from .const import Alert
 from .coordinator import (
+    NLWeatherAlertsCoordinator,
     NLWeatherConfigEntry,
     NLWeatherNowcastCoordinator,
-    NLWeatherUpdateCoordinator,
 )
+from .KNMI.alerts import get_active_alerts
 
 
 async def async_setup_entry(
@@ -24,13 +25,13 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     for subentry_id, subentry in config_entry.subentries.items():
-        app_coordinator = config_entry.runtime_data.app_coordinators[subentry_id]
+        alerts_coordinator = config_entry.runtime_data.alerts_coordinator
         nowcast_coordinator = config_entry.runtime_data.nowcast_coordinators[
             subentry_id
         ]
         async_add_entities(
             [
-                NLWeatherAlertActiveSensor(app_coordinator, config_entry, subentry),
+                NLWeatherAlertActiveSensor(alerts_coordinator, config_entry, subentry),
                 NLWeatherPrecipitationNowcastSensor(
                     nowcast_coordinator, config_entry, subentry
                 ),
@@ -40,12 +41,18 @@ async def async_setup_entry(
 
 
 class NLWeatherAlertActiveSensor(
-    CoordinatorEntity[NLWeatherUpdateCoordinator], BinarySensorEntity
+    CoordinatorEntity[NLWeatherAlertsCoordinator], BinarySensorEntity
 ):
     def __init__(
-        self, coordinator, config_entry: NLWeatherConfigEntry, subentry: ConfigSubentry
+        self,
+        coordinator: NLWeatherAlertsCoordinator,
+        config_entry: NLWeatherConfigEntry,
+        subentry: ConfigSubentry,
     ) -> None:
         super().__init__(coordinator)
+
+        self._lat = subentry.data[CONF_LATITUDE]
+        self._lon = subentry.data[CONF_LONGITUDE]
 
         self._attr_unique_id = (
             f"{config_entry.entry_id}_{subentry.subentry_id}_alert_active"
@@ -61,9 +68,15 @@ class NLWeatherAlertActiveSensor(
         )
 
     @property
+    def available(self) -> bool:
+        return self.coordinator.data is not None
+
+    @property
     def is_on(self):
-        return (
-            self.coordinator.data["hourly"]["forecast"][0]["alertLevel"] != Alert.NONE
+        # Only re-evaluated on coordinator updates, so an alert can start or
+        # expire up to one polling interval late.
+        return bool(
+            get_active_alerts(self.coordinator.data, self._lat, self._lon, utcnow())
         )
 
 

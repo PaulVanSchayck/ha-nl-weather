@@ -92,9 +92,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: NLWeatherConfigEntry) ->
         await c._async_setup()
         hass.async_create_task(c.async_refresh())
 
-    # Setup alert coordinator
+    # The alerts coordinator is allowed to fail, alert entities are unavailable until it succeeds
     entry.runtime_data.alerts_coordinator = NLWeatherAlertsCoordinator(hass, entry)
-    hass.async_create_task(entry.runtime_data.alerts_coordinator.async_refresh())
+    await entry.runtime_data.alerts_coordinator.async_refresh()
 
     await hass.config_entries.async_forward_entry_setups(entry, _PLATFORMS)
 

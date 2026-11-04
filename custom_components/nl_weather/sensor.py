@@ -13,6 +13,8 @@ from homeassistant.components.weather.significant_change import (
 )
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import (
+    CONF_LATITUDE,
+    CONF_LONGITUDE,
     CONF_REGION,
     DEGREE,
     PERCENTAGE,
@@ -28,6 +30,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import utcnow
 
 from . import DOMAIN
 from .const import (
@@ -50,16 +53,21 @@ from .const import (
     Alert,
 )
 from .coordinator import (
+    NLWeatherAlertsCoordinator,
     NLWeatherConfigEntry,
     NLWeatherEDRCoordinator,
     NLWeatherUpdateCoordinator,
 )
+from .KNMI.alerts import Alert as AlertWarning
+from .KNMI.alerts import get_active_alerts
 
 
 @dataclass(frozen=True)
 class AlertSensorDescription(SensorEntityDescription):
-    value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
-    extra_state_attributes_fn: Callable[[dict[str, Any]], dict[str, Any]] | None = (
+    value_fn: Callable[[list[AlertWarning]], Any] | None = field(
+        default=None, repr=False
+    )
+    extra_state_attributes_fn: Callable[[list[AlertWarning]], dict[str, Any]] | None = (
         field(default=None, repr=False)
     )
 
@@ -74,49 +82,45 @@ class ForecastSensorDescription(SensorEntityDescription):
     value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
 
 
-def _get_alerts(data: dict[str, Any]) -> list[dict[str, str]]:
-    alerts = data.get("alerts", [])
+def _get_alerts(alerts: list[AlertWarning]) -> list[dict[str, Any]]:
     return [
         {
-            "code": Alert(alert["level"]).value,
-            "description": description.strip(),
+            "code": Alert(alert.level).value,
+            "description": alert.description,
+            "headline": alert.headline,
+            "onset": alert.onset.isoformat() if alert.onset else None,
+            "expires": alert.expires.isoformat() if alert.expires else None,
         }
         for alert in alerts
-        if isinstance(alert, dict)
-        and isinstance((description := alert.get("description")), str)
-        and description.strip()
+        if alert.description
     ]
 
 
-def _get_alert_description(data: dict[str, Any]) -> str | None:
-    alerts = _get_alerts(data)
-    if not alerts:
+def _get_alert_description(alerts: list[AlertWarning]) -> str | None:
+    items = _get_alerts(alerts)
+    if not items:
         return "none"
-    return alerts[0]["description"]
+    return items[0]["description"]
 
 
-def _get_alert_count(data: dict[str, Any]) -> int:
-    return len(_get_alerts(data))
+def _get_alert_count(alerts: list[AlertWarning]) -> int:
+    return len(_get_alerts(alerts))
 
 
-def _get_alert_attributes(data: dict[str, Any]) -> dict[str, Any]:
-    alerts = _get_alerts(data)
-    descriptions = [alert["description"] for alert in alerts]
+def _get_alert_attributes(alerts: list[AlertWarning]) -> dict[str, Any]:
+    items = _get_alerts(alerts)
     return {
-        "alert_count": len(alerts),
-        "alerts": alerts,
+        "alert_count": len(items),
+        "alerts": items,
         "description": ". ".join(
-            description.removesuffix(".") for description in descriptions
+            item["description"].removesuffix(".") for item in items
         ),
     }
 
 
-def _get_alert_level(data: dict[str, Any]) -> Alert:
-    # TODO: Is the first alert always the highest?
-    try:
-        return Alert(data["hourly"]["forecast"][0]["alertLevel"])
-    except (KeyError, IndexError, TypeError, ValueError):
-        return Alert.NONE
+def _get_alert_level(alerts: list[AlertWarning]) -> Alert:
+    # Alerts are sorted most severe first
+    return Alert(alerts[0].level) if alerts else Alert.NONE
 
 
 def _get_observation_param(
@@ -416,11 +420,12 @@ async def async_setup_entry(
     for subentry_id, subentry in config_entry.subentries.items():
         entities = []
         app_coordinator = config_entry.runtime_data.app_coordinators[subentry_id]
+        alerts_coordinator = config_entry.runtime_data.alerts_coordinator
         edr_coordinator = config_entry.runtime_data.edr_coordinators[subentry_id]
 
         entities = [
             *[
-                NLAlertSensor(app_coordinator, config_entry, subentry, desc)
+                NLAlertSensor(alerts_coordinator, config_entry, subentry, desc)
                 for desc in ALERT_SENSOR_DESCRIPTIONS
             ],
             *[
@@ -437,16 +442,18 @@ async def async_setup_entry(
         async_add_entities(entities, config_subentry_id=subentry_id)
 
 
-class NLAlertSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity):
+class NLAlertSensor(CoordinatorEntity[NLWeatherAlertsCoordinator], SensorEntity):
     def __init__(
         self,
-        coordinator: NLWeatherUpdateCoordinator,
+        coordinator: NLWeatherAlertsCoordinator,
         config_entry: NLWeatherConfigEntry,
         subentry: ConfigSubentry,
         desc: AlertSensorDescription,
     ) -> None:
         super().__init__(coordinator)
 
+        self._lat = subentry.data[CONF_LATITUDE]
+        self._lon = subentry.data[CONF_LONGITUDE]
         self.entity_description = desc
         self._attr_unique_id = (
             f"{config_entry.entry_id}_{subentry.subentry_id}_{desc.key}"
@@ -458,19 +465,27 @@ class NLAlertSensor(CoordinatorEntity[NLWeatherUpdateCoordinator], SensorEntity)
         self._value_fn = desc.value_fn
 
     @property
+    def available(self) -> bool:
+        return self.coordinator.data is not None
+
+    @property
+    def active_alerts(self) -> list[AlertWarning]:
+        """Active alerts at this location, most severe first.
+
+        Only re-evaluated on coordinator updates, so an alert can start or
+        expire up to one polling interval late.
+        """
+        return get_active_alerts(self.coordinator.data, self._lat, self._lon, utcnow())
+
+    @property
     def native_value(self):
-        if self.coordinator.data is None:
-            return None
-        return self._value_fn(self.coordinator.data)
+        return self._value_fn(self.active_alerts)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        if (
-            self.entity_description.extra_state_attributes_fn is None
-            or self.coordinator.data is None
-        ):
+        if self.entity_description.extra_state_attributes_fn is None:
             return None
-        return self.entity_description.extra_state_attributes_fn(self.coordinator.data)
+        return self.entity_description.extra_state_attributes_fn(self.active_alerts)
 
 
 class NLObservationSensor(CoordinatorEntity[NLWeatherEDRCoordinator], SensorEntity):
