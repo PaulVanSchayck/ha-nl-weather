@@ -26,6 +26,9 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     BooleanSelector,
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
@@ -38,15 +41,29 @@ from homeassistant.helpers.selector import (
 from . import EDR, WMS
 from .const import (
     ALERT_REGIONS,
+    CONF_CARTO_API_KEY,
+    CONF_CENTER_LATITUDE,
+    CONF_CENTER_LONGITUDE,
+    CONF_CENTER_MODE,
     CONF_EDR_API_TOKEN,
+    CONF_MAP_PROVIDER,
+    CONF_MAP_STYLE,
     CONF_MARK_LOCATIONS,
     CONF_MQTT_TOKEN,
     CONF_RADAR_STYLE,
     CONF_STATION,
     CONF_WMS_TOKEN,
+    CONF_ZOOM_LEVEL,
+    DEFAULT_CENTER_MODE,
+    DEFAULT_MAP_PROVIDER,
+    DEFAULT_OSM_MAP_STYLE,
     DEFAULT_RADAR_STYLE,
+    DEFAULT_ZOOM_LEVEL,
     DOMAIN,
     RADAR_STYLES,
+    CenterMode,
+    MapProvider,
+    OSMMapStyle,
     StationMode,
 )
 from .KNMI.edr import ServerError as EDRServerError
@@ -90,6 +107,14 @@ DATA_SCHEMA = vol.Schema(
 
 OPTIONS_SCHEMA = vol.Schema(
     {
+        vol.Required(CONF_MAP_PROVIDER, default=DEFAULT_MAP_PROVIDER): SelectSelector(
+            SelectSelectorConfig(
+                options=[
+                    SelectOptionDict(value=p.value, label=p.value) for p in MapProvider
+                ],
+                translation_key="map_provider",
+            ),
+        ),
         vol.Required(CONF_RADAR_STYLE, default=DEFAULT_RADAR_STYLE): SelectSelector(
             SelectSelectorConfig(
                 options=[
@@ -98,7 +123,48 @@ OPTIONS_SCHEMA = vol.Schema(
                 translation_key="radar_style",
             ),
         ),
+        vol.Required(CONF_MAP_STYLE, default=DEFAULT_OSM_MAP_STYLE): SelectSelector(
+            SelectSelectorConfig(
+                options=[
+                    SelectOptionDict(value=s.value, label=s.value) for s in OSMMapStyle
+                ],
+                translation_key="map_style",
+            ),
+        ),
+        vol.Optional(CONF_CARTO_API_KEY): TextSelector(
+            TextSelectorConfig(type=TextSelectorType.PASSWORD)
+        ),
         vol.Required(CONF_MARK_LOCATIONS, default=True): BooleanSelector(),
+        vol.Required(CONF_ZOOM_LEVEL, default=DEFAULT_ZOOM_LEVEL): SelectSelector(
+            SelectSelectorConfig(
+                options=[
+                    SelectOptionDict(value=DEFAULT_ZOOM_LEVEL, label="auto"),
+                    *[
+                        SelectOptionDict(value=str(z), label=str(z))
+                        for z in range(6, 15)
+                    ],
+                ],
+                translation_key="zoom_level",
+            ),
+        ),
+        vol.Required(CONF_CENTER_MODE, default=DEFAULT_CENTER_MODE): SelectSelector(
+            SelectSelectorConfig(
+                options=[
+                    SelectOptionDict(value=m.value, label=m.value) for m in CenterMode
+                ],
+                translation_key="center_mode",
+            ),
+        ),
+        vol.Optional(CONF_CENTER_LATITUDE): NumberSelector(
+            NumberSelectorConfig(
+                min=-90.0, max=90.0, step="any", mode=NumberSelectorMode.BOX
+            )
+        ),
+        vol.Optional(CONF_CENTER_LONGITUDE): NumberSelector(
+            NumberSelectorConfig(
+                min=-180.0, max=180.0, step="any", mode=NumberSelectorMode.BOX
+            )
+        ),
     }
 )
 

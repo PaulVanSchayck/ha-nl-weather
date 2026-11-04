@@ -200,17 +200,63 @@
     "step": {
       "init": {
         "data": {
+          "map_provider": "Map background provider",
           "radar_style": "Radar color theme",
-          "mark_locations": "Mark locations"
+          "map_style": "OSM map style",
+          "carto_api_key": "Carto API key",
+          "mark_locations": "Mark locations",
+          "zoom_level": "Zoom level",
+          "center_mode": "Map center mode",
+          "center_latitude": "Custom center latitude",
+          "center_longitude": "Custom center longitude"
         },
         "data_description": {
+          "map_provider": "Choose between the default static map of the Netherlands or dynamic OpenStreetMap",
           "radar_style": "Select the color style used for the radar image",
-          "mark_locations": "Mark the home location on the radar image"
+          "map_style": "Minimalist style is recommended for weather radar overlays",
+          "carto_api_key": "Optional free API key from carto.com/basemaps/apikey for minimalist raster tiles",
+          "mark_locations": "Mark configured locations and zones on the radar image",
+          "zoom_level": "Auto zoom includes all known zones with a 50% margin, or select a fixed zoom level",
+          "center_mode": "Center on the weighted center of all known zones or specify custom coordinates",
+          "center_latitude": "Latitude in decimal degrees (e.g. 52.1326)",
+          "center_longitude": "Longitude in decimal degrees (e.g. 5.2913)"
         }
       }
     }
   },
   "selector": {
+    "map_provider": {
+      "options": {
+        "static": "Static map (Netherlands)",
+        "osm": "OpenStreetMap"
+      }
+    },
+    "map_style": {
+      "options": {
+        "minimalist": "Minimalist (OpenMapTiles / Positron & Dark Matter)",
+        "standard": "Standard OSM"
+      }
+    },
+    "center_mode": {
+      "options": {
+        "auto": "Auto (weighted center of all known zones)",
+        "custom": "Custom coordinates"
+      }
+    },
+    "zoom_level": {
+      "options": {
+        "auto": "Auto (fit all known zones with 50% margin)",
+        "6": "6 - Benelux",
+        "7": "7 - Netherlands",
+        "8": "8 - Regional (Wide)",
+        "9": "9 - Regional",
+        "10": "10 - Sub-regional",
+        "11": "11 - Metro area",
+        "12": "12 - City",
+        "13": "13 - Town / District",
+        "14": "14 - Neighborhood"
+      }
+    },
     "radar_style": {
       "options": {
         "light": "Light",

@@ -6,12 +6,14 @@ import asyncio
 import io
 import logging
 import os
+import time
 from datetime import UTC, datetime, timedelta
 from random import randint
 
 from homeassistant.components.camera import Camera
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
@@ -19,15 +21,38 @@ from PIL import Image, ImageDraw
 from PIL.ImageFile import ImageFile
 
 from .const import (
+    CONF_CARTO_API_KEY,
+    CONF_CENTER_LATITUDE,
+    CONF_CENTER_LONGITUDE,
+    CONF_CENTER_MODE,
+    CONF_MAP_PROVIDER,
+    CONF_MAP_STYLE,
     CONF_MARK_LOCATIONS,
     CONF_RADAR_STYLE,
+    CONF_ZOOM_LEVEL,
+    DEFAULT_CENTER_MODE,
+    DEFAULT_MAP_PROVIDER,
+    DEFAULT_OSM_MAP_STYLE,
     DEFAULT_RADAR_STYLE,
+    DEFAULT_ZOOM_LEVEL,
     DOMAIN,
+    OSM_CACHE_TTL_SECONDS,
     RADAR_STYLES,
+    CenterMode,
+    MapProvider,
+    OSMMapStyle,
     RadarStyle,
 )
 from .coordinator import NLWeatherConfigEntry
 from .KNMI.helpers import Coordinate, epsg4325_to_epsg3857
+from .KNMI.osm import (
+    OSMTileManager,
+    calculate_auto_zoom_and_bbox,
+    calculate_bbox_for_zoom,
+    calculate_weighted_center,
+    fit_view_to_radar_extent,
+    get_known_zones,
+)
 from .KNMI.wms import WMSException
 
 _LOGGER = logging.getLogger(__name__)
@@ -61,6 +86,11 @@ class PrecipitationRadarCam(Camera):
     _loading = False
     _mark_locations = True
     _locations: list[Coordinate]
+    # Extent (EPSG:3857) shown by the background image. Radar frames are always
+    # requested for BACKGROUND_IMAGE_BBOX at _wms_size (so all users share the
+    # Adaguc cache) and then cropped/scaled locally to this extent.
+    _view_bbox: tuple[float, float, float, float]
+    _wms_size: tuple[int, int]
 
     def __init__(self, config_entry: NLWeatherConfigEntry) -> None:
         super().__init__()
@@ -83,38 +113,53 @@ class PrecipitationRadarCam(Camera):
 
         self._ns = config_entry.runtime_data.notification_service
         self._wms = config_entry.runtime_data.wms
+        self._config_entry = config_entry
 
-        self._radar_style = RADAR_STYLES[
-            config_entry.options.get(CONF_RADAR_STYLE, DEFAULT_RADAR_STYLE)
-        ]
+        self._map_provider = config_entry.options.get(
+            CONF_MAP_PROVIDER, DEFAULT_MAP_PROVIDER
+        )
+        self._map_style = OSMMapStyle(
+            config_entry.options.get(CONF_MAP_STYLE, DEFAULT_OSM_MAP_STYLE)
+        )
+        self._carto_api_key = config_entry.options.get(CONF_CARTO_API_KEY)
+        self._radar_style_key = config_entry.options.get(
+            CONF_RADAR_STYLE, DEFAULT_RADAR_STYLE
+        )
+        self._radar_style = RADAR_STYLES[self._radar_style_key]
+
+        self._zoom_level = config_entry.options.get(CONF_ZOOM_LEVEL, DEFAULT_ZOOM_LEVEL)
+        self._center_mode = config_entry.options.get(
+            CONF_CENTER_MODE, DEFAULT_CENTER_MODE
+        )
+        self._center_latitude = config_entry.options.get(CONF_CENTER_LATITUDE)
+        self._center_longitude = config_entry.options.get(CONF_CENTER_LONGITUDE)
 
         self._mark_locations = config_entry.options.get(CONF_MARK_LOCATIONS, True)
 
-        # TODO: Deal with adding/removing location
+        self._view_bbox = BACKGROUND_IMAGE_BBOX
+        self._background_mtime: float | None = None
+
+        # Subentry locations
         self._locations = []
         for s in config_entry.subentries.values():
             self._locations.append(
                 Coordinate(s.data[CONF_LATITUDE], s.data[CONF_LONGITUDE])
             )
 
-    def _add_locations_markers(self, img):
+    def _add_locations_markers(
+        self, img: Image.Image, bbox: tuple[float, float, float, float]
+    ) -> Image.Image:
         draw = ImageDraw.Draw(img)
+        xmin, ymin, xmax, ymax = bbox
+        width, height = img.size
         for location in self._locations:
             # Convert from lat lon in degrees to x y in meters
             x, y = epsg4325_to_epsg3857(location)
+            if not (xmin <= x <= xmax and ymin <= y <= ymax):
+                continue
             # Calculate position on image.
-            y_img = (
-                img.size[0]
-                / (BACKGROUND_IMAGE_BBOX[3] - BACKGROUND_IMAGE_BBOX[1])
-                * (y - BACKGROUND_IMAGE_BBOX[1])
-            )
-            x_img = (
-                img.size[1]
-                / (BACKGROUND_IMAGE_BBOX[2] - BACKGROUND_IMAGE_BBOX[0])
-                * (x - BACKGROUND_IMAGE_BBOX[0])
-            )
-            # Image is downwards from y so flip
-            y_img = img.size[0] - y_img
+            x_img = (x - xmin) / (xmax - xmin) * width
+            y_img = (ymax - y) / (ymax - ymin) * height
 
             draw.circle(
                 (x_img, y_img), 10, None, self._radar_style.marker_color, width=2
@@ -122,7 +167,7 @@ class PrecipitationRadarCam(Camera):
 
         return img
 
-    def _load_background(self):
+    def _load_static_background(self) -> Image.Image:
         path = os.path.join(
             os.path.dirname(__file__), self._radar_style.background_image
         )
@@ -131,9 +176,95 @@ class PrecipitationRadarCam(Camera):
             img = Image.open(f, formats=["PNG"]).convert("RGBA")
 
         if self._mark_locations:
-            img = self._add_locations_markers(img)
+            img = self._add_locations_markers(img, BACKGROUND_IMAGE_BBOX)
+
+        return img
+
+    def _static_background_size(self) -> tuple[int, int]:
+        path = os.path.join(
+            os.path.dirname(__file__), self._radar_style.background_image
+        )
+        with Image.open(path, formats=["PNG"]) as img:
+            return img.size
+
+    async def async_load_background(self) -> None:
+        self._wms_size = await self.hass.async_add_executor_job(
+            self._static_background_size
+        )
+
+        if self._map_provider == MapProvider.STATIC:
+            self._view_bbox = BACKGROUND_IMAGE_BBOX
+            self._background_image = await self.hass.async_add_executor_job(
+                self._load_static_background
+            )
+            return
+
+        # OSM Provider
+        session = async_get_clientsession(self.hass)
+        cache_dir = self.hass.config.path(".storage", "ha_nl_weather")
+        tile_manager = OSMTileManager(session, cache_dir)
+
+        zones = get_known_zones(self.hass, self._config_entry)
+        for lat, lon, _ in zones:
+            coord = Coordinate(lat, lon)
+            if coord not in self._locations:
+                self._locations.append(coord)
+
+        if (
+            self._center_mode == CenterMode.CUSTOM
+            and self._center_latitude is not None
+            and self._center_longitude is not None
+        ):
+            center = Coordinate(
+                lat=float(self._center_latitude),
+                lon=float(self._center_longitude),
+            )
+        else:
+            center = calculate_weighted_center(zones)
+
+        osm_size = (1024, 1024)
+        if str(self._zoom_level).lower() == DEFAULT_ZOOM_LEVEL:
+            zoom, bbox = calculate_auto_zoom_and_bbox(
+                zones, center, image_size=osm_size, padding=0.50
+            )
+        else:
+            zoom = int(self._zoom_level)
+            bbox = calculate_bbox_for_zoom(center, zoom, image_size=osm_size)
+
+        # Zooming out beyond the radar extent shows no extra data, so fall back to
+        # the default extent instead of recentering on the zones.
+        zoom, bbox, osm_size = fit_view_to_radar_extent(
+            zoom, bbox, osm_size, BACKGROUND_IMAGE_BBOX, self._wms_size
+        )
+        self._view_bbox = bbox
+
+        is_dark = self._radar_style_key == "dark"
+        carto_key = self._carto_api_key
+        img = await tile_manager.async_get_osm_background(
+            self.hass,
+            bbox,
+            osm_size,
+            zoom,
+            self._map_style,
+            is_dark,
+            carto_api_key=carto_key,
+        )
+
+        if self._mark_locations:
+            img = await self.hass.async_add_executor_job(
+                self._add_locations_markers, img, bbox
+            )
 
         self._background_image = img
+        bg_cache_path = tile_manager._get_background_cache_path(
+            bbox, osm_size, zoom, self._map_style.value, is_dark, carto_key
+        )
+        try:
+            self._background_mtime = await asyncio.to_thread(
+                os.path.getmtime, bg_cache_path
+            )
+        except OSError:
+            self._background_mtime = time.time()
 
     def __needs_refresh(self) -> bool:
         if self._last_modified is None or self._last_image_dt is None:
@@ -143,6 +274,15 @@ class PrecipitationRadarCam(Camera):
 
     async def __retrieve_radar_image(self, ref_time) -> bool:
         """Retrieve new radar image and return whether this succeeded."""
+        if self._map_provider == MapProvider.OSM:
+            now = time.time()
+            if (
+                self._background_image is None
+                or self._background_mtime is None
+                or (now - self._background_mtime) >= OSM_CACHE_TTL_SECONDS
+            ):
+                await self.async_load_background()
+
         time_to_image = await self._fetch_radar_frames(ref_time)
 
         if not time_to_image:
@@ -158,7 +298,7 @@ class PrecipitationRadarCam(Camera):
             return t, await self._wms.radar_forecast_image(
                 r,
                 t,
-                self._background_image.size,
+                self._wms_size,
                 BACKGROUND_IMAGE_BBOX_PARAM,
                 self._radar_style.wms_style,
             )
@@ -166,7 +306,7 @@ class PrecipitationRadarCam(Camera):
         async def fetch_realtime_with_time(t):
             return t, await self._wms.radar_real_time_image(
                 t,
-                self._background_image.size,
+                self._wms_size,
                 BACKGROUND_IMAGE_BBOX_PARAM,
                 self._radar_style.wms_style,
             )
@@ -223,6 +363,9 @@ class PrecipitationRadarCam(Camera):
         img = Image.open(buf, formats=["PNG"]).convert("RGBA")
         del buf
 
+        if self._view_bbox != BACKGROUND_IMAGE_BBOX:
+            img = self._crop_radar_to_view(img)
+
         draw = ImageDraw.Draw(img)
         draw.text(
             (28, 28),
@@ -237,6 +380,32 @@ class PrecipitationRadarCam(Camera):
         composite = Image.composite(img, self._background_image, img)
         img.close()
         return composite
+
+    def _crop_radar_to_view(self, img: Image.Image) -> Image.Image:
+        """Crop the default-extent radar frame to the view extent.
+
+        Nearest-neighbour scaling keeps the radar pixels sharp; areas outside the
+        radar extent become transparent.
+        """
+        bxmin, bymin, bxmax, bymax = BACKGROUND_IMAGE_BBOX
+        vxmin, vymin, vxmax, vymax = self._view_bbox
+        width, height = img.size
+        scale_x = width / (bxmax - bxmin)
+        scale_y = height / (bymax - bymin)
+        extent = (
+            (vxmin - bxmin) * scale_x,
+            (bymax - vymax) * scale_y,
+            (vxmax - bxmin) * scale_x,
+            (bymax - vymin) * scale_y,
+        )
+        cropped = img.transform(
+            self._background_image.size,
+            Image.Transform.EXTENT,
+            extent,
+            resample=Image.Resampling.NEAREST,
+        )
+        img.close()
+        return cropped
 
     def _error_image(self) -> bool:
         with io.BytesIO() as output:
@@ -339,5 +508,4 @@ class PrecipitationRadarCam(Camera):
     async def async_added_to_hass(self):
         self._ns.set_callback("radar_forecast", self._attr_unique_id, self._set_latest)
 
-        # TODO: Best place to do this?
-        await self.hass.async_add_executor_job(self._load_background)
+        await self.async_load_background()
