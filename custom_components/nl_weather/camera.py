@@ -50,6 +50,7 @@ from .KNMI.osm import (
     calculate_auto_zoom_and_bbox,
     calculate_bbox_for_zoom,
     calculate_weighted_center,
+    fit_view_to_radar_extent,
     get_known_zones,
 )
 from .KNMI.wms import WMSException
@@ -85,8 +86,11 @@ class PrecipitationRadarCam(Camera):
     _loading = False
     _mark_locations = True
     _locations: list[Coordinate]
-    _radar_bbox: tuple[float, float, float, float]
-    _radar_bbox_param: str
+    # Extent (EPSG:3857) shown by the background image. Radar frames are always
+    # requested for BACKGROUND_IMAGE_BBOX at _wms_size (so all users share the
+    # Adaguc cache) and then cropped/scaled locally to this extent.
+    _view_bbox: tuple[float, float, float, float]
+    _wms_size: tuple[int, int]
 
     def __init__(self, config_entry: NLWeatherConfigEntry) -> None:
         super().__init__()
@@ -132,8 +136,7 @@ class PrecipitationRadarCam(Camera):
 
         self._mark_locations = config_entry.options.get(CONF_MARK_LOCATIONS, True)
 
-        self._radar_bbox = BACKGROUND_IMAGE_BBOX
-        self._radar_bbox_param = BACKGROUND_IMAGE_BBOX_PARAM
+        self._view_bbox = BACKGROUND_IMAGE_BBOX
         self._background_mtime: float | None = None
 
         # Subentry locations
@@ -177,10 +180,20 @@ class PrecipitationRadarCam(Camera):
 
         return img
 
+    def _static_background_size(self) -> tuple[int, int]:
+        path = os.path.join(
+            os.path.dirname(__file__), self._radar_style.background_image
+        )
+        with Image.open(path, formats=["PNG"]) as img:
+            return img.size
+
     async def async_load_background(self) -> None:
+        self._wms_size = await self.hass.async_add_executor_job(
+            self._static_background_size
+        )
+
         if self._map_provider == MapProvider.STATIC:
-            self._radar_bbox = BACKGROUND_IMAGE_BBOX
-            self._radar_bbox_param = BACKGROUND_IMAGE_BBOX_PARAM
+            self._view_bbox = BACKGROUND_IMAGE_BBOX
             self._background_image = await self.hass.async_add_executor_job(
                 self._load_static_background
             )
@@ -218,10 +231,12 @@ class PrecipitationRadarCam(Camera):
             zoom = int(self._zoom_level)
             bbox = calculate_bbox_for_zoom(center, zoom, image_size=osm_size)
 
-        self._radar_bbox = bbox
-        self._radar_bbox_param = (
-            f"{bbox[0]:.1f},{bbox[1]:.1f},{bbox[2]:.1f},{bbox[3]:.1f}"
+        # Zooming out beyond the radar extent shows no extra data, so fall back to
+        # the default extent instead of recentering on the zones.
+        zoom, bbox, osm_size = fit_view_to_radar_extent(
+            zoom, bbox, osm_size, BACKGROUND_IMAGE_BBOX, self._wms_size
         )
+        self._view_bbox = bbox
 
         is_dark = self._radar_style_key == "dark"
         carto_key = self._carto_api_key
@@ -283,16 +298,16 @@ class PrecipitationRadarCam(Camera):
             return t, await self._wms.radar_forecast_image(
                 r,
                 t,
-                self._background_image.size,
-                self._radar_bbox_param,
+                self._wms_size,
+                BACKGROUND_IMAGE_BBOX_PARAM,
                 self._radar_style.wms_style,
             )
 
         async def fetch_realtime_with_time(t):
             return t, await self._wms.radar_real_time_image(
                 t,
-                self._background_image.size,
-                self._radar_bbox_param,
+                self._wms_size,
+                BACKGROUND_IMAGE_BBOX_PARAM,
                 self._radar_style.wms_style,
             )
 
@@ -348,6 +363,9 @@ class PrecipitationRadarCam(Camera):
         img = Image.open(buf, formats=["PNG"]).convert("RGBA")
         del buf
 
+        if self._view_bbox != BACKGROUND_IMAGE_BBOX:
+            img = self._crop_radar_to_view(img)
+
         draw = ImageDraw.Draw(img)
         draw.text(
             (28, 28),
@@ -362,6 +380,32 @@ class PrecipitationRadarCam(Camera):
         composite = Image.composite(img, self._background_image, img)
         img.close()
         return composite
+
+    def _crop_radar_to_view(self, img: Image.Image) -> Image.Image:
+        """Crop the default-extent radar frame to the view extent.
+
+        Nearest-neighbour scaling keeps the radar pixels sharp; areas outside the
+        radar extent become transparent.
+        """
+        bxmin, bymin, bxmax, bymax = BACKGROUND_IMAGE_BBOX
+        vxmin, vymin, vxmax, vymax = self._view_bbox
+        width, height = img.size
+        scale_x = width / (bxmax - bxmin)
+        scale_y = height / (bymax - bymin)
+        extent = (
+            (vxmin - bxmin) * scale_x,
+            (bymax - vymax) * scale_y,
+            (vxmax - bxmin) * scale_x,
+            (bymax - vymin) * scale_y,
+        )
+        cropped = img.transform(
+            self._background_image.size,
+            Image.Transform.EXTENT,
+            extent,
+            resample=Image.Resampling.NEAREST,
+        )
+        img.close()
+        return cropped
 
     def _error_image(self) -> bool:
         with io.BytesIO() as output:

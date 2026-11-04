@@ -152,6 +152,28 @@ def calculate_bbox_for_zoom(
     return xmin, ymin, xmax, ymax
 
 
+def fit_view_to_radar_extent(
+    zoom: int,
+    bbox: tuple[float, float, float, float],
+    size: tuple[int, int],
+    radar_bbox: tuple[float, float, float, float],
+    radar_size: tuple[int, int],
+) -> tuple[int, tuple[float, float, float, float], tuple[int, int]]:
+    """Fall back to the radar extent when the view is at least as large as it.
+
+    Returns (zoom, bbox, size). When falling back, the zoom is the coarsest tile
+    level that is at least as detailed as the radar image resolution.
+    """
+    view_w, view_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    radar_w, radar_h = radar_bbox[2] - radar_bbox[0], radar_bbox[3] - radar_bbox[1]
+    if view_w < radar_w and view_h < radar_h:
+        return zoom, bbox, size
+
+    res = min(radar_w / radar_size[0], radar_h / radar_size[1])
+    radar_zoom = math.ceil(math.log2(WORLD_CIRCUMFERENCE / (TILE_SIZE * res)))
+    return radar_zoom, radar_bbox, radar_size
+
+
 def tile_coordinates(x: float, y: float, zoom: int) -> tuple[int, int]:
     """Return tile (tx, ty) containing EPSG:3857 meters (x, y) at zoom."""
     tile_meters = WORLD_CIRCUMFERENCE / (2**zoom)
@@ -159,16 +181,6 @@ def tile_coordinates(x: float, y: float, zoom: int) -> tuple[int, int]:
     tx = math.floor((x + WORLD_CIRCUMFERENCE / 2.0) / tile_meters)
     ty = math.floor((WORLD_CIRCUMFERENCE / 2.0 - y) / tile_meters)
     return max(0, min(max_idx, tx)), max(0, min(max_idx, ty))
-
-
-def tile_bounds_3857(tx: int, ty: int, zoom: int) -> tuple[float, float, float, float]:
-    """Return EPSG:3857 (xmin, ymin, xmax, ymax) bounds for tile (tx, ty) at zoom."""
-    tile_meters = WORLD_CIRCUMFERENCE / (2**zoom)
-    xmin = tx * tile_meters - WORLD_CIRCUMFERENCE / 2.0
-    xmax = (tx + 1) * tile_meters - WORLD_CIRCUMFERENCE / 2.0
-    ymax = WORLD_CIRCUMFERENCE / 2.0 - ty * tile_meters
-    ymin = WORLD_CIRCUMFERENCE / 2.0 - (ty + 1) * tile_meters
-    return xmin, ymin, xmax, ymax
 
 
 def transform_standard_osm_tile(tile: Image.Image, dark: bool) -> Image.Image:
@@ -302,25 +314,20 @@ class OSMTileManager:
             paste_y = (ty - tymin) * TILE_SIZE
             canvas.paste(tile_img, (paste_x, paste_y))
 
-        xmin, _ymin, _xmax, ymax = bbox
-        px_min = (xmin + WORLD_CIRCUMFERENCE / 2.0) / WORLD_CIRCUMFERENCE * (
-            TILE_SIZE * (2**zoom)
-        ) - txmin * TILE_SIZE
-        py_top = (WORLD_CIRCUMFERENCE / 2.0 - ymax) / WORLD_CIRCUMFERENCE * (
-            TILE_SIZE * (2**zoom)
-        ) - tymin * TILE_SIZE
+        world_px = TILE_SIZE * (2**zoom)
 
-        crop_box = (
-            px_min,
-            py_top,
-            px_min + size[0],
-            py_top + size[1],
-        )
+        def to_px(x: float, y: float) -> tuple[float, float]:
+            px = (x + WORLD_CIRCUMFERENCE / 2.0) / WORLD_CIRCUMFERENCE * world_px
+            py = (WORLD_CIRCUMFERENCE / 2.0 - y) / WORLD_CIRCUMFERENCE * world_px
+            return px - txmin * TILE_SIZE, py - tymin * TILE_SIZE
 
-        cropped = (
-            canvas.crop(crop_box).resize(size, Image.Resampling.LANCZOS).convert("RGBA")
-        )
-        return cropped
+        xmin, ymin, xmax, ymax = bbox
+        left, top = to_px(xmin, ymax)
+        right, bottom = to_px(xmax, ymin)
+
+        return canvas.resize(
+            size, Image.Resampling.LANCZOS, box=(left, top, right, bottom)
+        ).convert("RGBA")
 
     async def async_get_osm_background(
         self,
