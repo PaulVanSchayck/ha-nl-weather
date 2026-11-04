@@ -129,9 +129,6 @@
       },
       "uv_index_today": {
         "name": "UV index today"
-      },
-      "alert_region": {
-        "name": "Alert region"
       }
     },
     "binary_sensor": {
@@ -180,7 +177,6 @@
             "name": "Name",
             "latitude": "Latitude",
             "longitude": "Longitude",
-            "region": "Region for which you receive weather alerts",
             "mode": "Weather observations can be gathered in two different modes"
           }
         },
