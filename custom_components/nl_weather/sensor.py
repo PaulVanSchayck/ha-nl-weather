@@ -76,38 +76,33 @@ class ForecastSensorDescription(SensorEntityDescription):
     value_fn: Callable[[dict[str, Any]], Any] | None = field(default=None, repr=False)
 
 
-def _get_alerts(alerts: list[Alert]) -> list[dict[str, Any]]:
-    return [
-        {
-            "code": alert.level.value,
-            "description": alert.description,
-            "headline": alert.headline,
-            "onset": alert.onset.isoformat() if alert.onset else None,
-            "expires": alert.expires.isoformat() if alert.expires else None,
-        }
-        for alert in alerts
-        if alert.description
-    ]
-
-
 def _get_alert_description(alerts: list[Alert]) -> str | None:
-    items = _get_alerts(alerts)
-    if not items:
+    if not alerts:
         return "none"
-    return items[0]["description"]
+    alert = alerts[0]
+    return alert.description or alert.headline or alert.level.value
 
 
 def _get_alert_count(alerts: list[Alert]) -> int:
-    return len(_get_alerts(alerts))
+    return len(alerts)
 
 
 def _get_alert_attributes(alerts: list[Alert]) -> dict[str, Any]:
-    items = _get_alerts(alerts)
     return {
-        "alert_count": len(items),
-        "alerts": items,
+        "alert_count": len(alerts),
+        "alerts": [
+            {
+                "code": alert.level.value,
+                "description": alert.description,
+                "headline": alert.headline,
+                "onset": alert.onset.isoformat(),
+                "expires": alert.expires.isoformat(),
+            }
+            for alert in alerts
+        ],
         "description": ". ".join(
-            item["description"].removesuffix(".") for item in items
+            (alert.description or alert.headline or alert.level.value).removesuffix(".")
+            for alert in alerts
         ),
     }
 

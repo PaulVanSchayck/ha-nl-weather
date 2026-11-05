@@ -22,8 +22,8 @@ class Alert:
     weather_type: int
     headline: str
     level: AlertLevel
-    onset: datetime | None
-    expires: datetime | None
+    onset: datetime
+    expires: datetime
     # Each polygon is a list of rings of (lon, lat); the first ring is the exterior
     polygons: list[list[list[tuple[float, float]]]]
     description: str = ""
