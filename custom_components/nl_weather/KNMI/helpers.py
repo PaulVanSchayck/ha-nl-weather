@@ -5,6 +5,8 @@ from datetime import datetime
 from math import atan2, cos, log, pi, radians, sin, sqrt, tan
 from typing import Any, Final
 
+from PIL import Image, ImageDraw
+
 # Earth radius constants
 EARTH_RADIUS_KM: Final = 6371.0  # Haversine formula Earth radius (kilometers)
 EARTH_RADIUS_METERS: Final = 6378137.0  # EPSG:3857 Web Mercator radius (meters)
@@ -77,7 +79,7 @@ def unique_items_sorted_by_frequency(items):
     return sorted(set(items), key=items.count, reverse=True)
 
 
-def epsg4325_to_epsg3857(coord: Coordinate) -> tuple[float, float]:
+def epsg4326_to_epsg3857(coord: Coordinate) -> tuple[float, float]:
     """Convert a Coordinate from EPSG:4326 to EPSG:3857 meters (x, y).
 
     Args:
@@ -95,3 +97,31 @@ def epsg4325_to_epsg3857(coord: Coordinate) -> tuple[float, float]:
 
 def format_dt(dt: datetime) -> str:
     return dt.isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def lonlat_to_pixel(
+    lon: float,
+    lat: float,
+    bbox: tuple[float, float, float, float],
+    size: tuple[int, int],
+) -> tuple[float, float]:
+    """Convert lon/lat degrees to image pixels for an EPSG:3857 bbox (minx, miny, maxx, maxy)."""
+    x, y = epsg4326_to_epsg3857(Coordinate(lat, lon))
+    return (
+        (x - bbox[0]) / (bbox[2] - bbox[0]) * size[0],
+        (bbox[3] - y) / (bbox[3] - bbox[1]) * size[1],
+    )
+
+
+def add_location_markers(
+    img: Image.Image,
+    locations: list[Coordinate],
+    color: str,
+    bbox: tuple[float, float, float, float],
+) -> Image.Image:
+    """Draw a circle for each location on an image covering the EPSG:3857 bbox."""
+    draw = ImageDraw.Draw(img)
+    for location in locations:
+        x_img, y_img = lonlat_to_pixel(location.lon, location.lat, bbox, img.size)
+        draw.circle((x_img, y_img), 10, None, color, width=2)
+    return img

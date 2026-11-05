@@ -18,6 +18,7 @@ from .const import (
     DOMAIN as DOMAIN,
 )
 from .coordinator import (
+    NLWeatherAlertsCoordinator,
     NLWeatherAutoEDRCoordinator,
     NLWeatherConfigEntry,
     NLWeatherManualEDRCoordinator,
@@ -35,6 +36,7 @@ _PLATFORMS: list[Platform] = [
     Platform.CAMERA,
     Platform.SENSOR,
     Platform.BINARY_SENSOR,
+    Platform.IMAGE,
 ]
 _LOGGER = logging.getLogger(__name__)
 
@@ -89,6 +91,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: NLWeatherConfigEntry) ->
     for c in entry.runtime_data.nowcast_coordinators.values():
         await c._async_setup()
         hass.async_create_task(c.async_refresh())
+
+    # The alerts coordinator is allowed to fail, alert entities are unavailable until it succeeds
+    entry.runtime_data.alerts_coordinator = NLWeatherAlertsCoordinator(hass, entry)
+    await entry.runtime_data.alerts_coordinator.async_refresh()
 
     await hass.config_entries.async_forward_entry_setups(entry, _PLATFORMS)
 

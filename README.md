@@ -23,7 +23,7 @@ is used to display the forecast and nowcast. For the radar image the “Picture 
 - Can have multiple configurable locations (limited to the Netherlands) with
   - Current weather observations (temperature, humidity, wind, etc.)  
   - Weather forecast (hourly/daily)
-  - Weather alerts (issued by KNMI)
+  - Weather warnings (issued by KNMI)
 - Precipitation / rain radar and forecast graph (2 hours into future)
   - Can mark home location on the radar image
   - Radar has a dark and light color theme 
@@ -85,7 +85,7 @@ A form is shown where you can enter your API keys for:
 To start receiving weather observations and forecasts, add a location: 
 **Settings → Devices & services → NL Weather → Add location**
 
-Enter (or modify) the GPS coordinates of your location. The region you set will determine for which region you will receive weather alerts.
+Enter (or modify) the GPS coordinates of your location. Weather warnings are shown when the coordinates of your location lie inside the area of an active KNMI warning.
 
 ## Usage
 
@@ -108,7 +108,7 @@ The separate observations and forecast entities remain available and can be enab
 
 ![Screenshot of precipitation nowcast](images/sensors.png "Precipitation Nowcast")
 
-- Weather alert text and alert level
+- Weather warning text and warning level
 - Forecast temperature sensors for today's and tomorrow's highs and lows
 - Precipitation forecast binary sensor 
   - Nowcast graph data stored as a sensor attribute `forecast` (in mm/h)
@@ -134,29 +134,41 @@ The separate observations and forecast entities remain available and can be enab
 
 Available observation sensors depend on the selected weather station. Airport stations usually provide the most complete set of measurements. More information about observations can be found in [KNMI documentation](https://english.knmidata.nl/open-data/10-minute-in-situ-meteorological-observations).
 
-### Rendering weather alerts
+### Rendering weather warnings
 
-The weather alert sensor exposes the first active alert as its state. All active alerts are also available in the `alerts` attribute as dictionaries with `code` and `description`.
+The weather warning sensor exposes the first active warning as its state. All active warnings at your location (most severe first) are also available in the `alerts` attribute as dictionaries with `code`, `description`, `headline`, `onset` and `expires`. The `headline` attribute holds the headline of the most severe warning.
 
 This markdown card renders every active alert as a separate Home Assistant alert block:
 
 ```yaml
 type: markdown
 content: |
-  {% set alerts = state_attr('sensor.weer_home_alerts', 'alerts') or [] %}
+  {% set alerts = state_attr('sensor.weer_home_warnings', 'alerts') or [] %}
   {% set titles = {'red': 'Code rood', 'orange': 'Code oranje', 'yellow': 'Code geel'} %}
   {% set levels = {'red': 'error', 'orange': 'warning', 'yellow': 'info'} %}
+  {% macro dutch_time(value) -%}
+    {%- set date_time = as_local(as_datetime(value)) -%}
+    {%- set day_offset = (date_time.date() - now().date()).days -%}
+    {%- if day_offset == 0 -%}
+      vandaag {{ date_time.strftime('%H:%M') }}
+    {%- elif day_offset == 1 -%}
+      morgen {{ date_time.strftime('%H:%M') }}
+    {%- elif day_offset == 2 -%}
+      overmorgen {{ date_time.strftime('%H:%M') }}
+    {%- else -%}
+      {{ date_time.strftime('%d-%m %H:%M') }}
+    {%- endif -%}
+  {%- endmacro %}
   {% if alerts %}
   {% for alert in alerts %}
   {% set code = alert.code | lower %}
-  {% set title = titles.get(code, 'Weerwaarschuwing') %}
+  {% set warning_title = titles.get(code, 'Weerwaarschuwing') %}
+  {% set title = warning_title ~ ': ' ~ alert.headline %}
   {% set level = levels.get(code) %}
-  {% set item = alert.description | trim %}
-  {% set prefix = title | lower ~ ' voor ' %}
-  {% set prefix_length = prefix | length %}
-  {% set detail = item[prefix_length:] | trim if (item | lower).startswith(prefix) else item %}
   <ha-alert alert-type="{{ level }}" title="{{ title }}">
-    {{ detail[:1] | upper }}{{ detail[1:] }}{{ '.' if not detail.endswith('.') else '' }}
+    <small><i>Van {{ dutch_time(alert.onset) }} tot {{ dutch_time(alert.expires) }}</i></small>
+    <br>
+    {{ alert.description | trim }}
   </ha-alert>
   {% endfor %}
   {% else %}
@@ -166,7 +178,7 @@ content: |
   {% endif %}
 ```
 
-![Screenshot of weather alerts rendered in a markdown card](images/weather-alerts-markdown.png "Weather alerts in a markdown card")
+![Screenshot of weather warnings rendered in a markdown card](images/weather-alerts-markdown.png "Weather warnings in a markdown card")
 
 ### Which weather station is being used?
 

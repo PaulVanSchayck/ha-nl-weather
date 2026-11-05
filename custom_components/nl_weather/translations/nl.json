@@ -1,5 +1,10 @@
 {
   "entity": {
+    "image": {
+      "weather_alert_map": {
+        "name": "Waarschuwingenkaart"
+      }
+    },
     "camera": {
       "precipitation_radar": {
         "name": "Neerslagradar"
@@ -124,9 +129,6 @@
       },
       "uv_index_today": {
         "name": "UV index vandaag"
-      },
-      "alert_region": {
-        "name": "Waarschuwingsregio"
       }
     },
     "binary_sensor": {
@@ -175,7 +177,6 @@
             "name": "Naam",
             "latitude": "Breedtegraad",
             "longitude": "Lengtegraad",
-            "region": "Regio waarvoor je weerwaarschuwingen ontvangt",
             "mode": "Weerwaarnemingen kunnen op twee verschillende manieren verzameld worden"
           }
         },
