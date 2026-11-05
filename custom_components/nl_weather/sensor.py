@@ -458,10 +458,6 @@ class NLAlertSensor(CoordinatorEntity[NLWeatherAlertsCoordinator], SensorEntity)
         self._value_fn = desc.value_fn
 
     @property
-    def available(self) -> bool:
-        return self.coordinator.data is not None
-
-    @property
     def active_alerts(self) -> list[Alert]:
         """Active alerts at this location, most severe first.
 

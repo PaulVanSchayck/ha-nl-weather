@@ -10,7 +10,7 @@ BASE_URL = "https://api.app.knmi.cloud"
 _LOGGER = logging.getLogger(__name__)
 
 # TODO: Remove once the alerts/nationwide endpoint is live
-MOCK_ALERTS = True
+MOCK_ALERTS = False
 MOCK_ALERTS_FILE = Path(__file__).parent / "mock_alerts" / "w-three-levels.json"
 
 

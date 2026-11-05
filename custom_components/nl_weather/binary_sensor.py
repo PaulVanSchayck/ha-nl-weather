@@ -68,10 +68,6 @@ class NLWeatherAlertActiveSensor(
         )
 
     @property
-    def available(self) -> bool:
-        return self.coordinator.data is not None
-
-    @property
     def is_on(self):
         # Only re-evaluated on coordinator updates, so an alert can start or
         # expire up to one polling interval late.

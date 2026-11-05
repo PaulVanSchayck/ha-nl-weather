@@ -177,7 +177,7 @@ class NLWeatherAlertsCoordinator(DataUpdateCoordinator[list[Alert]]):
             _LOGGER,
             config_entry=entry,
             name=f"NL Weather KNMI App API nationwide alerts coordinator for {entry.title}",
-            always_update=False,
+            always_update=True,
             update_interval=APP_ALERTS_API_SCAN_INTERVAL,
         )
         self._api = entry.runtime_data.app
