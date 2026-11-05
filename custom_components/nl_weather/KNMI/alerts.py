@@ -81,10 +81,6 @@ def _parse_dt(value: str) -> datetime:
     return datetime.fromisoformat(value)
 
 
-def _parse_optional_dt(value: str | None) -> datetime | None:
-    return _parse_dt(value) if value else None
-
-
 def _polygons(geometry: dict[str, Any]) -> list[list[list[tuple[float, float]]]]:
     if geometry["type"] == "Polygon":
         raw = [geometry["coordinates"]]
@@ -112,10 +108,10 @@ def parse_alerts(snapshot: dict[str, Any]) -> list[Alert]:
                         warning["weatherType"],
                         warning.get("headline", ""),
                         AlertLevel(part.get("color")),
-                        _parse_optional_dt(part.get("onset", warning.get("onset"))),
-                        _parse_optional_dt(part.get("expires", warning.get("expires"))),
+                        _parse_dt(part.get("onset", warning.get("onset"))),
+                        _parse_dt(part.get("expires", warning.get("expires"))),
                         polygons,
-                        (warning.get("description") or "").strip(),
+                        warning.get("description", ""),
                     )
                 )
     alerts.sort(key=lambda a: a.severity, reverse=True)
