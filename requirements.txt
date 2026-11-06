@@ -1,5 +1,5 @@
 homeassistant>=2025.8.0
-aiomqtt~=2.5.0
+aiomqtt~=2.5.1
 ruff==0.17.2
 pre-commit
 pyproj~=3.7.2
