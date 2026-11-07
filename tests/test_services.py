@@ -1,9 +1,12 @@
 """Test services configuration schema validation and registration."""
 
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import homeassistant.helpers.service as service_helper
+import pytest
 import yaml
+from homeassistant.core import SupportsResponse
 
 from custom_components.nl_weather.const import NLWeatherEntityFeature
 from custom_components.nl_weather.weather import (
@@ -11,6 +14,7 @@ from custom_components.nl_weather.weather import (
     NLWeatherCombined,
     NLWeatherForecast,
     NLWeatherObservations,
+    async_setup_entry,
 )
 
 
@@ -50,3 +54,25 @@ def test_services_yaml_schema_validation() -> None:
 def test_weather_entity_feature_constant() -> None:
     """Test that NLWeatherEntityFeature.FORECAST_MINUTE constant value is 32."""
     assert NLWeatherEntityFeature.FORECAST_MINUTE == 32
+
+
+@pytest.mark.asyncio
+async def test_minute_forecast_service_registration() -> None:
+    """Test that the minute forecast service requires its supported feature."""
+    platform = MagicMock()
+    config_entry = MagicMock()
+    config_entry.subentries = {}
+
+    with patch(
+        "custom_components.nl_weather.weather.entity_platform.async_get_current_platform",
+        return_value=platform,
+    ):
+        await async_setup_entry(MagicMock(), config_entry, MagicMock())
+
+    platform.async_register_entity_service.assert_called_once_with(
+        name=SERVICE_GET_MINUTE_FORECAST,
+        schema=None,
+        func="async_get_minute_forecast",
+        required_features=[NLWeatherEntityFeature.FORECAST_MINUTE],
+        supports_response=SupportsResponse.ONLY,
+    )
