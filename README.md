@@ -134,11 +134,18 @@ The separate observations and forecast entities remain available and can be enab
 
 Available observation sensors depend on the selected weather station. Airport stations usually provide the most complete set of measurements. More information about observations can be found in [KNMI documentation](https://english.knmidata.nl/open-data/10-minute-in-situ-meteorological-observations).
 
-### Rendering weather warnings
+### Weather warnings
+
+All active and upcoming weather warnings are plotted on an image entity `image.waarschuwingenkaart`.
+
+![Screenshot of weather warnings picture entity](images/warnings.png "Warnings picture entity")
 
 The weather warning sensor exposes the first active warning as its state. All active warnings at your location (most severe first) are also available in the `alerts` attribute as dictionaries with `code`, `condition`, `description`, `details`, `headline`, `onset` and `expires`. The `condition` value is a Home Assistant weather condition.
 
 This markdown card renders every active alert as a separate Home Assistant alert block:
+
+![Screenshot of weather warnings rendered in a markdown card](images/weather-alerts-markdown.png "Weather warnings in a markdown card")
+
 
 ```yaml
 type: markdown
@@ -179,8 +186,6 @@ content: |
   </ha-alert>
   {% endif %}
 ```
-
-![Screenshot of weather warnings rendered in a markdown card](images/weather-alerts-markdown.png "Weather warnings in a markdown card")
 
 ### Which weather station is being used?
 
@@ -319,9 +324,9 @@ Contributions, bug reports, feature requests are welcome. Feel free to open an i
 
 Apache License, Version 2.0 
 
-## Disclaimer / Notes
+## Disclaimer
 
-- Forecast, weather observations, radar and weather warnings provided by Koninklijk Nederlands Meteorologisch Instituut (KNMI) 
+Forecast, weather observations, radar and weather warnings provided by Koninklijk Nederlands Meteorologisch Instituut (KNMI) 
 licensed under CC-BY 4.0 
  
 ## Discussion
