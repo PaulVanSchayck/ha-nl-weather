@@ -27,6 +27,7 @@ class Alert:
     # Each polygon is a list of rings of (lon, lat); the first ring is the exterior
     polygons: list[list[list[tuple[float, float]]]]
     description: str = ""
+    details: str = ""
     _bboxes: list[tuple[float, float, float, float]] = field(
         init=False, repr=False, compare=False
     )
@@ -112,6 +113,7 @@ def parse_alerts(snapshot: dict[str, Any]) -> list[Alert]:
                         _parse_dt(part.get("expires", warning.get("expires"))),
                         polygons,
                         warning.get("description", ""),
+                        warning.get("detailedDescription", ""),
                     )
                 )
     alerts.sort(key=lambda a: a.severity, reverse=True)

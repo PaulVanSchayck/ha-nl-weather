@@ -1,32 +1,10 @@
-import asyncio
 import json
 import logging
-from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 import aiohttp
 
 BASE_URL = "https://api.app.knmi.cloud"
 _LOGGER = logging.getLogger(__name__)
-
-# TODO: Remove once the alerts/nationwide endpoint is live
-MOCK_ALERTS = False
-MOCK_ALERTS_FILE = Path(__file__).parent / "mock_alerts" / "w-three-levels.json"
-
-
-def _mock_alerts() -> dict:
-    """Load the mock snapshot with all time windows set to be active now."""
-    snapshot = json.loads(MOCK_ALERTS_FILE.read_text())
-    now = datetime.now(UTC)
-    window = {
-        "onset": (now - timedelta(minutes=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "expires": (now + timedelta(hours=12)).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    }
-    for warning in snapshot["warnings"]:
-        warning.update(window)
-        for part in warning["parts"]:
-            part.update(window)
-    return snapshot
 
 
 class App:
@@ -61,8 +39,6 @@ class App:
         return await self.get("weather/detail", params)
 
     async def alerts_nationwide(self):
-        if MOCK_ALERTS:
-            return await asyncio.to_thread(_mock_alerts)
         return await self.get("alerts/nationwide")
 
     async def precipitation_graph(self, radar_cell_id, date):
