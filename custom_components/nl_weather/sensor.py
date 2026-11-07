@@ -47,6 +47,7 @@ from .const import (
     ATTR_WEATHER_WIND_BEARING,
     ATTR_WEATHER_WIND_GUST_SPEED,
     ATTR_WEATHER_WIND_SPEED,
+    CONDITION_FORECAST_MAP,
     PARAMETER_ATTRIBUTE_MAP,
 )
 from .coordinator import (
@@ -93,7 +94,9 @@ def _get_alert_attributes(alerts: list[Alert]) -> dict[str, Any]:
         "alerts": [
             {
                 "code": alert.level.value,
+                "condition": CONDITION_FORECAST_MAP[alert.weather_type],
                 "description": alert.description,
+                "details": alert.details,
                 "headline": alert.headline,
                 "onset": alert.onset.isoformat(),
                 "expires": alert.expires.isoformat(),

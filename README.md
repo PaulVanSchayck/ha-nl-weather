@@ -136,7 +136,7 @@ Available observation sensors depend on the selected weather station. Airport st
 
 ### Rendering weather warnings
 
-The weather warning sensor exposes the first active warning as its state. All active warnings at your location (most severe first) are also available in the `alerts` attribute as dictionaries with `code`, `description`, `headline`, `onset` and `expires`. The `headline` attribute holds the headline of the most severe warning.
+The weather warning sensor exposes the first active warning as its state. All active warnings at your location (most severe first) are also available in the `alerts` attribute as dictionaries with `code`, `condition`, `description`, `details`, `headline`, `onset` and `expires`. The `condition` value is a Home Assistant weather condition.
 
 This markdown card renders every active alert as a separate Home Assistant alert block:
 
@@ -151,6 +151,8 @@ content: |
     {%- set day_offset = (date_time.date() - now().date()).days -%}
     {%- if day_offset == 0 -%}
       vandaag {{ date_time.strftime('%H:%M') }}
+    {%- elif day_offset == 1 and date_time.strftime('%H:%M') == '00:00' -%}
+      vannacht om 00:00
     {%- elif day_offset == 1 -%}
       morgen {{ date_time.strftime('%H:%M') }}
     {%- elif day_offset == 2 -%}
