@@ -169,7 +169,7 @@ content: |
     {%- endif -%}
   {%- endmacro %}
   {% if alerts is not list %}
-    Wrong entity
+    Error: Entity does not exist or has no alerts attribute
   {% elif alerts | count > 0 %}
     {% for alert in alerts %}
     {% set code = alert.code | lower %}
