@@ -77,7 +77,7 @@ class WMS:
     async def get_capabilities_radar(self) -> ET.ElementTree:
         params = {}
         params["SERVICE"] = "WMS"
-        params["DATASET"] = "nl_rdr_data_rtcor_5m"
+        params["DATASET"] = "nl_rdr_data_rtcor_5m_1.0"
         params["REQUEST"] = "GetCapabilities"
         buf = await self.get(params)
         return ET.parse(buf)
@@ -87,7 +87,7 @@ class WMS:
         # The zulu "Z" format (instead of +00:00) is needed to enable long-term caching.
         # https://github.com/KNMI/adaguc-server/issues/719
         params["TIME"] = format_dt(time)
-        params["DATASET"] = "nl_rdr_data_rtcor_5m"
+        params["DATASET"] = "nl_rdr_data_rtcor_5m_1.0"
         params["LAYERS"] = "precipitation_real_time"
         params["STYLES"] = style
         params["WIDTH"] = size[0]
@@ -101,7 +101,7 @@ class WMS:
         # https://github.com/KNMI/adaguc-server/issues/719
         params["DIM_REFERENCE_TIME"] = format_dt(ref_time)
         params["TIME"] = format_dt(time)
-        params["DATASET"] = "radar_forecast_2.0"
+        params["DATASET"] = "radar_forecast_2.0a"
         params["LAYERS"] = "precipitation_nowcast"
         params["STYLES"] = style
         params["WIDTH"] = size[0]
