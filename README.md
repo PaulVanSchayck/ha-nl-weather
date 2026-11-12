@@ -142,7 +142,7 @@ All active and upcoming weather warnings are plotted on an image entity `image.w
 
 The weather warning sensor exposes the first active warning as its state. All active warnings at your location (most severe first) are also available in the `alerts` attribute as dictionaries with `code`, `condition`, `description`, `details`, `headline`, `onset` and `expires`. The `condition` value is a Home Assistant weather condition.
 
-This markdown card renders every active alert as a separate Home Assistant alert block:
+This markdown card renders every active or upcoming warning as a separate block: 
 
 ![Screenshot of weather warnings rendered in a markdown card](images/weather-alerts-markdown.png "Weather warnings in a markdown card")
 
@@ -150,7 +150,7 @@ This markdown card renders every active alert as a separate Home Assistant alert
 ```yaml
 type: markdown
 content: |
-  {% set alerts = state_attr('sensor.weer_home_warnings', 'alerts') or [] %}
+  {% set alerts = state_attr('sensor.weer_home_warnings', 'alerts') %}
   {% set titles = {'red': 'Code rood', 'orange': 'Code oranje', 'yellow': 'Code geel'} %}
   {% set levels = {'red': 'error', 'orange': 'warning', 'yellow': 'info'} %}
   {% macro dutch_time(value) -%}
@@ -168,22 +168,24 @@ content: |
       {{ date_time.strftime('%d-%m %H:%M') }}
     {%- endif -%}
   {%- endmacro %}
-  {% if alerts %}
-  {% for alert in alerts %}
-  {% set code = alert.code | lower %}
-  {% set warning_title = titles.get(code, 'Weerwaarschuwing') %}
-  {% set title = warning_title ~ ': ' ~ alert.headline %}
-  {% set level = levels.get(code) %}
-  <ha-alert alert-type="{{ level }}" title="{{ title }}">
-    <small><i>Van {{ dutch_time(alert.onset) }} tot {{ dutch_time(alert.expires) }}</i></small>
-    <br>
-    {{ alert.description | trim }}
-  </ha-alert>
-  {% endfor %}
+  {% if alerts is not list %}
+    Error: Entity does not exist or has no alerts attribute
+  {% elif alerts | count > 0 %}
+    {% for alert in alerts %}
+    {% set code = alert.code | lower %}
+      {% set warning_title = titles.get(code) %}
+      {% set title = warning_title ~ ': ' ~ alert.headline %}
+      {% set level = levels.get(code) %}
+      <ha-alert alert-type="{{ level }}" title="{{ title }}">
+        <small><i>Van {{ dutch_time(alert.onset) }} tot {{ dutch_time(alert.expires) }}</i></small>
+        <br>
+        {{ alert.description | trim }}
+      </ha-alert>
+    {% endfor %}
   {% else %}
-  <ha-alert alert-type="success" title="Waarschuwingen">
-    Geen waarschuwingen actief
-  </ha-alert>
+    <ha-alert alert-type="success" title="Waarschuwingen">
+      Geen waarschuwingen actief
+    </ha-alert>
   {% endif %}
 ```
 
