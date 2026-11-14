@@ -15,6 +15,7 @@ from .const import (
     StationMode,
 )
 from .coordinator import (
+    NLWeatherAlertsCoordinator,
     NLWeatherAutoEDRCoordinator,
     NLWeatherConfigEntry,
     NLWeatherManualEDRCoordinator,
@@ -30,6 +31,7 @@ from .KNMI.wms import WMS
 _PLATFORMS: list[Platform] = [
     Platform.WEATHER,
     Platform.CAMERA,
+    Platform.IMAGE,
     Platform.SENSOR,
     Platform.BINARY_SENSOR,
 ]
@@ -54,6 +56,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: NLWeatherConfigEntry) ->
         nowcast_coordinators={},
         edr_coordinators={},
     )
+
+    entry.runtime_data.alerts_coordinator = NLWeatherAlertsCoordinator(hass, entry)
 
     for subentry_id, subentry in entry.subentries.items():
         entry.runtime_data.app_coordinators[subentry_id] = NLWeatherUpdateCoordinator(
@@ -94,6 +98,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: NLWeatherConfigEntry) ->
             coordinator.async_refresh(),
             name="nl_weather_nowcast_refresh",
         )
+
+    # Nationwide warnings are additive: a failing KNMI endpoint must not break
+    # existing regional warnings, forecasts, radar, or observations.
+    await entry.runtime_data.alerts_coordinator.async_refresh()
 
     await hass.config_entries.async_forward_entry_setups(entry, _PLATFORMS)
 
