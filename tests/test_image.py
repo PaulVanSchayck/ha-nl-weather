@@ -51,9 +51,7 @@ def test_render_alerts_markers_and_severity_order() -> None:
     yellow = _alert(AlertLevel.YELLOW)
     red = _alert(AlertLevel.RED)
     bytes_without = render_alerts(background, [])
-    bytes_with_markers = render_alerts(
-        background, [], [Coordinate(52.0, 5.0)], "red"
-    )
+    bytes_with_markers = render_alerts(background, [], [Coordinate(52.0, 5.0)], "red")
     assert bytes_with_markers != bytes_without
     assert render_alerts(background, [red, yellow]) != render_alerts(
         background, [yellow, red]
