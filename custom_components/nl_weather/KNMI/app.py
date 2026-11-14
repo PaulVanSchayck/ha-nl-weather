@@ -292,6 +292,10 @@ class App:
 
         return cast(WeatherDetail, response)
 
+    async def alerts_nationwide(self) -> object:
+        """Retrieve GeoJSON warning parts for all of the Netherlands."""
+        return await self.get("alerts/nationwide")
+
     async def precipitation_graph(
         self,
         radar_cell_id: str,
