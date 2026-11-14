@@ -166,6 +166,7 @@ async def test_validate_wms_input_handles_quota_exceeded() -> None:
         with pytest.raises(CannotConnect):
             await validate_wms_input(mock_hass, data)
 
+
 @pytest.mark.asyncio
 async def test_wms_new_radar_datasets_are_preferred_with_legacy_fallback() -> None:
     """New WMS dataset names are preferred and old ones recover unsupported errors."""
