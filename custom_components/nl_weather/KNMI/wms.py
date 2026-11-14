@@ -19,6 +19,8 @@ BASE_PARAMS = {
 }
 # This is lower than the reported 20, but staying on the safe side
 RATE_LIMIT_PER_SECOND = 15
+REALTIME_DATASETS = ("nl_rdr_data_rtcor_5m_1.0", "nl_rdr_data_rtcor_5m")
+FORECAST_DATASETS = ("radar_forecast_2.0a", "radar_forecast_2.0")
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -85,26 +87,43 @@ class WMS:
 
             return buffer
 
+    async def _get_with_dataset_fallback(
+        self, params: dict, datasets: tuple[str, str]
+    ) -> io.BytesIO:
+        """Use the newer KNMI WMS dataset, falling back on unsupported names."""
+        for index, dataset in enumerate(datasets):
+            try:
+                return await self.get({**params, "DATASET": dataset})
+            except (InvalidRequest, NotFoundError):
+                if index == len(datasets) - 1:
+                    raise
+                _LOGGER.debug("WMS dataset %s is unavailable; trying legacy", dataset)
+        raise RuntimeError("No WMS datasets configured")
+
     async def get_capabilities_radar(self) -> ET.ElementTree:
-        params = {}
-        params["SERVICE"] = "WMS"
-        params["DATASET"] = "nl_rdr_data_rtcor_5m"
-        params["REQUEST"] = "GetCapabilities"
-        buf = await self.get(params)
-        return ET.parse(buf)
+        """Fetch capabilities, including legacy fallback for invalid XML."""
+        params = {"SERVICE": "WMS", "REQUEST": "GetCapabilities"}
+        for index, dataset in enumerate(REALTIME_DATASETS):
+            try:
+                buf = await self.get({**params, "DATASET": dataset})
+                return ET.parse(buf)
+            except (InvalidRequest, NotFoundError, ET.ParseError):
+                if index == len(REALTIME_DATASETS) - 1:
+                    raise
+                _LOGGER.debug("WMS capabilities unavailable for %s", dataset)
+        raise RuntimeError("No radar capabilities datasets configured")
 
     async def radar_real_time_image(self, time, size, bbox, style):
         params = BASE_PARAMS.copy()
         # The zulu "Z" format (instead of +00:00) is needed to enable long-term caching.
         # https://github.com/KNMI/adaguc-server/issues/719
         params["TIME"] = format_dt(time)
-        params["DATASET"] = "nl_rdr_data_rtcor_5m"
         params["LAYERS"] = "precipitation_real_time"
         params["STYLES"] = style
         params["WIDTH"] = size[0]
         params["HEIGHT"] = size[1]
         params["BBOX"] = bbox
-        return await self.get(params)
+        return await self._get_with_dataset_fallback(params, REALTIME_DATASETS)
 
     async def radar_forecast_image(self, ref_time, time, size, bbox, style):
         params = BASE_PARAMS.copy()
@@ -112,13 +131,12 @@ class WMS:
         # https://github.com/KNMI/adaguc-server/issues/719
         params["DIM_REFERENCE_TIME"] = format_dt(ref_time)
         params["TIME"] = format_dt(time)
-        params["DATASET"] = "radar_forecast_2.0"
         params["LAYERS"] = "precipitation_nowcast"
         params["STYLES"] = style
         params["WIDTH"] = size[0]
         params["HEIGHT"] = size[1]
         params["BBOX"] = bbox
-        return await self.get(params)
+        return await self._get_with_dataset_fallback(params, FORECAST_DATASETS)
 
 
 class WMSException(Exception):
