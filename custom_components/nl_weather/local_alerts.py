@@ -57,9 +57,7 @@ def active_location_alerts(
     coordinator: NLWeatherAlertsCoordinator, latitude: float, longitude: float
 ) -> list[Alert]:
     """Filter currently active warning parts for this configured location."""
-    return get_active_alerts(
-        coordinator.data, latitude, longitude, datetime.now(UTC)
-    )
+    return get_active_alerts(coordinator.data, latitude, longitude, datetime.now(UTC))
 
 
 def local_alert_attributes(alerts: list[Alert]) -> dict[str, object]:
@@ -79,9 +77,7 @@ def local_alert_attributes(alerts: list[Alert]) -> dict[str, object]:
             for alert in alerts
         ],
         "description": ". ".join(
-            (alert.description or alert.headline or alert.level.value).removesuffix(
-                "."
-            )
+            (alert.description or alert.headline or alert.level.value).removesuffix(".")
             for alert in alerts
         ),
     }
@@ -127,7 +123,11 @@ class NLWeatherLocalAlertSensor(
                 return alerts[0].level.value if alerts else AlertLevel.NONE.value
             case _:
                 return (
-                    (alerts[0].headline or alerts[0].description or alerts[0].level.value)[:255]
+                    (
+                        alerts[0].headline
+                        or alerts[0].description
+                        or alerts[0].level.value
+                    )[:255]
                     if alerts
                     else "none"
                 )
@@ -175,7 +175,5 @@ class NLWeatherLocalAlertActiveSensor(
     def is_on(self) -> bool:
         """Return whether any warning part currently covers this location."""
         return bool(
-            active_location_alerts(
-                self.coordinator, self._latitude, self._longitude
-            )
+            active_location_alerts(self.coordinator, self._latitude, self._longitude)
         )
