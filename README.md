@@ -134,6 +134,66 @@ The separate observations and forecast entities remain available and can be enab
 
 Available observation sensors depend on the selected weather station. Airport stations usually provide the most complete set of measurements. More information about observations can be found in [KNMI documentation](https://english.knmidata.nl/open-data/10-minute-in-situ-meteorological-observations).
 
+
+### Local KNMI warnings and warning areas map
+
+The integration now keeps the original manually selected **warning-region** entities
+and also exposes **additional, location-specific** warning entities per configured
+location. The local entities use the nationwide KNMI App API warning polygons,
+rather than replacing or changing the region-based warning selection.
+
+- **Local warnings**: first active warning headline; the `alerts` attribute
+  contains `code`, `condition`, `headline`, `description`, `details`,
+  `onset`, and `expires` for every active warning affecting that location.
+- **Local warning count** and **Local warning level**: warning count and
+  highest currently active severity (green/none, yellow, orange, red).
+- **Local warning active**: a separate binary sensor for geospatially applicable,
+  active warnings. All existing region-based sensors retain their semantics and IDs.
+- **Warnings map**: an `image` entity showing currently active national warning
+  areas over the same light/dark background as the precipitation radar. The
+  existing **Mark locations** option also controls optional markers on this map.
+  The animated precipitation-radar camera is unchanged.
+- **UV index today**: a standalone forecast sensor using the KNMI daily forecast;
+  the UV index in the weather forecast remains available.
+
+Local warnings update approximately every five minutes. A missing or unavailable
+nationwide API response makes the new local warning data unavailable; it does
+not prevent regional alerts, forecasts, radar or observation entities from working.
+Warnings can start/expire between polls; no extra API credentials are required.
+
+Example Markdown card for the **new local warnings** (keep the existing regional
+warning card below for users who prefer the region-based selection):
+
+```yaml
+type: markdown
+content: |
+  {% set alerts = state_attr('sensor.weer_home_local_warnings', 'alerts') or [] %}
+  {% set levels = {'red': 'error', 'orange': 'warning', 'yellow': 'info'} %}
+  {% if alerts %}
+    {% for warning in alerts %}
+      {% set code = warning.code | lower %}
+      <ha-alert alert-type="{{ levels.get(code, 'info') }}" title="{{ warning.headline or ('Code ' ~ code) }}">
+        {{ warning.details or warning.description }}
+        {% if warning.onset and warning.expires %}
+          <small>Geldig van {{ as_datetime(warning.onset) | as_local }}
+          tot {{ as_datetime(warning.expires) | as_local }}</small>
+        {% endif %}
+      </ha-alert>
+    {% endfor %}
+  {% else %}
+    <ha-alert alert-type="success" title="Lokale waarschuwingen">
+      Geen lokale waarschuwingen actief.
+    </ha-alert>
+  {% endif %}
+```
+
+[Example KNMI warnings map screenshot (upstream)](https://github.com/PaulVanSchayck/ha-nl-weather/blob/main/images/warnings.png)
+
+The WMS client now prefers `nl_rdr_data_rtcor_5m_1.0` for historical/current
+radar imagery and `radar_forecast_2.0a` for forecast imagery. When KNMI rejects
+a newer dataset as unsupported, the previous dataset names remain available as
+fallbacks, preserving the radar camera's compatibility.
+
 ### Rendering weather alerts
 
 The weather alert sensor exposes the first active alert as its state. All active alerts are also available in the `alerts` attribute as dictionaries with `code` and `description`.
