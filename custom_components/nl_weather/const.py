@@ -144,6 +144,7 @@ ALERT_REGIONS = {
 
 APP_FORECAST_API_SCAN_INTERVAL = timedelta(minutes=15)
 APP_NOWCAST_API_SCAN_INTERVAL = timedelta(minutes=5)
+APP_ALERTS_API_SCAN_INTERVAL = timedelta(minutes=5)
 
 # Based on https://gitlab.com/KNMI-OSS/KNMI-App/knmi-app-api/-/blob/main/app/helpers/weather.ts
 # And https://gitlab.com/KNMI-OSS/KNMI-App/knmi-app-android/-/blob/main/app/src/main/java/nl/knmi/weer/util/WeatherTypeExtension.kt
@@ -240,6 +241,12 @@ RADAR_STYLES: dict[str, RadarStyle] = {
         time_past_color="rgb(148, 148, 148)",
         time_future_color="rgb(255, 159, 64)",
     ),
+}
+
+LEVEL_COLORS: dict[str, tuple[int, int, int]] = {
+    "yellow": (255, 204, 0),
+    "orange": (255, 120, 0),
+    "red": (220, 0, 0),
 }
 
 DEFAULT_RADAR_STYLE = "light"
