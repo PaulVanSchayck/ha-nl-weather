@@ -10,12 +10,12 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util.dt import utcnow
 
 from .const import DOMAIN, Alert
-from .local_alerts import NLWeatherLocalAlertActiveSensor
 from .coordinator import (
     NLWeatherConfigEntry,
     NLWeatherNowcastCoordinator,
     NLWeatherUpdateCoordinator,
 )
+from .local_alerts import NLWeatherLocalAlertActiveSensor
 
 
 async def async_setup_entry(
