@@ -212,8 +212,8 @@ async def test_wms_dataset_fallback_preserves_unrelated_errors() -> None:
 @pytest.mark.asyncio
 async def test_wms_capabilities_dataset_and_invalid_xml_fallback() -> None:
     """Prefer the current real-time capabilities dataset, then the legacy one."""
-    from io import BytesIO
     import xml.etree.ElementTree as ET
+    from io import BytesIO
 
     wms = WMS(MagicMock(), "token")
     wms.get = AsyncMock(
