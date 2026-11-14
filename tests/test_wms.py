@@ -165,3 +165,64 @@ async def test_validate_wms_input_handles_quota_exceeded() -> None:
 
         with pytest.raises(CannotConnect):
             await validate_wms_input(mock_hass, data)
+
+@pytest.mark.asyncio
+async def test_wms_new_radar_datasets_are_preferred_with_legacy_fallback() -> None:
+    """New WMS dataset names are preferred and old ones recover unsupported errors."""
+    from datetime import UTC, datetime
+    from io import BytesIO
+
+    time = datetime(2026, 11, 14, tzinfo=UTC)
+    wms = WMS(MagicMock(), "token")
+    wms.get = AsyncMock(side_effect=[NotFoundError("missing"), BytesIO(b"old")])
+    result = await wms.radar_real_time_image(time, (100, 100), "bbox", "style")
+    assert result.read() == b"old"
+    assert [call.args[0]["DATASET"] for call in wms.get.await_args_list] == [
+        "nl_rdr_data_rtcor_5m_1.0",
+        "nl_rdr_data_rtcor_5m",
+    ]
+
+    wms.get = AsyncMock(side_effect=[InvalidRequest("unsupported"), BytesIO(b"old")])
+    result = await wms.radar_forecast_image(time, time, (100, 100), "bbox", "style")
+    assert result.read() == b"old"
+    assert [call.args[0]["DATASET"] for call in wms.get.await_args_list] == [
+        "radar_forecast_2.0a",
+        "radar_forecast_2.0",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_wms_dataset_fallback_preserves_unrelated_errors() -> None:
+    """Authorization, quota and rate-limit errors must not trigger fallback."""
+    from datetime import UTC, datetime
+
+    now = datetime(2026, 11, 14, tzinfo=UTC)
+    for error in (
+        TokenInvalid("forbidden"),
+        QuotaExceeded("quota"),
+        RateLimitExceeded("limit"),
+    ):
+        wms = WMS(MagicMock(), "token")
+        wms.get = AsyncMock(side_effect=error)
+        with pytest.raises(type(error)):
+            await wms.radar_real_time_image(now, (100, 100), "bbox", "style")
+        assert wms.get.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_wms_capabilities_dataset_and_invalid_xml_fallback() -> None:
+    """Prefer the current real-time capabilities dataset, then the legacy one."""
+    from io import BytesIO
+    import xml.etree.ElementTree as ET
+
+    wms = WMS(MagicMock(), "token")
+    wms.get = AsyncMock(
+        side_effect=[BytesIO(b"invalid XML"), BytesIO(b"<WMS_Capabilities/>")]
+    )
+    tree = await wms.get_capabilities_radar()
+    assert isinstance(tree, ET.ElementTree)
+    assert tree.getroot().tag == "WMS_Capabilities"
+    assert [call.args[0]["DATASET"] for call in wms.get.await_args_list] == [
+        "nl_rdr_data_rtcor_5m_1.0",
+        "nl_rdr_data_rtcor_5m",
+    ]
