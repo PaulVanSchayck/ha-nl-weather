@@ -100,7 +100,7 @@ def test_onset_and_expiry_are_respected() -> None:
 @pytest.mark.parametrize("snapshot", [None, {}, {"warnings": None}, {"warnings": {}}])
 def test_invalid_top_level_response_is_not_silent(snapshot: object) -> None:
     """Reject malformed API envelopes rather than interpreting them as all clear."""
-    with pytest.raises(ValueError, match="warnings list"):
+    with pytest.raises(TypeError, match="warnings list"):
         parse_alerts(snapshot)
 
 
