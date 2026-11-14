@@ -10,6 +10,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util.dt import utcnow
 
 from .const import DOMAIN, Alert
+from .local_alerts import NLWeatherLocalAlertActiveSensor
 from .coordinator import (
     NLWeatherConfigEntry,
     NLWeatherNowcastCoordinator,
@@ -30,6 +31,17 @@ async def async_setup_entry(
         async_add_entities(
             [
                 NLWeatherAlertActiveSensor(app_coordinator, config_entry, subentry),
+                *(
+                    [
+                        NLWeatherLocalAlertActiveSensor(
+                            config_entry.runtime_data.alerts_coordinator,
+                            config_entry,
+                            subentry,
+                        )
+                    ]
+                    if config_entry.runtime_data.alerts_coordinator is not None
+                    else []
+                ),
                 NLWeatherPrecipitationNowcastSensor(
                     nowcast_coordinator, config_entry, subentry
                 ),
