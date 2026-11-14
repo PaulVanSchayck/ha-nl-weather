@@ -113,7 +113,7 @@ def get_active_alerts(
 def _parse_datetime(value: object) -> datetime:
     """Parse an aware KNMI ISO-8601 timestamp."""
     if not isinstance(value, str):
-        raise ValueError("KNMI warning timestamp is missing or not a string")
+        raise TypeError("KNMI warning timestamp is missing or not a string")
     timestamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if timestamp.tzinfo is None or timestamp.utcoffset() is None:
         raise ValueError("KNMI warning timestamp must contain a timezone")
@@ -180,7 +180,7 @@ def parse_alerts(snapshot: object) -> list[Alert]:
     if not isinstance(snapshot, dict) or not isinstance(
         snapshot.get("warnings"), list
     ):
-        raise ValueError("KNMI nationwide warnings response has no warnings list")
+        raise TypeError("KNMI nationwide warnings response has no warnings list")
 
     alerts: list[Alert] = []
     for warning in snapshot["warnings"]:
