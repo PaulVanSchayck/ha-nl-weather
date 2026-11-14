@@ -8,7 +8,6 @@ from random import randint
 from typing import NotRequired, TypedDict
 
 from aiohttp import ClientError
-
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME, CONF_REGION
 from homeassistant.core import HomeAssistant
@@ -25,7 +24,8 @@ from .const import (
     CONF_STATION,
     PARAMETER_ATTRIBUTE_MAP,
 )
-from .KNMI.alerts import Alert as NationwideAlert, parse_alerts
+from .KNMI.alerts import Alert as NationwideAlert
+from .KNMI.alerts import parse_alerts
 from .KNMI.app import (
     App,
     AppException,
