@@ -83,9 +83,7 @@ def render_alerts(
         layer.close()
 
     if locations:
-        add_location_markers(
-            image, locations, marker_color, WMS_BBOX_EPSG3857
-        )
+        add_location_markers(image, locations, marker_color, WMS_BBOX_EPSG3857)
 
     with io.BytesIO() as output:
         image.save(output, format="PNG")
@@ -137,11 +135,7 @@ class WeatherAlertsImage(ImageEntity):
             ):
                 return
             now = datetime.now(UTC)
-            alerts = [
-                alert
-                for alert in self._coordinator.data
-                if alert.is_active(now)
-            ]
+            alerts = [alert for alert in self._coordinator.data if alert.is_active(now)]
             locations = (
                 [
                     Coordinate(
@@ -154,9 +148,7 @@ class WeatherAlertsImage(ImageEntity):
                 else []
             )
             style = RADAR_STYLES[
-                self._config_entry.options.get(
-                    CONF_RADAR_STYLE, DEFAULT_RADAR_STYLE
-                )
+                self._config_entry.options.get(CONF_RADAR_STYLE, DEFAULT_RADAR_STYLE)
             ]
             self._image = await self.hass.async_add_executor_job(
                 render_alerts,
