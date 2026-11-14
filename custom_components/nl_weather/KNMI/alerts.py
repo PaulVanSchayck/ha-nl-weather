@@ -34,13 +34,13 @@ def _inside_ring(lon: float, lat: float, ring: Ring) -> bool:
     for index, (x1, y1) in enumerate(ring):
         x2, y2 = ring[(index + 1) % len(ring)]
         cross = (lon - x1) * (y2 - y1) - (lat - y1) * (x2 - x1)
-        if abs(cross) < 1e-10 and min(x1, x2) <= lon <= max(x1, x2) and min(
-            y1, y2
-        ) <= lat <= max(y1, y2):
-            return True
-        if (y1 > lat) != (y2 > lat) and lon < (
-            (x2 - x1) * (lat - y1) / (y2 - y1) + x1
+        if (
+            abs(cross) < 1e-10
+            and min(x1, x2) <= lon <= max(x1, x2)
+            and min(y1, y2) <= lat <= max(y1, y2)
         ):
+            return True
+        if (y1 > lat) != (y2 > lat) and lon < ((x2 - x1) * (lat - y1) / (y2 - y1) + x1):
             inside = not inside
     return inside
 
@@ -177,9 +177,7 @@ def parse_alerts(snapshot: object) -> list[Alert]:
 
     A malformed top-level response is an error rather than an empty warning list.
     """
-    if not isinstance(snapshot, dict) or not isinstance(
-        snapshot.get("warnings"), list
-    ):
+    if not isinstance(snapshot, dict) or not isinstance(snapshot.get("warnings"), list):
         raise TypeError("KNMI nationwide warnings response has no warnings list")
 
     alerts: list[Alert] = []
