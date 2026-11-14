@@ -79,7 +79,7 @@ class RuntimeData:
     app_coordinators: dict[str, "NLWeatherUpdateCoordinator"]
     nowcast_coordinators: dict[str, "NLWeatherNowcastCoordinator"]
     edr_coordinators: dict[str, "NLWeatherEDRCoordinator"]
-    alerts_coordinator: NLWeatherAlertsCoordinator | None = None
+    alerts_coordinator: "NLWeatherAlertsCoordinator | None" = None
 
 
 class NLWeatherUpdateCoordinator(DataUpdateCoordinator[Weather]):
