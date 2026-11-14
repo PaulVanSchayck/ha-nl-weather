@@ -91,7 +91,9 @@ def test_onset_and_expiry_are_respected() -> None:
         onset=(NOW - timedelta(hours=2)).isoformat(),
         expires=NOW.isoformat(),
     )
-    assert get_active_alerts(parse_alerts(_snapshot([future, expired])), 52, 5, NOW) == []
+    assert (
+        get_active_alerts(parse_alerts(_snapshot([future, expired])), 52, 5, NOW) == []
+    )
     alert = parse_alerts(_snapshot([_part("red")]))[0]
     assert alert.is_active(NOW)
     assert not alert.is_active(alert.expires)
