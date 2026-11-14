@@ -93,6 +93,36 @@ def epsg4325_to_epsg3857(coord: Coordinate) -> tuple[float, float]:
     return x, y
 
 
+def lonlat_to_pixel(
+    lon: float,
+    lat: float,
+    bbox: tuple[float, float, float, float],
+    size: tuple[int, int],
+) -> tuple[float, float]:
+    """Project longitude/latitude to an EPSG:3857 image bounding box."""
+    x, y = epsg4325_to_epsg3857(Coordinate(lat, lon))
+    return (
+        (x - bbox[0]) / (bbox[2] - bbox[0]) * size[0],
+        (bbox[3] - y) / (bbox[3] - bbox[1]) * size[1],
+    )
+
+
+def add_location_markers(
+    image: "Image.Image",
+    locations: list[Coordinate],
+    color: str,
+    bbox: tuple[float, float, float, float],
+) -> "Image.Image":
+    """Draw optional location outlines on a projected image."""
+    from PIL import ImageDraw
+
+    draw = ImageDraw.Draw(image)
+    for location in locations:
+        x, y = lonlat_to_pixel(location.lon, location.lat, bbox, image.size)
+        draw.ellipse((x - 10, y - 10, x + 10, y + 10), outline=color, width=2)
+    return image
+
+
 def format_dt(dt: datetime) -> str:
     return dt.isoformat(timespec="seconds").replace("+00:00", "Z")
 
