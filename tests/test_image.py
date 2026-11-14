@@ -5,10 +5,10 @@ from io import BytesIO
 
 from PIL import Image
 
+from custom_components.nl_weather.const import WMS_BBOX_EPSG3857
 from custom_components.nl_weather.image import render_alerts
 from custom_components.nl_weather.KNMI.alerts import Alert, AlertLevel
 from custom_components.nl_weather.KNMI.helpers import Coordinate, lonlat_to_pixel
-from custom_components.nl_weather.const import WMS_BBOX_EPSG3857
 
 
 def _alert(level: AlertLevel) -> Alert:
