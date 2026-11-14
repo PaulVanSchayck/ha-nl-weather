@@ -58,6 +58,7 @@ from .coordinator import (
     NLWeatherUpdateCoordinator,
 )
 from .KNMI.app import Weather
+from .local_alerts import LOCAL_ALERT_DESCRIPTIONS, NLWeatherLocalAlertSensor
 
 
 @dataclass(frozen=True)
@@ -204,6 +205,19 @@ def _get_heat_force_index(data: Weather) -> float | None:
         forecast = data["hourly"]["forecast"]
         if isinstance(forecast, list) and forecast and isinstance(forecast[0], dict):
             return forecast[0].get("heatIndex")
+    except (KeyError, IndexError, TypeError, AttributeError):
+        pass
+    return None
+
+
+def _get_uv_index_today(data: Weather) -> float | None:
+    """Read today's UV index safely from enriched KNMI daily forecasts."""
+    try:
+        forecast = data["daily"]["forecast"]
+        if isinstance(forecast, list) and forecast and isinstance(forecast[0], dict):
+            value = forecast[0].get("uv_index")
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return float(value)
     except (KeyError, IndexError, TypeError, AttributeError):
         pass
     return None
@@ -458,6 +472,13 @@ FORECAST_SENSOR_DESCRIPTIONS: list[ForecastSensorDescription] = [
         icon="mdi:sun-thermometer-outline",
         value_fn=_get_heat_force_index_today,
     ),
+    ForecastSensorDescription(
+        key="uv_index_today",
+        translation_key="uv_index_today",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:sun-wireless",
+        value_fn=_get_uv_index_today,
+    ),
 ]
 
 
@@ -485,6 +506,19 @@ async def async_setup_entry(
                 for desc in OBSERVATION_SENSOR_DESCRIPTIONS
             ],
             AlertRegionSensor(config_entry, subentry),
+            *(
+                [
+                    NLWeatherLocalAlertSensor(
+                        config_entry.runtime_data.alerts_coordinator,
+                        config_entry,
+                        subentry,
+                        description,
+                    )
+                    for description in LOCAL_ALERT_DESCRIPTIONS
+                ]
+                if config_entry.runtime_data.alerts_coordinator is not None
+                else []
+            ),
         ]
 
         async_add_entities(entities, config_subentry_id=subentry_id)
