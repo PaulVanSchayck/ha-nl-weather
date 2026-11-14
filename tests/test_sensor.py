@@ -6,6 +6,7 @@ from custom_components.nl_weather.sensor import (
     _get_cloud_coverage,
     _get_heat_force_index,
     _get_heat_force_index_today,
+    _get_uv_index_today,
     _get_wind_direction_cardinal,
     safe_int,
     wind_direction_icon,
@@ -111,6 +112,18 @@ def test_get_heat_force_index_today() -> None:
     # Missing daily or forecast structure
     assert _get_heat_force_index_today({"daily": {}}) is None
     assert _get_heat_force_index_today({}) is None
+
+
+def test_get_uv_index_today() -> None:
+    """Read today's UV index and safely handle absent or malformed forecasts."""
+    assert _get_uv_index_today({"daily": {"forecast": [{"uv_index": 4.5}]}}) == 4.5
+    assert _get_uv_index_today({"daily": {"forecast": [{"uv_index": 0}]}}) == 0.0
+    assert _get_uv_index_today({"daily": {"forecast": [{"uv_index": None}]}}) is None
+    assert _get_uv_index_today({"daily": {"forecast": [{"uv_index": "bad"}]}}) is None
+    assert _get_uv_index_today({"daily": {"forecast": []}}) is None
+    assert _get_uv_index_today({"daily": {"forecast": [None]}}) is None
+    assert _get_uv_index_today({"daily": {}}) is None
+    assert _get_uv_index_today({}) is None
 
 
 def test_get_alert_level() -> None:
