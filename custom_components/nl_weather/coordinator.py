@@ -7,6 +7,8 @@ from datetime import UTC, datetime
 from random import randint
 from typing import NotRequired, TypedDict
 
+from aiohttp import ClientError
+
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME, CONF_REGION
 from homeassistant.core import HomeAssistant
@@ -203,7 +205,7 @@ class NLWeatherAlertsCoordinator(DataUpdateCoordinator[list[NationwideAlert]]):
         """Retrieve and validate KNMI warning parts."""
         try:
             return parse_alerts(await self._api.alerts_nationwide())
-        except (AppException, ValueError, TypeError) as err:
+        except (AppException, ClientError, TimeoutError, ValueError, TypeError) as err:
             raise UpdateFailed("Unable to retrieve valid nationwide warnings") from err
 
 
