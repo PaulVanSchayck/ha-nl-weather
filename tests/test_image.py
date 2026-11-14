@@ -38,7 +38,7 @@ def test_render_alerts_outputs_png_without_mutating_background() -> None:
     """Draw warning areas with a stable PNG content type."""
     background = Image.new("RGBA", (200, 200), (255, 255, 255, 255))
     result = render_alerts(background, [_alert(AlertLevel.RED)])
-    assert result.startswith(b"\\x89PNG\\r\\n\\x1a\\n")
+    assert result.startswith(b"\x89PNG\r\n\x1a\n")
     assert background.getpixel((100, 100)) == (255, 255, 255, 255)
     with Image.open(BytesIO(result)) as rendered:
         x, y = lonlat_to_pixel(5.0, 52.0, WMS_BBOX_EPSG3857, rendered.size)
