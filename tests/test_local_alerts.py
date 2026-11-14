@@ -3,13 +3,13 @@
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
+from custom_components.nl_weather.KNMI.alerts import Alert, AlertLevel
 from custom_components.nl_weather.local_alerts import (
     LOCAL_ALERT_DESCRIPTIONS,
     NLWeatherLocalAlertActiveSensor,
     NLWeatherLocalAlertSensor,
     local_alert_attributes,
 )
-from custom_components.nl_weather.KNMI.alerts import Alert, AlertLevel
 
 
 def _alert() -> Alert:
