@@ -1,5 +1,8 @@
 {
   "entity": {
+    "image": {
+      "weather_alert_map": {"name": "Waarschuwingenkaart"}
+    },
     "camera": {
       "precipitation_radar": {
         "name": "Neerslagradar"
@@ -14,6 +17,16 @@
       }
     },
     "sensor": {
+      "local_weather_alert": {
+        "name": "Lokale waarschuwingen",
+        "state": {"none": "Geen"}
+      },
+      "local_weather_alert_count": {"name": "Aantal lokale waarschuwingen"},
+      "local_weather_alert_level": {
+        "name": "Lokale waarschuwingscode",
+        "state": {"orange":"Oranje","yellow":"Geel","red":"Rood","none":"Groen"}
+      },
+      "uv_index_today": {"name": "UV-index vandaag"},
       "weather_alert": {
         "name": "Waarschuwingen",
         "state": {
@@ -127,6 +140,7 @@
       }
     },
     "binary_sensor": {
+      "local_weather_alert_active": {"name": "Lokale waarschuwing actief"},
       "weather_alert_active": {
         "name": "Waarschuwing actief"
       },
