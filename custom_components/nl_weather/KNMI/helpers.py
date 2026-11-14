@@ -5,6 +5,8 @@ from datetime import datetime
 from math import atan2, cos, log, pi, radians, sin, sqrt, tan
 from typing import Any, Final
 
+from PIL import Image, ImageDraw
+
 # Earth radius constants
 EARTH_RADIUS_KM: Final = 6371.0  # Haversine formula Earth radius (kilometers)
 EARTH_RADIUS_METERS: Final = 6378137.0  # EPSG:3857 Web Mercator radius (meters)
@@ -108,14 +110,12 @@ def lonlat_to_pixel(
 
 
 def add_location_markers(
-    image: "Image.Image",
+    image: Image.Image,
     locations: list[Coordinate],
     color: str,
     bbox: tuple[float, float, float, float],
-) -> "Image.Image":
+) -> Image.Image:
     """Draw optional location outlines on a projected image."""
-    from PIL import ImageDraw
-
     draw = ImageDraw.Draw(image)
     for location in locations:
         x, y = lonlat_to_pixel(location.lon, location.lat, bbox, image.size)
