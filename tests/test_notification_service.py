@@ -231,8 +231,6 @@ async def test_aiomqtt_connection_preserves_transport_errors() -> None:
 
     assert exc_info.value is error
 
-
-
 @pytest.mark.asyncio
 async def test_run_reconnects_after_mqtt_error_and_stops_cleanly() -> None:
     """Retry a transient broker failure and exit after the stop signal."""
