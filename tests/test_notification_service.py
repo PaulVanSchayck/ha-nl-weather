@@ -196,3 +196,37 @@ async def test_paho_subscribe_failure_is_reported() -> None:
 
     assert service._connection_ready.is_set()
     assert isinstance(service._connection_error, MqttError)
+
+
+
+@pytest.mark.asyncio
+async def test_aiomqtt_connection_converts_authentication_rejection() -> None:
+    """Map broker authorization rejection to the integration token error."""
+    service = NotificationService("test-token")
+    client = MagicMock()
+    client.__aenter__ = AsyncMock(side_effect=MqttError("reason code 135"))
+    client.__aexit__ = AsyncMock(return_value=None)
+
+    with (
+        patch.object(service, "_create_aiomqtt_client", return_value=client),
+        pytest.raises(TokenInvalid, match="token was rejected"),
+    ):
+        await service._test_aiomqtt_connection()
+
+
+@pytest.mark.asyncio
+async def test_aiomqtt_connection_preserves_transport_errors() -> None:
+    """Leave ordinary broker failures classified as MQTT connection errors."""
+    service = NotificationService("test-token")
+    error = MqttError("connection reset")
+    client = MagicMock()
+    client.__aenter__ = AsyncMock(side_effect=error)
+    client.__aexit__ = AsyncMock(return_value=None)
+
+    with (
+        patch.object(service, "_create_aiomqtt_client", return_value=client),
+        pytest.raises(MqttError) as exc_info,
+    ):
+        await service._test_aiomqtt_connection()
+
+    assert exc_info.value is error
