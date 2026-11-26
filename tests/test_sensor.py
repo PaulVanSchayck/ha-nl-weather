@@ -1,6 +1,15 @@
 """Tests for NL Weather sensor platform and helper functions."""
 
+from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock
+
 from custom_components.nl_weather.const import Alert
+from custom_components.nl_weather.KNMI.alerts import Alert as NationwideAlert
+from custom_components.nl_weather.KNMI.alerts import AlertLevel
+from custom_components.nl_weather.local_alerts import (
+    LOCAL_ALERT_DESCRIPTIONS,
+    NLWeatherLocalAlertSensor,
+)
 from custom_components.nl_weather.sensor import (
     _get_alert_level,
     _get_cloud_coverage,
@@ -11,6 +20,47 @@ from custom_components.nl_weather.sensor import (
     safe_int,
     wind_direction_icon,
 )
+
+
+def _local_alert() -> NationwideAlert:
+    """Create an active warning polygon covering the configured test location."""
+    now = datetime.now(UTC)
+    return NationwideAlert(
+        warning_id="test-warning",
+        weather_type=1368,
+        headline="Heavy rain",
+        level=AlertLevel.ORANGE,
+        onset=now - timedelta(minutes=5),
+        expires=now + timedelta(minutes=30),
+        polygons=[
+            [
+                [
+                    (4.0, 51.0),
+                    (6.0, 51.0),
+                    (6.0, 53.0),
+                    (4.0, 53.0),
+                ]
+            ]
+        ],
+        description="Heavy rainfall expected",
+        details="Local warning details",
+    )
+
+
+def _local_alert_sensor(
+    coordinator: MagicMock,
+    description_key: str,
+) -> NLWeatherLocalAlertSensor:
+    """Build a location-specific warning sensor for the test location."""
+    config_entry = MagicMock()
+    config_entry.entry_id = "test_entry"
+    subentry = MagicMock()
+    subentry.subentry_id = "test_subentry"
+    subentry.data = {"latitude": 52.0, "longitude": 5.0}
+    description = next(
+        item for item in LOCAL_ALERT_DESCRIPTIONS if item.key == description_key
+    )
+    return NLWeatherLocalAlertSensor(coordinator, config_entry, subentry, description)
 
 
 def test_wind_direction_icon_cardinals_and_intercardinals() -> None:
@@ -173,3 +223,56 @@ def test_get_alert_level() -> None:
         _get_alert_level({"hourly": {"forecast": [{"alertLevel": "invalid_level"}]}})
         == Alert.NONE
     )
+
+
+def test_local_alert_sensor_values_and_attributes() -> None:
+    """Expose location-specific warning severity, count, headline and metadata."""
+    coordinator = MagicMock()
+    coordinator.data = [_local_alert()]
+
+    headline_sensor = _local_alert_sensor(coordinator, "local_alert")
+    count_sensor = _local_alert_sensor(coordinator, "local_alert_count")
+    level_sensor = _local_alert_sensor(coordinator, "local_alert_level")
+
+    assert headline_sensor.native_value == "Heavy rain"
+    assert count_sensor.native_value == 1
+    assert level_sensor.native_value == AlertLevel.ORANGE.value
+    assert headline_sensor.extra_state_attributes == {
+        "alert_count": 1,
+        "alerts": [
+            {
+                "code": "orange",
+                "condition": None,
+                "headline": "Heavy rain",
+                "description": "Heavy rainfall expected",
+                "details": "Local warning details",
+                "onset": coordinator.data[0].onset.isoformat(),
+                "expires": coordinator.data[0].expires.isoformat(),
+            }
+        ],
+        "description": "Heavy rainfall expected",
+    }
+
+
+def test_local_alert_sensors_report_no_active_warning() -> None:
+    """Return neutral local warning values when no warning covers the location."""
+    coordinator = MagicMock()
+    coordinator.data = []
+
+    assert _local_alert_sensor(coordinator, "local_alert").native_value == "none"
+    assert _local_alert_sensor(coordinator, "local_alert_count").native_value == 0
+    assert (
+        _local_alert_sensor(coordinator, "local_alert_level").native_value
+        == AlertLevel.NONE.value
+    )
+
+
+def test_local_alert_sensors_are_unavailable_without_coordinator_data() -> None:
+    """Return unavailable values and no attributes before the coordinator has data."""
+    coordinator = MagicMock()
+    coordinator.data = None
+
+    sensor = _local_alert_sensor(coordinator, "local_alert")
+
+    assert sensor.native_value is None
+    assert sensor.extra_state_attributes is None
