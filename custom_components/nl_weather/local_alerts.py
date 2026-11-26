@@ -57,7 +57,15 @@ def active_location_alerts(
     coordinator: NLWeatherAlertsCoordinator, latitude: float, longitude: float
 ) -> list[Alert]:
     """Filter currently active warning parts for this configured location."""
-    return get_active_alerts(coordinator.data, latitude, longitude, datetime.now(UTC))
+    data = coordinator.data
+    if not isinstance(data, list):
+        return []
+    return get_active_alerts(
+        [alert for alert in data if isinstance(alert, Alert)],
+        latitude,
+        longitude,
+        datetime.now(UTC),
+    )
 
 
 def local_alert_attributes(alerts: list[Alert]) -> dict[str, object]:
