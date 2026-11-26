@@ -3,6 +3,8 @@
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
+import pytest
+
 from custom_components.nl_weather.const import Alert
 from custom_components.nl_weather.KNMI.alerts import Alert as NationwideAlert
 from custom_components.nl_weather.KNMI.alerts import AlertLevel
@@ -276,3 +278,26 @@ def test_local_alert_sensors_are_unavailable_without_coordinator_data() -> None:
 
     assert sensor.native_value is None
     assert sensor.extra_state_attributes is None
+
+
+
+@pytest.mark.parametrize("coordinator_data", [None, {}, [None]])
+def test_local_alert_sensors_handle_malformed_coordinator_data(
+    coordinator_data: object,
+) -> None:
+    """Return neutral values rather than raising for malformed warning data."""
+    coordinator = MagicMock()
+    coordinator.data = coordinator_data
+
+    headline_sensor = _local_alert_sensor(coordinator, "local_alert")
+    count_sensor = _local_alert_sensor(coordinator, "local_alert_count")
+    level_sensor = _local_alert_sensor(coordinator, "local_alert_level")
+
+    assert headline_sensor.native_value == "none"
+    assert headline_sensor.extra_state_attributes == {
+        "alert_count": 0,
+        "alerts": [],
+        "description": "",
+    }
+    assert count_sensor.native_value == 0
+    assert level_sensor.native_value == AlertLevel.NONE.value
