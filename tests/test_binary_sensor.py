@@ -156,6 +156,7 @@ def test_local_alert_active_sensor_is_off_when_coordinator_data_unavailable() ->
 
     assert _local_alert_entity(coordinator).is_on is False
 
+
 @pytest.mark.parametrize("coordinator_data", [None, {}, [None]])
 def test_local_alert_active_sensor_handles_malformed_coordinator_data(
     coordinator_data: object,
