@@ -59,7 +59,7 @@ def test_alert_active_sensor_is_on_when_alert_active() -> None:
 
 
 def test_alert_active_sensor_is_off_when_later_forecast_item_has_alert() -> None:
-    """Test is_on returns False when an alert is only active in a later forecast item."""
+    """Return off when an alert is only active in a later forecast item."""
     coordinator = MagicMock()
     coordinator.data = {
         "hourly": {
