@@ -287,8 +287,9 @@ async def test_schedule_message_completes_without_leaking_task() -> None:
     pending_before = asyncio.all_tasks()
 
     service._schedule_message(json.dumps(event).encode())
-    await asyncio.sleep(0)
-    await asyncio.sleep(0)
+    scheduled_tasks = asyncio.all_tasks() - pending_before
+
+    await asyncio.gather(*scheduled_tasks)
 
     callback.assert_awaited_once_with(event)
     assert asyncio.all_tasks() == pending_before
