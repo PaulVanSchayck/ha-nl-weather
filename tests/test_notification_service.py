@@ -277,7 +277,6 @@ async def test_handle_message_isolates_callback_failures() -> None:
     successful_callback.assert_awaited_once_with(event)
 
 
-
 @pytest.mark.asyncio
 async def test_schedule_message_completes_without_leaking_task() -> None:
     """Process a scheduled notification and leave no pending message task."""
