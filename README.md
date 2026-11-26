@@ -1,9 +1,9 @@
 # NL Weather
 
-![GitHub Release](https://img.shields.io/github/v/release/PaulVanSchayck/ha-nl-weather)
+![GitHub Release](https://img.shields.io/github/v/release/HiDiHo01/ha-nl-weather)
 
-**NL Weather** is a Home Assistant integration that provides weather forecasts, observations, 
-precipitation (e.g. rain) radar, precipitation nowcast graph and warnings in The Netherlands — using open data 
+**NL Weather** is a maintained fork of [PaulVanSchayck/ha-nl-weather](https://github.com/PaulVanSchayck/ha-nl-weather), a Home Assistant integration that provides weather forecasts, observations,
+precipitation (e.g. rain) radar, precipitation nowcast graph and warnings in The Netherlands — using open data
 directly fetched from KNMI (the Royal Netherlands Meteorological Institute).
 
 ![Screenshot of NL Weather](images/nl-weather.png "NL Weather integration")
