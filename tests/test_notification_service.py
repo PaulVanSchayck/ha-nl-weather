@@ -6,6 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiomqtt import MqttError
+from paho.mqtt.packettypes import PacketTypes
+from paho.mqtt.reasoncodes import ReasonCode
 
 from custom_components.nl_weather.KNMI.notification_service import (
     DATASET_OBSERVATIONS,
@@ -13,6 +15,7 @@ from custom_components.nl_weather.KNMI.notification_service import (
     NotificationService,
     TokenInvalid,
 )
+
 
 @pytest.mark.asyncio
 async def test_handle_message_dispatches_registered_dataset_callback() -> None:
@@ -25,6 +28,7 @@ async def test_handle_message_dispatches_registered_dataset_callback() -> None:
     await service._handle_message(json.dumps(event).encode())
 
     callback.assert_awaited_once_with(event)
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
@@ -49,6 +53,7 @@ async def test_handle_message_ignores_invalid_or_unregistered_events(
 
     callback.assert_not_awaited()
 
+
 def test_set_callback_rejects_unknown_dataset() -> None:
     """Reject registrations for datasets that are not subscribed."""
     service = NotificationService.__new__(NotificationService)
@@ -57,16 +62,22 @@ def test_set_callback_rejects_unknown_dataset() -> None:
     with pytest.raises(ValueError, match="Unsupported KNMI MQTT dataset"):
         service.set_callback("unknown-dataset", "test-location", AsyncMock())
 
+
 @pytest.mark.asyncio
 async def test_disconnect_stops_service_and_clears_async_client() -> None:
     """Signal shutdown and release the asyncio MQTT client reference."""
-    service = NotificationService("test-token")
+    with patch(
+        "custom_components.nl_weather.KNMI.notification_service.sys.platform",
+        "linux",
+    ):
+        service = NotificationService("test-token")
     service._client = MagicMock()
 
     await service.disconnect()
 
     assert service._stopping.is_set()
     assert service._client is None
+
 
 @pytest.mark.asyncio
 async def test_windows_connection_test_uses_paho_fallback() -> None:
@@ -90,14 +101,14 @@ async def test_windows_connection_test_uses_paho_fallback() -> None:
     test_paho.assert_awaited_once_with()
     test_aiomqtt.assert_not_awaited()
 
+
 @pytest.mark.asyncio
 async def test_paho_connect_subscribes_to_all_topics() -> None:
     """Subscribe to both KNMI datasets after a successful Paho CONNACK."""
     service = NotificationService("test-token")
     client = MagicMock()
     client.subscribe.return_value = (0, 1)
-    reason_code = MagicMock()
-    reason_code.is_failure = False
+    reason_code = ReasonCode(PacketTypes.CONNACK, identifier=0)
 
     service._on_paho_connect(client, None, MagicMock(), reason_code, None)
     await asyncio.sleep(0)
@@ -106,13 +117,12 @@ async def test_paho_connect_subscribes_to_all_topics() -> None:
     assert service._connection_ready.is_set()
     assert service._connection_error is None
 
+
 @pytest.mark.asyncio
 async def test_paho_connect_classifies_authentication_rejection() -> None:
     """Convert MQTT reason code 135 into a token error on the event loop."""
     service = NotificationService("test-token")
-    reason_code = MagicMock()
-    reason_code.is_failure = True
-    reason_code.__int__.return_value = 135
+    reason_code = ReasonCode(PacketTypes.CONNACK, identifier=135)
 
     service._on_paho_connect(MagicMock(), None, MagicMock(), reason_code, None)
     await asyncio.sleep(0)
@@ -120,10 +130,12 @@ async def test_paho_connect_classifies_authentication_rejection() -> None:
     assert service._connection_ready.is_set()
     assert isinstance(service._connection_error, TokenInvalid)
 
+
 def test_aiomqtt_token_rejection_detection() -> None:
     """Recognize MQTT authorization reason code 135 in broker errors."""
     assert NotificationService._is_token_rejection(MqttError("reason code 135"))
     assert not NotificationService._is_token_rejection(MqttError("connection reset"))
+
 
 @pytest.mark.asyncio
 async def test_paho_disconnect_signals_connection_loss() -> None:
@@ -137,6 +149,7 @@ async def test_paho_disconnect_signals_connection_loss() -> None:
 
     assert service._paho_state is ConnectionState.DISCONNECTED
     assert service._connection_lost.is_set()
+
 
 @pytest.mark.asyncio
 async def test_paho_disconnect_releases_client_resources() -> None:
@@ -157,6 +170,7 @@ async def test_paho_disconnect_releases_client_resources() -> None:
     assert service._client is None
     assert service._stopping.is_set()
 
+
 @pytest.mark.asyncio
 async def test_paho_connection_wait_times_out() -> None:
     """Report a bounded connection timeout when no CONNACK arrives."""
@@ -169,20 +183,21 @@ async def test_paho_connection_wait_times_out() -> None:
     ):
         await service._wait_for_paho_connection()
 
+
 @pytest.mark.asyncio
 async def test_paho_subscribe_failure_is_reported() -> None:
     """Surface a broker subscription failure through the connection event."""
     service = NotificationService("test-token")
     client = MagicMock()
     client.subscribe.return_value = (1, 0)
-    reason_code = MagicMock()
-    reason_code.is_failure = False
+    reason_code = ReasonCode(PacketTypes.CONNACK, identifier=0)
 
     service._on_paho_connect(client, None, MagicMock(), reason_code, None)
     await asyncio.sleep(0)
 
     assert service._connection_ready.is_set()
     assert isinstance(service._connection_error, MqttError)
+
 
 @pytest.mark.asyncio
 async def test_aiomqtt_connection_converts_authentication_rejection() -> None:
@@ -197,6 +212,7 @@ async def test_aiomqtt_connection_converts_authentication_rejection() -> None:
         pytest.raises(TokenInvalid, match="token was rejected"),
     ):
         await service._test_aiomqtt_connection()
+
 
 @pytest.mark.asyncio
 async def test_aiomqtt_connection_preserves_transport_errors() -> None:
