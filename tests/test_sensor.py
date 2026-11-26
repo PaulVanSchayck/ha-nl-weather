@@ -242,7 +242,7 @@ def test_local_alert_sensor_values_and_attributes() -> None:
         "alerts": [
             {
                 "code": "orange",
-                "condition": None,
+                "condition": "lightning",
                 "headline": "Heavy rain",
                 "description": "Heavy rainfall expected",
                 "details": "Local warning details",
