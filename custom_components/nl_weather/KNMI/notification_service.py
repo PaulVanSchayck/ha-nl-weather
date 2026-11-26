@@ -178,73 +178,204 @@ class NotificationService:
                 raise TokenInvalid(
                     "KNMI MQTT token was rejected by the broker"
                 ) from err
+
             raise
-
-    async def _create_aiomqtt_client(self) -> aiomqtt.Client:
-        """Create an aiomqtt client configured for the KNMI broker."""
-        return aiomqtt.Client(
-            hostname=BROKER_DOMAIN,
-            port=BROKER_PORT,
-            username="",
-            password=self._token,
-            identifier=f"ha-nl-weather-{uuid.uuid4()}",
-            keepalive=KEEPALIVE,
-            tls_context=get_default_context(),
-            protocol=ProtocolVersion.V5,
-        )
-
-    async def _run_aiomqtt(self) -> None:
-        """Consume KNMI notifications using aiomqtt."""
-        async with self._create_aiomqtt_client() as client:
-            self._client = client
-            async for message in client.messages:
-                if self._stopping.is_set():
-                    break
-                await self._handle_message(message.payload)
 
     async def _test_paho_connection(self) -> None:
         """Test the MQTT connection using Paho on Windows."""
-        self._loop = asyncio.get_running_loop()
-        self._connection_ready.clear()
-        self._connection_error = None
-        await self._start_paho_client()
-        await self._wait_for_paho_connection()
+        _LOGGER.debug("KNMI MQTT testing connection using Paho")
 
-    async def _run_paho(self) -> None:
-        """Consume KNMI notifications using Paho on Windows."""
-        self._loop = asyncio.get_running_loop()
         self._connection_ready.clear()
         self._connection_lost.clear()
         self._connection_error = None
-        await self._start_paho_client()
-        await self._wait_for_paho_connection()
-        await self._connection_lost.wait()
+        self._paho_state = ConnectionState.CONNECTING
 
-    async def _start_paho_client(self) -> None:
-        """Create and start the Paho MQTT client network loop."""
+        client = self._create_paho_client()
+        self._paho_client = client
+        self._client = client
+
+        try:
+            client.connect(
+                BROKER_DOMAIN,
+                BROKER_PORT,
+                keepalive=KEEPALIVE,
+            )
+
+            client.loop_start()
+
+            await self._wait_for_paho_connection()
+
+            _LOGGER.debug("KNMI MQTT Paho connection test succeeded")
+
+        finally:
+            self._paho_state = ConnectionState.DISCONNECTED
+
+            with contextlib.suppress(Exception):
+                client.disconnect()
+
+            client.loop_stop()
+
+    async def _run_aiomqtt(self) -> None:
+        """Run the asyncio-native MQTT implementation."""
+        _LOGGER.debug("KNMI MQTT using aiomqtt transport")
+
+        try:
+            async with self._create_aiomqtt_client() as client:
+                self._client = client
+
+                _LOGGER.debug("KNMI MQTT connected using aiomqtt")
+
+                for topic in TOPICS:
+                    await client.subscribe(topic)
+
+                    _LOGGER.debug(
+                        "KNMI MQTT subscribed: topic=%s",
+                        topic,
+                    )
+
+                self._connection_ready.set()
+
+                async for message in client.messages:
+                    if self._stopping.is_set():
+                        break
+
+                    await self._handle_message(
+                        bytes(message.payload),
+                    )
+
+        except MqttError as err:
+            if self._is_token_rejection(err):
+                raise TokenInvalid(
+                    "KNMI MQTT token was rejected by the broker"
+                ) from err
+
+            raise
+
+        finally:
+            self._client = None
+
+    def _create_aiomqtt_client(self) -> aiomqtt.Client:
+        """Create the asyncio-native MQTT client."""
+        client_id = str(uuid.uuid4())
+
+        _LOGGER.debug(
+            "KNMI MQTT creating aiomqtt client: "
+            "broker=%s port=%d transport=websockets protocol=MQTTv5 "
+            "client_id=%s",
+            BROKER_DOMAIN,
+            BROKER_PORT,
+            client_id,
+        )
+
+        return aiomqtt.Client(
+            BROKER_DOMAIN,
+            port=BROKER_PORT,
+            username="token",
+            password=self._token,
+            protocol=ProtocolVersion.V5,
+            transport="websockets",
+            identifier=client_id,
+            tls_context=get_default_context(),
+            timeout=CONNECT_TIMEOUT,
+        )
+
+    async def _run_paho(self) -> None:
+        """Run the Windows Paho MQTT implementation."""
+        _LOGGER.debug("KNMI MQTT using Paho transport")
+
+        self._connection_ready.clear()
+        self._connection_lost.clear()
+        self._connection_error = None
+        self._paho_state = ConnectionState.CONNECTING
+
+        client = self._create_paho_client()
+        self._paho_client = client
+        self._client = client
+
+        try:
+            client.connect(
+                BROKER_DOMAIN,
+                BROKER_PORT,
+                keepalive=KEEPALIVE,
+            )
+
+            # Paho owns the network thread on Windows.
+            client.loop_start()
+
+            await self._wait_for_paho_connection()
+
+            _LOGGER.debug("KNMI MQTT Paho connection established")
+
+            stop_task = asyncio.create_task(
+                self._stopping.wait(),
+                name="knmi_mqtt_paho_stop",
+            )
+            connection_lost_task = asyncio.create_task(
+                self._connection_lost.wait(),
+                name="knmi_mqtt_paho_connection_lost",
+            )
+
+            try:
+                done, _ = await asyncio.wait(
+                    (stop_task, connection_lost_task),
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+
+                if connection_lost_task in done and not self._stopping.is_set():
+                    raise MqttError("KNMI MQTT Paho connection was lost")
+
+            finally:
+                stop_task.cancel()
+                connection_lost_task.cancel()
+
+                await asyncio.gather(
+                    stop_task,
+                    connection_lost_task,
+                    return_exceptions=True,
+                )
+
+        finally:
+            self._paho_state = ConnectionState.DISCONNECTED
+            client.loop_stop()
+
+    def _create_paho_client(self) -> mqtt.Client:
+        """Create the Windows Paho MQTT client."""
+        client_id = str(uuid.uuid4())
+
         client = mqtt.Client(
             callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
-            client_id=f"ha-nl-weather-{uuid.uuid4()}",
+            client_id=client_id,
             protocol=mqtt.MQTTv5,
+            transport="websockets",
+            reconnect_on_failure=False,
         )
-        client.username_pw_set("", self._token)
-        client.tls_set_context(get_default_context())
+
+        client.username_pw_set(
+            username="token",
+            password=self._token,
+        )
+
+        client.tls_set_context(
+            get_default_context(),
+        )
+
         client.on_connect = self._on_paho_connect
         client.on_disconnect = self._on_paho_disconnect
         client.on_message = self._on_paho_message
-        self._paho_client = client
-        self._client = client
-        self._paho_state = ConnectionState.CONNECTING
 
-        try:
-            client.connect(BROKER_DOMAIN, BROKER_PORT, KEEPALIVE)
-            client.loop_start()
-        except OSError as err:
-            await self._disconnect_paho()
-            raise MqttError(f"KNMI MQTT Paho connection failed: {err}") from err
+        _LOGGER.debug(
+            "KNMI MQTT Paho client created: "
+            "broker=%s port=%d transport=websockets "
+            "protocol=MQTTv5 client_id=%s",
+            BROKER_DOMAIN,
+            BROKER_PORT,
+            client_id,
+        )
+
+        return client
 
     async def _wait_for_paho_connection(self) -> None:
-        """Wait for the Paho CONNACK callback or a bounded connection timeout."""
+        """Wait for Paho to establish an MQTT connection."""
         try:
             await asyncio.wait_for(
                 self._connection_ready.wait(),
@@ -270,7 +401,7 @@ class NotificationService:
         self,
         error: Exception,
     ) -> None:
-        """Mark the current connection attempt as failed."""
+        """Mark the current MQTT connection attempt as failed."""
         self._connection_error = error
         self._connection_ready.set()
 
