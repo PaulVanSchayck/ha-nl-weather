@@ -230,3 +230,49 @@ async def test_aiomqtt_connection_preserves_transport_errors() -> None:
         await service._test_aiomqtt_connection()
 
     assert exc_info.value is error
+
+
+
+@pytest.mark.asyncio
+async def test_run_reconnects_after_mqtt_error_and_stops_cleanly() -> None:
+    """Retry a transient broker failure and exit after the stop signal."""
+    from custom_components.nl_weather.KNMI import notification_service
+
+    with patch(
+        "custom_components.nl_weather.KNMI.notification_service.sys.platform",
+        "linux",
+    ):
+        service = NotificationService("test-token")
+    attempts = 0
+
+    async def run_once() -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise MqttError("temporary broker failure")
+        service._stopping.set()
+
+    with (
+        patch.object(service, "_run_aiomqtt", side_effect=run_once),
+        patch.object(notification_service, "RECONNECT_DELAY", 0),
+    ):
+        await service.run()
+
+    assert attempts == 2
+    assert service._stopping.is_set()
+
+
+@pytest.mark.asyncio
+async def test_handle_message_isolates_callback_failures() -> None:
+    """Run every registered callback even when another callback raises."""
+    service = NotificationService("test-token")
+    failing_callback = AsyncMock(side_effect=RuntimeError("callback failed"))
+    successful_callback = AsyncMock()
+    service.set_callback(DATASET_OBSERVATIONS, "failing", failing_callback)
+    service.set_callback(DATASET_OBSERVATIONS, "successful", successful_callback)
+    event = {"data": {"datasetName": DATASET_OBSERVATIONS}}
+
+    await service._handle_message(json.dumps(event).encode())
+
+    failing_callback.assert_awaited_once_with(event)
+    successful_callback.assert_awaited_once_with(event)
