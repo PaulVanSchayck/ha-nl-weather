@@ -10,7 +10,6 @@ from custom_components.nl_weather.image import render_alerts
 from custom_components.nl_weather.KNMI.alerts import Alert, AlertLevel
 from custom_components.nl_weather.KNMI.helpers import Coordinate, lonlat_to_pixel
 
-
 def _alert(level: AlertLevel) -> Alert:
     """Return a polygon covering the middle of the basemap."""
     now = datetime.now(UTC)
@@ -33,7 +32,6 @@ def _alert(level: AlertLevel) -> Alert:
         ],
     )
 
-
 def test_render_alerts_outputs_png_without_mutating_background() -> None:
     """Draw warning areas with a stable PNG content type."""
     background = Image.new("RGBA", (200, 200), (255, 255, 255, 255))
@@ -43,7 +41,6 @@ def test_render_alerts_outputs_png_without_mutating_background() -> None:
     with Image.open(BytesIO(result)) as rendered:
         x, y = lonlat_to_pixel(5.0, 52.0, WMS_BBOX_EPSG3857, rendered.size)
         assert rendered.getpixel((int(x), int(y))) != (255, 255, 255, 255)
-
 
 def test_render_alerts_markers_and_severity_order() -> None:
     """Draw markers and ensure higher severity overlays lower severity."""
@@ -56,8 +53,6 @@ def test_render_alerts_markers_and_severity_order() -> None:
     assert render_alerts(background, [red, yellow]) != render_alerts(
         background, [yellow, red]
     )
-
-
 
 def test_render_alerts_without_warnings_keeps_basemap_unchanged() -> None:
     """Return a valid unchanged image when no warning polygons are available."""
