@@ -56,3 +56,15 @@ def test_render_alerts_markers_and_severity_order() -> None:
     assert render_alerts(background, [red, yellow]) != render_alerts(
         background, [yellow, red]
     )
+
+
+
+def test_render_alerts_without_warnings_keeps_basemap_unchanged() -> None:
+    """Return a valid unchanged image when no warning polygons are available."""
+    background = Image.new("RGBA", (120, 80), (240, 240, 240, 255))
+
+    result = render_alerts(background, [])
+
+    with Image.open(BytesIO(result)) as rendered:
+        assert rendered.size == background.size
+        assert rendered.getpixel((60, 40)) == (240, 240, 240, 255)
