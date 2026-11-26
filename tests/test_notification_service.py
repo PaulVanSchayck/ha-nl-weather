@@ -276,3 +276,52 @@ async def test_handle_message_isolates_callback_failures() -> None:
 
     failing_callback.assert_awaited_once_with(event)
     successful_callback.assert_awaited_once_with(event)
+
+
+
+@pytest.mark.asyncio
+async def test_schedule_message_completes_without_leaking_task() -> None:
+    """Process a scheduled notification and leave no pending message task."""
+    service = NotificationService("test-token")
+    callback = AsyncMock()
+    service.set_callback(DATASET_OBSERVATIONS, "test-location", callback)
+    event = {"data": {"datasetName": DATASET_OBSERVATIONS}}
+    pending_before = asyncio.all_tasks()
+
+    service._schedule_message(json.dumps(event).encode())
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+
+    callback.assert_awaited_once_with(event)
+    assert asyncio.all_tasks() == pending_before
+
+
+@pytest.mark.asyncio
+async def test_run_paho_cleans_up_waiter_tasks() -> None:
+    """Cancel and await both Paho lifecycle tasks when shutdown is requested."""
+    with patch(
+        "custom_components.nl_weather.KNMI.notification_service.sys.platform",
+        "win32",
+    ):
+        service = NotificationService("test-token")
+    client = MagicMock()
+
+    async def connect_then_stop() -> None:
+        service._stopping.set()
+
+    with (
+        patch.object(service, "_create_paho_client", return_value=client),
+        patch.object(
+            service,
+            "_wait_for_paho_connection",
+            new_callable=AsyncMock,
+            side_effect=connect_then_stop,
+        ),
+    ):
+        await service._run_paho()
+
+    client.loop_start.assert_called_once_with()
+    client.loop_stop.assert_called_once_with()
+    pending_task_names = {task.get_name() for task in asyncio.all_tasks()}
+    assert "knmi_mqtt_paho_stop" not in pending_task_names
+    assert "knmi_mqtt_paho_connection_lost" not in pending_task_names
