@@ -132,3 +132,67 @@ def test_aiomqtt_token_rejection_detection() -> None:
     """Recognize MQTT authorization reason code 135 in broker errors."""
     assert NotificationService._is_token_rejection(MqttError("reason code 135"))
     assert not NotificationService._is_token_rejection(MqttError("connection reset"))
+
+
+
+@pytest.mark.asyncio
+async def test_paho_disconnect_signals_connection_loss() -> None:
+    """Wake the service loop when an established Paho connection drops."""
+    from custom_components.nl_weather.KNMI.notification_service import ConnectionState
+
+    service = NotificationService("test-token")
+    service._paho_state = ConnectionState.CONNECTED
+
+    service._handle_paho_disconnect()
+
+    assert service._paho_state is ConnectionState.DISCONNECTED
+    assert service._connection_lost.is_set()
+
+
+@pytest.mark.asyncio
+async def test_paho_disconnect_releases_client_resources() -> None:
+    """Clear Paho client references and stop its network thread on shutdown."""
+    with patch(
+        "custom_components.nl_weather.KNMI.notification_service.sys.platform",
+        "win32",
+    ):
+        service = NotificationService("test-token")
+    client = MagicMock()
+    service._paho_client = client
+    service._client = client
+
+    await service.disconnect()
+
+    client.disconnect.assert_called_once_with()
+    assert service._paho_client is None
+    assert service._client is None
+    assert service._stopping.is_set()
+
+
+@pytest.mark.asyncio
+async def test_paho_connection_wait_times_out() -> None:
+    """Report a bounded connection timeout when no CONNACK arrives."""
+    from custom_components.nl_weather.KNMI import notification_service
+
+    service = NotificationService("test-token")
+    with (
+        patch.object(notification_service, "CONNECT_TIMEOUT", 0.001),
+        pytest.raises(MqttError, match="timed out waiting for CONNACK"),
+    ):
+        await service._wait_for_paho_connection()
+
+
+@pytest.mark.asyncio
+async def test_paho_subscribe_failure_is_reported() -> None:
+    """Surface a broker subscription failure through the connection event."""
+    service = NotificationService("test-token")
+    client = MagicMock()
+    client.subscribe.return_value = (1, 0)
+    reason_code = MagicMock()
+    reason_code.is_failure = False
+
+    service._on_paho_connect(client, None, MagicMock(), reason_code, None)
+    await asyncio.sleep(0)
+
+    assert service._connection_ready.is_set()
+    assert isinstance(service._connection_error, MqttError)
