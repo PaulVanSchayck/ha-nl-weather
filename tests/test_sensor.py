@@ -280,7 +280,7 @@ def test_local_alert_sensors_are_unavailable_without_coordinator_data() -> None:
     assert sensor.extra_state_attributes is None
 
 
-@pytest.mark.parametrize("coordinator_data", [None, {}, [None]])
+@pytest.mark.parametrize("coordinator_data", [{}, [None]])
 def test_local_alert_sensors_handle_malformed_coordinator_data(
     coordinator_data: object,
 ) -> None:
