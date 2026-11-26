@@ -3,6 +3,8 @@
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
+import pytest
+
 from custom_components.nl_weather.binary_sensor import NLWeatherAlertActiveSensor
 from custom_components.nl_weather.const import Alert
 from custom_components.nl_weather.KNMI.alerts import Alert as NationwideAlert
@@ -151,5 +153,17 @@ def test_local_alert_active_sensor_is_off_when_coordinator_data_unavailable() ->
     """Return off when the nationwide warning coordinator has no data."""
     coordinator = MagicMock()
     coordinator.data = None
+
+    assert _local_alert_entity(coordinator).is_on is False
+
+
+
+@pytest.mark.parametrize("coordinator_data", [None, {}, [None]])
+def test_local_alert_active_sensor_handles_malformed_coordinator_data(
+    coordinator_data: object,
+) -> None:
+    """Return off rather than raising for unavailable or malformed warning data."""
+    coordinator = MagicMock()
+    coordinator.data = coordinator_data
 
     assert _local_alert_entity(coordinator).is_on is False
