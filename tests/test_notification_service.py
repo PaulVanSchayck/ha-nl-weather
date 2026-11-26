@@ -261,7 +261,6 @@ async def test_run_reconnects_after_mqtt_error_and_stops_cleanly() -> None:
     assert service._stopping.is_set()
 
 
-
 @pytest.mark.asyncio
 async def test_handle_message_isolates_callback_failures() -> None:
     """Run every registered callback even when another callback raises."""
