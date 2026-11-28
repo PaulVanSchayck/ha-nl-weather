@@ -18,7 +18,6 @@ from homeassistant.const import (
     CONF_LONGITUDE,
     CONF_MODE,
     CONF_NAME,
-    CONF_REGION,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
@@ -40,7 +39,6 @@ from homeassistant.helpers.selector import (
 
 from . import EDR, WMS
 from .const import (
-    ALERT_REGIONS,
     CONF_CARTO_API_KEY,
     CONF_CENTER_LATITUDE,
     CONF_CENTER_LONGITUDE,
@@ -395,18 +393,6 @@ class LocationSubentryFlowHandler(ConfigSubentryFlow):
                     vol.Required(
                         CONF_LONGITUDE, default=self.hass.config.longitude
                     ): cv.longitude,
-                    # TODO: Find region based on location
-                    vol.Required(CONF_REGION): selector(
-                        {
-                            "select": {
-                                "options": [
-                                    {"value": k, "label": v}
-                                    for k, v in ALERT_REGIONS.items()
-                                ],
-                                "mode": "dropdown",
-                            }
-                        }
-                    ),
                     vol.Required(CONF_MODE): vol.In([m.value for m in StationMode]),
                 }
             ),

@@ -44,7 +44,7 @@ from .const import (
     RadarStyle,
 )
 from .coordinator import NLWeatherConfigEntry
-from .KNMI.helpers import Coordinate, epsg4325_to_epsg3857
+from .KNMI.helpers import Coordinate, add_location_markers
 from .KNMI.osm import (
     OSMTileManager,
     calculate_auto_zoom_and_bbox,
@@ -149,23 +149,9 @@ class PrecipitationRadarCam(Camera):
     def _add_locations_markers(
         self, img: Image.Image, bbox: tuple[float, float, float, float]
     ) -> Image.Image:
-        draw = ImageDraw.Draw(img)
-        xmin, ymin, xmax, ymax = bbox
-        width, height = img.size
-        for location in self._locations:
-            # Convert from lat lon in degrees to x y in meters
-            x, y = epsg4325_to_epsg3857(location)
-            if not (xmin <= x <= xmax and ymin <= y <= ymax):
-                continue
-            # Calculate position on image.
-            x_img = (x - xmin) / (xmax - xmin) * width
-            y_img = (ymax - y) / (ymax - ymin) * height
-
-            draw.circle(
-                (x_img, y_img), 10, None, self._radar_style.marker_color, width=2
-            )
-
-        return img
+        return add_location_markers(
+            img, self._locations, self._radar_style.marker_color, bbox
+        )
 
     def _load_static_background(self) -> Image.Image:
         path = os.path.join(

@@ -27,7 +27,7 @@ from ..const import (
 from .helpers import (
     EARTH_RADIUS_METERS,
     Coordinate,
-    epsg4325_to_epsg3857,
+    epsg4326_to_epsg3857,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -95,13 +95,13 @@ def calculate_auto_zoom_and_bbox(
     min_span_meters: float = 25000.0,
 ) -> tuple[int, tuple[float, float, float, float]]:
     """Calculate the optimal integer zoom level and EPSG:3857 BBOX to encompass all zones with margin."""
-    cx, cy = epsg4325_to_epsg3857(center)
+    cx, cy = epsg4326_to_epsg3857(center)
 
     max_dx = 0.0
     max_dy = 0.0
 
     for lat, lon, radius in zones:
-        x, y = epsg4325_to_epsg3857(Coordinate(lat=lat, lon=lon))
+        x, y = epsg4326_to_epsg3857(Coordinate(lat=lat, lon=lon))
         dx = abs(x - cx) + radius
         dy = abs(y - cy) + radius
         max_dx = max(max_dx, dx)
@@ -137,7 +137,7 @@ def calculate_bbox_for_zoom(
     image_size: tuple[int, int] = (1024, 1024),
 ) -> tuple[float, float, float, float]:
     """Calculate the EPSG:3857 BBOX for a fixed center and zoom level."""
-    cx, cy = epsg4325_to_epsg3857(center)
+    cx, cy = epsg4326_to_epsg3857(center)
     width, height = image_size
 
     res = WORLD_CIRCUMFERENCE / (TILE_SIZE * (2**zoom))

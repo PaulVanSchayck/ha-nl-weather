@@ -1,5 +1,10 @@
 {
   "entity": {
+    "image": {
+      "weather_alert_map": {
+        "name": "Warnings map"
+      }
+    },
     "camera": {
       "precipitation_radar": {
         "name": "Precipitation Radar"
@@ -15,16 +20,16 @@
     },
     "sensor": {
       "weather_alert": {
-        "name": "Alerts",
+        "name": "Warnings",
         "state": {
           "none": "None"
         }
       },
       "weather_alert_count": {
-        "name": "Alert count"
+        "name": "Warnings count"
       },
       "weather_alert_level": {
-        "name": "Alert level",
+        "name": "Warning level",
         "state": {
           "orange": "Orange",
           "yellow": "Yellow",
@@ -124,14 +129,11 @@
       },
       "uv_index_today": {
         "name": "UV index today"
-      },
-      "alert_region": {
-        "name": "Alert region"
       }
     },
     "binary_sensor": {
       "weather_alert_active": {
-        "name": "Alert active"
+        "name": "Warning active"
       },
       "precipitation_nowcast": {
         "name": "Precipitation forecasted"
@@ -175,7 +177,6 @@
             "name": "Name",
             "latitude": "Latitude",
             "longitude": "Longitude",
-            "region": "Region for which you receive weather alerts",
             "mode": "Weather observations can be gathered in two different modes"
           }
         },

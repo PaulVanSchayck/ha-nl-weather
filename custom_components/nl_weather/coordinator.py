@@ -9,17 +9,19 @@ from random import randint
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
-from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME, CONF_REGION
+from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import utcnow
 
 from .const import (
+    APP_ALERTS_API_SCAN_INTERVAL,
     APP_FORECAST_API_SCAN_INTERVAL,
     APP_NOWCAST_API_SCAN_INTERVAL,
     CONF_STATION,
     PARAMETER_ATTRIBUTE_MAP,
 )
+from .KNMI.alerts import Alert, parse_alerts
 from .KNMI.app import App, AppException
 from .KNMI.edr import EDR, NotFoundError, ServerError
 from .KNMI.grid_definitions import GridDefinitions, GridManager
@@ -45,6 +47,7 @@ class RuntimeData:
     app_coordinators: dict[str, NLWeatherUpdateCoordinator]
     nowcast_coordinators: dict[str, NLWeatherNowcastCoordinator]
     edr_coordinators: dict[str, NLWeatherEDRCoordinator]
+    alerts_coordinator: NLWeatherAlertsCoordinator | None = None
 
 
 type NLWeatherConfigEntry = ConfigEntry[RuntimeData]
@@ -72,7 +75,6 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             subentry.data[CONF_LATITUDE],
             subentry.data[CONF_LONGITUDE],
         )
-        self._region = subentry.data[CONF_REGION]
 
     async def _async_setup(self) -> None:
         # Calculate grid cells for this location
@@ -84,12 +86,12 @@ class NLWeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_update_data(self) -> dict[str, Any]:
         """Obtain the latest data from KNMI App API."""
         try:
-            summary = await self._api.weather(self._forecast_cell, self._region)
+            summary = await self._api.weather(self._forecast_cell)
 
             # Fetch all individual days
             for daily_forecast in summary["daily"]["forecast"]:
                 day_detail = await self._api.weather_detail(
-                    self._forecast_cell, self._region, daily_forecast["date"]
+                    self._forecast_cell, daily_forecast["date"]
                 )
                 # Augment the summary data with daily data
                 daily_forecast["precipitation"]["chance"] = day_detail[
@@ -134,7 +136,6 @@ class NLWeatherNowcastCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
             subentry.data[CONF_LATITUDE],
             subentry.data[CONF_LONGITUDE],
         )
-        self._region = subentry.data[CONF_REGION]
 
     async def _async_setup(self) -> None:
         grid_manager = GridManager.default()
@@ -165,6 +166,28 @@ class NLWeatherNowcastCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
             raise UpdateFailed(
                 f"Error while retrieving precipitation nowcast: {err}"
             ) from err
+
+
+class NLWeatherAlertsCoordinator(DataUpdateCoordinator[list[Alert]]):
+    """Coordinator for nationwide weather alerts."""
+
+    def __init__(self, hass: HomeAssistant, entry: NLWeatherConfigEntry) -> None:
+        super().__init__(
+            hass,
+            _LOGGER,
+            config_entry=entry,
+            name=f"NL Weather KNMI App API nationwide alerts coordinator for {entry.title}",
+            always_update=True,
+            update_interval=APP_ALERTS_API_SCAN_INTERVAL,
+        )
+        self._api = entry.runtime_data.app
+
+    async def _async_update_data(self) -> list[Alert]:
+        try:
+            snapshot = await self._api.alerts_nationwide()
+        except AppException as err:
+            raise UpdateFailed(f"Error while retrieving alerts: {err}") from err
+        return parse_alerts(snapshot)
 
 
 class NLWeatherEDRCoordinator(DataUpdateCoordinator):
